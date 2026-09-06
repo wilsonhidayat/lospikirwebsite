@@ -8,7 +8,8 @@
       "body": "Half a day, one or two locations, timed to the light. A full edited gallery, delivered privately within two weeks.",
       "specs": "2–3 hours · 1–2 locations · full edited gallery · delivered within two weeks",
       "cta": "Enquire",
-      "href": "#enquire"
+      "href": "#enquire",
+      "ask": false
     },
     {
       "id": "graduation",
@@ -18,7 +19,8 @@
       "body": "Campus or city at golden hour. Family and group frames included, delivered within ten days.",
       "specs": "1–2 hours · campus or city · family frames included · delivered within ten days",
       "cta": "Enquire",
-      "href": "#enquire"
+      "href": "#enquire",
+      "ask": false
     },
     {
       "id": "portrait",
@@ -28,7 +30,8 @@
       "body": "Forest or city light, studio-quiet. Web crops and print files, commercial licence on request.",
       "specs": "1–2 hours · outfit changes welcome · web & print files · licence on request",
       "cta": "Enquire",
-      "href": "#enquire"
+      "href": "#enquire",
+      "ask": false
     },
     {
       "id": "events",
@@ -38,18 +41,19 @@
       "body": "Birthdays, receptions, launches and company evenings — covered candidly, quoted by the hour.",
       "specs": "Birthdays, receptions, launches — covered candidly, quoted by the hour",
       "cta": "Request a quote",
-      "href": "#enquire"
+      "href": "#enquire",
+      "ask": false
     },
     {
       "id": "bespoke",
-      "ask": true,
       "title": "Something\nelse?",
       "tone": "warm",
       "image": null,
       "body": "Editorial, family, travel, product — this list is a starting point, not a menu. Tell me what you have in mind and I'll build the session around it.",
       "specs": "Editorial, family, campaigns, travel — tell me what you have in mind",
       "cta": "Let's talk",
-      "href": "#enquire"
+      "href": "#enquire",
+      "ask": true
     }
   ]
 }
