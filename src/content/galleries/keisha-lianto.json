@@ -3,7 +3,7 @@
   "caption": "Graduation",
   "date": "2024-05-11",
   "tone": "bone",
-  "cover": "/photos/keisha-lianto-02.jpg",
+  "cover": "/photos/keisha-lianto-01.jpg",
   "intro": "",
   "photos": [
     {
@@ -12,6 +12,50 @@
     },
     {
       "src": "/photos/keisha-lianto-02.jpg",
+      "alt": ""
+    },
+    {
+      "src": "/photos/keisha-lianto-03.jpg",
+      "alt": ""
+    },
+    {
+      "src": "/photos/keisha-lianto-04.jpg",
+      "alt": ""
+    },
+    {
+      "src": "/photos/keisha-lianto-05.jpg",
+      "alt": ""
+    },
+    {
+      "src": "/photos/keisha-lianto-06.jpg",
+      "alt": ""
+    },
+    {
+      "src": "/photos/keisha-lianto-07.jpg",
+      "alt": ""
+    },
+    {
+      "src": "/photos/keisha-lianto-08.jpg",
+      "alt": ""
+    },
+    {
+      "src": "/photos/keisha-lianto-09.jpg",
+      "alt": ""
+    },
+    {
+      "src": "/photos/keisha-lianto-10.jpg",
+      "alt": ""
+    },
+    {
+      "src": "/photos/keisha-lianto-11.jpg",
+      "alt": ""
+    },
+    {
+      "src": "/photos/keisha-lianto-12.jpg",
+      "alt": ""
+    },
+    {
+      "src": "/photos/keisha-lianto-13.jpg",
       "alt": ""
     }
   ]

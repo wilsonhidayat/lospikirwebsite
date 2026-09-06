@@ -10,9 +10,12 @@ import '../styles/nav.css'
  * else — the brochure PDF, external links — stays a plain anchor.
  */
 function NavLink({ href, className, children }) {
-  if (href.startsWith('#')) {
+  const isHash = href.startsWith('#')
+  // an in-app route: "/about", "/#work" — but not a file like "/brochure/x.pdf"
+  const isRoute = isHash || (href.startsWith('/') && !/\.[a-z0-9]+$/i.test(href))
+  if (isRoute) {
     return (
-      <Link to={`/${href}`} className={className}>
+      <Link to={isHash ? `/${href}` : href} className={className}>
         {children}
       </Link>
     )

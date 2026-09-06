@@ -25,7 +25,7 @@
     },
     {
       "label": "About",
-      "href": "#about"
+      "href": "/about"
     },
     {
       "label": "Brochure",
@@ -39,6 +39,14 @@
     "image": "/photos/mieri-fathi-08.jpg"
   },
   "statement": "Most people arrive a little nervous. So we walk first, talk first, and start shooting once you have forgotten the camera is there — which is usually about ten minutes in.",
+  "about": {
+    "eyebrow": "About",
+    "headline": "Behind\nthe camera",
+    "portrait": null,
+    "lead": "I'm Wilson — an Indonesian photographer based in the Netherlands.",
+    "body": "Most people arrive a little nervous, so we don't rush. A session starts with a walk and a conversation, and the photographs come once the camera has stopped being the point — usually about ten minutes in.\n\nWhat I look for is the version of you your friends would recognise: a real laugh, a quiet moment between two people, the way someone stands when they've forgotten to pose. Portraits, couples, graduations, families, the occasional company evening — and I travel for the ones worth travelling for.\n\nIf that's the kind of picture you want, tell me the date and roughly where you had in mind.",
+    "meta": "Based in the Netherlands · Available across Europe · KVK 91722594"
+  },
   "investment": {
     "eyebrow": "Investment",
     "headline": "Pricing lives in\nthe brochure",

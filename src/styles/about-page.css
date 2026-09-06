@@ -1,0 +1,101 @@
+/* About page. Editorial and dark, matching the gallery pages. */
+
+.about {
+  max-width: 1180px;
+  margin: 0 auto;
+  padding: 132px var(--pad) clamp(90px, 13vw, 170px);
+}
+
+.about__head {
+  max-width: 900px;
+  margin-bottom: clamp(44px, 7vw, 84px);
+}
+
+.about__eyebrow {
+  color: var(--dim);
+  margin-bottom: 16px;
+}
+
+.about__title {
+  font-size: clamp(38px, 7vw, 96px);
+  letter-spacing: -0.032em;
+}
+
+.about__grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: clamp(36px, 6vw, 80px);
+  align-items: start;
+}
+
+.about__grid:has(.about__portrait) {
+  grid-template-columns: 0.9fr 1.1fr;
+}
+
+.about__portrait {
+  border-radius: var(--r-photo);
+  overflow: hidden;
+  background: #1a1712;
+}
+
+.about__portrait img {
+  width: 100%;
+  display: block;
+}
+
+.about__text {
+  max-width: 560px;
+}
+
+.about__lead {
+  margin: 0 0 22px;
+  font-size: clamp(20px, 2.6vw, 28px);
+  line-height: 1.45;
+  letter-spacing: -0.02em;
+  color: var(--bone);
+}
+
+.about__para {
+  margin: 0 0 18px;
+  font-size: 16px;
+  line-height: 1.8;
+  color: var(--dim-2);
+}
+
+.about__meta {
+  margin: 30px 0 0;
+  color: var(--dim);
+}
+
+.about__links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px 20px;
+  margin-top: 14px;
+  color: var(--dim);
+}
+
+.about__links a {
+  color: var(--dim-2);
+  transition: color 0.3s;
+}
+
+.about__links a:hover {
+  color: var(--bone);
+}
+
+.about__cta {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-top: 40px;
+}
+
+@media (max-width: 820px) {
+  .about {
+    padding-top: 104px;
+  }
+  .about__grid:has(.about__portrait) {
+    grid-template-columns: 1fr;
+  }
+}

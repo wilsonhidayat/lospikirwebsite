@@ -68,7 +68,17 @@ collections:
               - { name: headline, label: "Headline", widget: text, hint: "Press Enter for each line break." }
               - { name: headlineLight, label: "Final line (thin weight)", widget: string }
               - { name: image, label: "Background photo", widget: image, required: false }
-          - { name: statement, label: "About paragraph", widget: text }
+          - { name: statement, label: "Home-page 'about' line (the fading paragraph)", widget: text }
+          - name: about
+            label: "About page (/about)"
+            widget: object
+            fields:
+              - { name: eyebrow, label: "Eyebrow", widget: string }
+              - { name: headline, label: "Headline", widget: text, hint: "One line break per visual line." }
+              - { name: portrait, label: "Portrait photo (optional)", widget: image, required: false }
+              - { name: lead, label: "Opening line (larger)", widget: text }
+              - { name: body, label: "Body", widget: text, hint: "Blank line between paragraphs." }
+              - { name: meta, label: "Small line at the end", widget: string, required: false }
           - name: investment
             label: "Investment / pricing section"
             widget: object
