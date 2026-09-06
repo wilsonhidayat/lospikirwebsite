@@ -1,0 +1,61 @@
+/* The work, travelling sideways while the section is pinned. */
+
+.gallery {
+  position: relative;
+  background: var(--ink);
+}
+
+.gallery__stage {
+  position: sticky;
+  top: 0;
+  height: 100svh;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+}
+
+.gallery__head {
+  position: absolute;
+  left: var(--pad);
+  top: 104px;
+  z-index: 3;
+  pointer-events: none;
+}
+
+.gallery__count {
+  color: var(--dim);
+  margin-bottom: 12px;
+}
+
+.gallery__title {
+  font-size: clamp(28px, 5vw, 72px);
+}
+
+.gallery__track {
+  display: flex;
+  gap: 18px;
+  padding: 0 var(--pad);
+  will-change: transform;
+}
+
+.gallery__slide {
+  flex: 0 0 auto;
+  width: min(36vw, 520px);
+  min-width: 290px;
+}
+
+.gallery__slide .photo {
+  aspect-ratio: 4 / 5;
+}
+
+.gallery__meta {
+  display: flex;
+  justify-content: space-between;
+  padding: 12px 4px 0;
+  color: var(--dim);
+}
+
+@media (max-width: 820px) {
+  .gallery__slide { width: 74vw; }
+  .gallery__head { top: 88px; }
+}

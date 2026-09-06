@@ -1,0 +1,158 @@
+/* Packages — the one light panel on the page, and the only place
+   that uses soft cards and shadows. */
+
+.packages {
+  padding: 0;
+}
+
+.packages__panel {
+  background: var(--paper);
+  color: var(--dark);
+  border-radius: var(--r-panel);
+  margin: 0 var(--pad);
+  padding: clamp(72px, 8vw, 124px) clamp(24px, 4vw, 60px);
+}
+
+.packages__head {
+  max-width: 900px;
+  margin: 0 auto;
+  text-align: center;
+}
+
+.packages__eyebrow {
+  color: var(--muted);
+  margin-bottom: 14px;
+}
+
+.packages__title {
+  font-size: clamp(30px, 5vw, 64px);
+  letter-spacing: -0.032em;
+}
+
+/* Wraps on its own — three, four or six entries all lay out sensibly. */
+.packages__grid {
+  max-width: 1180px;
+  margin: clamp(46px, 5vw, 64px) auto 0;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 20px;
+}
+
+.card {
+  flex: 1 1 300px;
+  max-width: 373px;
+  display: flex;
+  flex-direction: column;
+  background: var(--card);
+  border-radius: var(--r-card);
+  overflow: hidden;
+  box-shadow: 0 1px 2px rgba(17, 16, 19, 0.05), 0 12px 32px rgba(17, 16, 19, 0.07);
+}
+
+.card__shot {
+  position: relative;
+  aspect-ratio: 4 / 3;
+  overflow: hidden;
+}
+
+.card__shot span {
+  position: absolute;
+  inset: 0;
+  display: block;
+  background-size: cover;
+  background-position: center;
+  transition: transform 1s var(--ease);
+}
+
+.card:hover .card__shot span {
+  transform: scale(1.05);
+}
+
+.card__caption {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 14px;
+  text-align: center;
+  font-size: 9px;
+  letter-spacing: 0.24em;
+  text-transform: uppercase;
+  color: rgba(243, 241, 236, 0.42);
+}
+
+.card__body {
+  padding: 28px 28px 30px;
+  display: flex;
+  flex-direction: column;
+  gap: 11px;
+  flex: 1;
+}
+
+.card__index {
+  color: var(--muted);
+}
+
+.card__title {
+  font-size: clamp(19px, 2.1vw, 26px);
+  letter-spacing: -0.025em;
+  line-height: 1.02;
+}
+
+.card__text {
+  margin: 0;
+  font-size: 14px;
+  line-height: 1.7;
+  color: var(--body-on-light);
+}
+
+.card__go {
+  margin-top: auto;
+  padding-top: 8px;
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 10px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  font-weight: 500;
+  color: var(--dark);
+}
+
+.card__arrow {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  border: 1px solid var(--line-light);
+  display: grid;
+  place-items: center;
+  font-style: normal;
+  font-size: 12px;
+  transition: background 0.4s, color 0.4s, transform 0.4s, border-color 0.4s;
+}
+
+.card:hover .card__arrow {
+  background: var(--dark);
+  color: var(--bone);
+  border-color: var(--dark);
+  transform: translateX(3px);
+}
+
+/* The open-ended card — signals the list is a starting point, not a menu. */
+.card--ask {
+  background: transparent;
+  border: 1px dashed rgba(17, 16, 19, 0.24);
+  box-shadow: none;
+  justify-content: center;
+}
+
+.card--ask .card__body {
+  padding: 34px 28px;
+}
+
+@media (max-width: 820px) {
+  .card {
+    flex: 1 1 100%;
+    max-width: none;
+  }
+}

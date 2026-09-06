@@ -1,0 +1,157 @@
+# Sveltia CMS — https://github.com/sveltia/sveltia-cms
+# Editing UI for everything in src/data/. Saving here commits to GitHub,
+# and Netlify rebuilds the site automatically.
+
+backend:
+  name: github
+  repo: wilsonhidayat/lospikirwebsite
+  branch: main
+  # Login uses Sveltia's hosted GitHub OAuth — nothing to deploy.
+  # If you ever self-host the auth endpoint, add:  base_url: https://your-auth-url
+
+# Lets you run the CMS against local files for testing:
+#   npx @sveltia/cms-proxy-server   (in one terminal)
+#   npm run dev                     (in another) → open http://localhost:5173/admin/
+local_backend: true
+
+media_folder: "public/photos"
+public_folder: "/photos"
+
+collections:
+  # ----------------------------------------------------------------------
+  - name: pages
+    label: "Site & page text"
+    delete: false
+    editor:
+      preview: false
+    files:
+      - name: site
+        label: "Everything on the page"
+        file: "src/data/site.json"
+        format: json
+        fields:
+          - { name: name, label: "Business name", widget: string }
+          - { name: photographer, label: "Photographer name", widget: string }
+          - { name: kvk, label: "KVK number", widget: string }
+          - { name: ctaLabel, label: "Main button label", widget: string }
+          - { name: ctaHref, label: "Main button link", widget: string, hint: "Usually #enquire" }
+          - { name: brochureLabel, label: "Brochure button label", widget: string }
+          - { name: brochureHref, label: "Brochure link", widget: string, hint: "/brochure/lospikir-guide.pdf" }
+          - name: contact
+            label: "Contact & links"
+            widget: object
+            fields:
+              - { name: email, label: "Email", widget: string }
+              - { name: whatsapp, label: "WhatsApp link", widget: string }
+              - { name: instagram, label: "Instagram link", widget: string, required: false }
+              - { name: linkedin, label: "LinkedIn link", widget: string, required: false }
+              - { name: unsplash, label: "Unsplash link", widget: string, required: false }
+              - { name: clientGallery, label: "Client gallery (Picflow) link", widget: string, required: false }
+          - name: nav
+            label: "Navigation links"
+            widget: list
+            label_singular: "Link"
+            summary: "{{fields.label}}"
+            fields:
+              - { name: label, label: "Label", widget: string }
+              - { name: href, label: "Link", widget: string }
+          - name: hero
+            label: "Hero (top of the page)"
+            widget: object
+            fields:
+              - { name: eyebrow, label: "Small line above the headline", widget: string }
+              - { name: headline, label: "Headline", widget: text, hint: "Press Enter for each line break." }
+              - { name: headlineLight, label: "Final line (thin weight)", widget: string }
+          - { name: statement, label: "About paragraph", widget: text }
+          - name: investment
+            label: "Investment / pricing section"
+            widget: object
+            fields:
+              - { name: eyebrow, label: "Eyebrow", widget: string }
+              - { name: headline, label: "Headline", widget: text, hint: "One line break per visual line." }
+              - { name: body, label: "Paragraph", widget: text }
+          - name: enquire
+            label: "Enquiry form section"
+            widget: object
+            fields:
+              - { name: eyebrow, label: "Eyebrow", widget: string }
+              - { name: headline, label: "Headline", widget: text }
+              - { name: body, label: "Paragraph", widget: text }
+              - { name: success, label: "Thank-you message (after sending)", widget: text }
+          - name: closing
+            label: "Closing section"
+            widget: object
+            fields:
+              - { name: headline, label: "Headline", widget: text }
+
+  # ----------------------------------------------------------------------
+  - name: packages
+    label: "Packages"
+    editor:
+      preview: false
+    files:
+      - name: packages
+        label: "Packages"
+        file: "src/data/packages.json"
+        format: json
+        fields:
+          - name: items
+            label: "Packages"
+            label_singular: "Package"
+            widget: list
+            summary: "{{fields.title}}"
+            fields:
+              - { name: id, label: "ID (unique, no spaces)", widget: string }
+              - { name: title, label: "Title", widget: text, hint: "Line break where the title should wrap." }
+              - { name: tone, label: "Placeholder colour", widget: select, options: [warm, green, bone, night, dusk], default: warm }
+              - { name: image, label: "Photo", widget: image, required: false, hint: "Replaces the placeholder colour." }
+              - { name: body, label: "Description", widget: text }
+              - { name: specs, label: "One-line summary (shown in the pricing list)", widget: string }
+              - { name: cta, label: "Button label", widget: string, default: "Enquire" }
+              - { name: href, label: "Button link", widget: string, default: "#enquire" }
+              - { name: ask, label: "Open-ended card (dashed outline, no photo)", widget: boolean, required: false, default: false }
+
+  # ----------------------------------------------------------------------
+  - name: galleries
+    label: "Gallery"
+    editor:
+      preview: false
+    files:
+      - name: galleries
+        label: "Gallery frames"
+        file: "src/data/galleries.json"
+        format: json
+        fields:
+          - name: items
+            label: "Frames"
+            label_singular: "Frame"
+            widget: list
+            summary: "{{fields.caption}} — {{fields.client}}"
+            fields:
+              - { name: id, label: "ID (unique, no spaces)", widget: string }
+              - { name: client, label: "Client / name under the frame", widget: string, required: false }
+              - { name: caption, label: "Small label across the frame", widget: string }
+              - { name: tone, label: "Placeholder colour", widget: select, options: [warm, green, bone, night, dusk], default: warm }
+              - { name: image, label: "Photo", widget: image, required: false }
+              - { name: href, label: "Link", widget: string, default: "#work" }
+
+  # ----------------------------------------------------------------------
+  - name: testimonials
+    label: "Testimonials"
+    editor:
+      preview: false
+    files:
+      - name: testimonials
+        label: "Client quotes"
+        file: "src/data/testimonials.json"
+        format: json
+        fields:
+          - name: items
+            label: "Quotes"
+            label_singular: "Quote"
+            widget: list
+            summary: "{{fields.name}}"
+            fields:
+              - { name: quote, label: "What they said (no quote marks needed)", widget: text }
+              - { name: name, label: "Who said it", widget: string }
+              - { name: context, label: "Session / place (small, optional)", widget: string, required: false }

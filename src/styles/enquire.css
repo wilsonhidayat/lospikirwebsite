@@ -1,0 +1,159 @@
+/* Enquiry form. Editorial half — square, underlined fields, no soft cards. */
+
+.enquire {
+  border-top: 1px solid var(--line);
+}
+
+.enquire__grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: clamp(40px, 7vw, 110px);
+  align-items: start;
+}
+
+.enquire__eyebrow {
+  color: var(--dim);
+  margin-bottom: 14px;
+}
+
+.enquire__title {
+  font-size: clamp(30px, 5vw, 64px);
+  letter-spacing: -0.032em;
+}
+
+.enquire__body {
+  max-width: 440px;
+  margin: 24px 0 0;
+  font-size: 16px;
+  line-height: 1.75;
+  color: var(--dim-2);
+}
+
+.enquire__alt {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 18px;
+  margin-top: 30px;
+  color: var(--dim);
+}
+
+.enquire__alt a {
+  color: var(--dim-2);
+}
+
+.enquire__alt a:hover {
+  color: var(--bone);
+}
+
+/* --- form --- */
+
+.enquire__form {
+  display: flex;
+  flex-direction: column;
+  gap: 26px;
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+}
+
+.field--split {
+  flex-direction: row;
+  gap: 22px;
+}
+
+.field--split .field {
+  flex: 1;
+}
+
+.field__label {
+  color: var(--dim);
+}
+
+.field__input {
+  appearance: none;
+  background: transparent;
+  border: 0;
+  border-bottom: 1px solid var(--line);
+  border-radius: 0;
+  padding: 8px 0;
+  font: inherit;
+  font-size: 15px;
+  color: var(--bone);
+  transition: border-color 0.35s;
+}
+
+.field__input::placeholder {
+  color: var(--dim);
+}
+
+.field__input:focus {
+  outline: none;
+  border-color: var(--bone);
+}
+
+select.field__input {
+  cursor: pointer;
+}
+
+select.field__input option {
+  background: var(--ink-2);
+  color: var(--bone);
+}
+
+textarea.field__input {
+  resize: vertical;
+  min-height: 96px;
+  line-height: 1.6;
+}
+
+.enquire__submit {
+  align-self: flex-start;
+  margin-top: 4px;
+}
+
+.enquire__submit:hover:not(:disabled) {
+  background: transparent;
+  color: var(--bone);
+}
+
+.enquire__submit:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+.enquire__success {
+  font-size: clamp(18px, 2.4vw, 26px);
+  line-height: 1.5;
+  letter-spacing: -0.015em;
+  color: var(--bone);
+  max-width: 420px;
+}
+
+.enquire__error {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.6;
+  color: #e7b3a3;
+}
+
+/* Honeypot — visually gone, still in the tab order for bots, not humans */
+.enquire__hp {
+  position: absolute;
+  left: -9999px;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+}
+
+@media (max-width: 820px) {
+  .enquire__grid {
+    grid-template-columns: 1fr;
+  }
+  .field--split {
+    flex-direction: column;
+    gap: 26px;
+  }
+}

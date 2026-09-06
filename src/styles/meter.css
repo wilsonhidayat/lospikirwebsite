@@ -1,0 +1,61 @@
+/* Scroll position, read as a tick scale rather than a bare number. */
+
+.meter {
+  position: fixed;
+  z-index: 61;
+  left: var(--pad);
+  bottom: 26px;
+  display: flex;
+  align-items: flex-end;
+  gap: 14px;
+  font-size: 10px;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--dim);
+  mix-blend-mode: difference;
+  pointer-events: none;
+}
+
+.meter__label {
+  padding-bottom: 1px;
+}
+
+.meter__ticks {
+  display: flex;
+  align-items: flex-end;
+  gap: 6px;
+  height: 26px;
+}
+
+.meter__tick {
+  display: block;
+  width: 2px;
+  height: 9px;
+  background: var(--bone);
+  opacity: 0.3;
+  transition: height 0.45s var(--ease), opacity 0.45s var(--ease);
+}
+
+.meter__tick--on {
+  height: 26px;
+  opacity: 1;
+}
+
+.meter__tick--edge {
+  height: 17px;
+  opacity: 0.7;
+}
+
+.meter__value {
+  color: var(--bone);
+  font-variant-numeric: tabular-nums;
+  font-size: 15px;
+  line-height: 1;
+  font-weight: 500;
+}
+
+@media (max-width: 820px) {
+  .meter__label {
+    display: none;
+  }
+}

@@ -1,0 +1,156 @@
+/* ---------------------------------------------------------------
+   Reset, typography scale and the shared primitives
+   (labels, buttons, photo blocks) used across components.
+   --------------------------------------------------------------- */
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html {
+  background: var(--ink);
+}
+
+body {
+  margin: 0;
+  background: var(--ink);
+  color: var(--bone);
+  font-family: var(--font);
+  font-weight: 400;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  overflow-x: hidden;
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+}
+
+img {
+  max-width: 100%;
+  display: block;
+}
+
+::selection {
+  background: var(--bone);
+  color: var(--ink);
+}
+
+:focus-visible {
+  outline: 2px solid var(--bone);
+  outline-offset: 3px;
+}
+
+/* --- type ------------------------------------------------------ */
+
+.display {
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: -0.035em;
+  line-height: 0.94;
+  margin: 0;
+}
+
+.display--light {
+  font-weight: 200;
+  letter-spacing: -0.025em;
+}
+
+.label {
+  font-size: 10px;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  font-weight: 500;
+  margin: 0;
+}
+
+.section {
+  padding: var(--section-y) var(--pad);
+}
+
+.wrap {
+  max-width: 1180px;
+  margin: 0 auto;
+}
+
+/* --- buttons --------------------------------------------------- */
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 52px;
+  padding: 0 30px;
+  font-size: 11px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  font-weight: 500;
+  background: var(--bone);
+  color: var(--ink);
+  border: 1px solid var(--bone);
+  cursor: pointer;
+  transition: background 0.35s, color 0.35s, border-color 0.35s;
+}
+
+.btn--ghost {
+  background: transparent;
+  color: var(--bone);
+  border-color: rgba(243, 241, 236, 0.34);
+}
+
+.btn--ghost:hover {
+  background: rgba(243, 241, 236, 0.09);
+}
+
+/* Pill variants — used only in the nav and the commerce sections */
+.btn--pill {
+  border-radius: var(--pill);
+}
+
+/* --- photo blocks ---------------------------------------------- */
+
+.photo {
+  position: relative;
+  overflow: hidden;
+  background: #2a231c;
+  border-radius: var(--r-photo);
+}
+
+.photo__fill {
+  position: absolute;
+  inset: -16% 0;
+  display: block;
+  background-size: cover;
+  background-position: center;
+  will-change: transform;
+}
+
+.photo__caption {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 14px;
+  text-align: center;
+  font-size: 9px;
+  letter-spacing: 0.24em;
+  text-transform: uppercase;
+  color: rgba(243, 241, 236, 0.34);
+  pointer-events: none;
+}
+
+/* Placeholder tones, used until a real photograph is supplied */
+.tone-warm  { background: linear-gradient(150deg, #e8cfa9, #c99c6e 45%, #6e4a31); }
+.tone-dusk  { background: linear-gradient(155deg, #c7a78c, #8a6448 50%, #2c231b); }
+.tone-green { background: linear-gradient(150deg, #d9d6c0, #9ea184 50%, #4a4b3a); }
+.tone-bone  { background: linear-gradient(160deg, #efe9dc, #d5cbb6 55%, #a79a83); }
+.tone-night { background: linear-gradient(160deg, #6b5847, #3a2e24 55%, #171310); }
+
+/* --- reveal line mask ------------------------------------------ */
+
+.mask-line {
+  display: block;
+  overflow: hidden;
+}

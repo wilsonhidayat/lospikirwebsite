@@ -1,0 +1,51 @@
+/* ---------------------------------------------------------------
+   Design tokens — the single place colours, type and radii are set.
+   Read off the Lospikir wordmark: Helvetica Neue Bold, tight, all caps,
+   sitting on a solid rule.
+   --------------------------------------------------------------- */
+
+:root {
+  /* Ground */
+  --ink: #0a0a0b;
+  --ink-2: #141416;
+  --paper: #f4f2ee;
+  --card: #ffffff;
+
+  /* Type */
+  --bone: #f3f1ec;
+  --dark: #111013;
+  --muted: #6f6b64;
+  --body-on-light: #4a463f;
+  --dim: rgba(243, 241, 236, 0.56);
+  --dim-2: rgba(243, 241, 236, 0.74);
+
+  /* Lines */
+  --line: rgba(243, 241, 236, 0.13);
+  --line-light: rgba(17, 16, 19, 0.1);
+
+  /* Typeface.
+     Helvetica Neue is a system face on macOS and iOS. On Windows and Android
+     it falls back — see README, "Typeface licensing", before launch. */
+  --font: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+
+  /* Radii — photographs and the commerce sections only; editorial stays square */
+  --r-photo: 20px;
+  --r-row: 22px;
+  --r-card: 28px;
+  --r-panel: 44px;
+  --pill: 999px;
+
+  /* Rhythm */
+  --pad: 34px;
+  --section-y: clamp(80px, 10vw, 150px);
+
+  /* Motion */
+  --ease: cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@media (max-width: 820px) {
+  :root {
+    --pad: 20px;
+    --r-panel: 28px;
+  }
+}

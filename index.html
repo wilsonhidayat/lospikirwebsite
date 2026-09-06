@@ -1,0 +1,48 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#0B0B0A" />
+
+    <title>Lospikir — Portrait &amp; Pre-wedding Photography, Netherlands</title>
+    <meta
+      name="description"
+      content="Wilson Hidayat is an Indonesian photographer based in the Netherlands, making unhurried, warm-toned portraits for couples, graduates and the people around them."
+    />
+
+    <link rel="icon" type="image/png" href="/logo-black.png" />
+    <link rel="canonical" href="https://lospikir.com/" />
+
+    <!-- Open Graph — replace the image once a real hero photograph is in place -->
+    <meta property="og:type" content="website" />
+    <meta property="og:title" content="Lospikir — Portrait &amp; Pre-wedding Photography" />
+    <meta
+      property="og:description"
+      content="Photographs that look like the person, not the pose. Netherlands based, travelling for the right story."
+    />
+    <meta property="og:url" content="https://lospikir.com/" />
+    <meta property="og:image" content="https://lospikir.com/og-image.jpg" />
+    <meta name="twitter:card" content="summary_large_image" />
+  </head>
+
+  <body>
+    <!--
+      Static copy of the enquiry form so Netlify's build bot registers it.
+      The live form is rendered by React (src/components/Enquire.jsx) and
+      submits to this one by name. Keep the field names in sync.
+    -->
+    <form name="enquiry" data-netlify="true" netlify-honeypot="bot-field" hidden>
+      <input type="text" name="name" />
+      <input type="email" name="email" />
+      <input type="text" name="session" />
+      <input type="text" name="date" />
+      <input type="text" name="location" />
+      <textarea name="message"></textarea>
+      <input name="bot-field" />
+    </form>
+
+    <div id="root"></div>
+    <script type="module" src="/src/main.jsx"></script>
+  </body>
+</html>

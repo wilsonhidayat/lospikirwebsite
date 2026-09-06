@@ -1,0 +1,81 @@
+/* Full-bleed opening frame. Square by design — a rounded corner needs an
+   edge to sit against, and this image runs to the edge of the screen. */
+
+.hero {
+  position: relative;
+  height: 100svh;
+  min-height: 620px;
+  overflow: hidden;
+}
+
+.hero__scrim {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    180deg,
+    rgba(10, 10, 11, 0.5) 0%,
+    rgba(10, 10, 11, 0.05) 40%,
+    rgba(10, 10, 11, 0.9) 100%
+  );
+}
+
+.hero__inner {
+  position: absolute;
+  left: var(--pad);
+  right: var(--pad);
+  bottom: 64px;
+  max-width: 1000px;
+}
+
+.hero__bar {
+  height: 3px;
+  width: 96px;
+  background: var(--bone);
+  margin-bottom: 24px;
+}
+
+.hero__eyebrow {
+  color: rgba(243, 241, 236, 0.78);
+  margin-bottom: 22px;
+}
+
+.hero__title {
+  font-size: clamp(36px, 6.6vw, 96px);
+  letter-spacing: -0.032em;
+  color: var(--bone);
+}
+
+.hero__actions {
+  display: flex;
+  gap: 12px;
+  margin-top: 34px;
+  flex-wrap: wrap;
+}
+
+.hero__cue {
+  position: absolute;
+  left: 50%;
+  bottom: 24px;
+  transform: translateX(-50%);
+  width: 1px;
+  height: 54px;
+  background: linear-gradient(rgba(243, 241, 236, 0.1), var(--bone));
+  overflow: hidden;
+}
+
+.hero__cue::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: var(--bone);
+  animation: cue 2.2s cubic-bezier(0.7, 0, 0.3, 1) infinite;
+}
+
+@keyframes cue {
+  0% { transform: translateY(-100%); }
+  60%, 100% { transform: translateY(100%); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .hero__cue { display: none; }
+}

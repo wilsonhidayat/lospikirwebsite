@@ -1,0 +1,43 @@
+{
+  "name": "Lospikir",
+  "photographer": "Wilson Hidayat",
+  "kvk": "91722594",
+  "ctaLabel": "Check your date",
+  "ctaHref": "#enquire",
+  "brochureLabel": "Download the brochure",
+  "brochureHref": "/brochure/lospikir-guide.pdf",
+  "contact": {
+    "email": "wilson@cprtmmnt.com",
+    "whatsapp": "https://wa.me/message/76NOOON5BISPB1",
+    "instagram": "https://www.instagram.com/wilsonhidayat/",
+    "linkedin": "https://www.linkedin.com/in/wilsonhidayat/",
+    "unsplash": "https://unsplash.com/@wilsonhidayat",
+    "clientGallery": "https://picflow.com/"
+  },
+  "nav": [
+    { "label": "Work", "href": "#work" },
+    { "label": "Packages", "href": "#packages" },
+    { "label": "About", "href": "#about" },
+    { "label": "Brochure", "href": "/brochure/lospikir-guide.pdf" }
+  ],
+  "hero": {
+    "eyebrow": "Portrait · Pre-wedding · Graduation — Netherlands",
+    "headline": "Photographs that look\nlike the person,",
+    "headlineLight": "not the pose."
+  },
+  "statement": "Most people arrive a little nervous. So we walk first, talk first, and start shooting once you have forgotten the camera is there — which is usually about ten minutes in.",
+  "investment": {
+    "eyebrow": "Investment",
+    "headline": "Pricing lives in\nthe brochure",
+    "body": "Every session is quoted on the date, the hours and the travel. Send me the details, or take the guide — it has every inclusion and the current investment."
+  },
+  "enquire": {
+    "eyebrow": "Check your date",
+    "headline": "Tell me what\nyou have in mind",
+    "body": "A date, a rough location, the kind of session — that is enough to start. I reply to everything within a day or two.",
+    "success": "Thank you — your message is in. I will come back to you within a day or two."
+  },
+  "closing": {
+    "headline": "Let's find\nyour light"
+  }
+}
