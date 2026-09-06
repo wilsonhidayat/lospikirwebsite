@@ -41,16 +41,6 @@
       "href": "#enquire"
     },
     {
-      "id": "stills",
-      "title": "Stills",
-      "tone": "dusk",
-      "image": null,
-      "body": "Product, food and object photography — lit simply, shot for catalogues and menus.",
-      "specs": "Product, food and object photography — quoted per shot list",
-      "cta": "Request a quote",
-      "href": "#enquire"
-    },
-    {
       "id": "bespoke",
       "ask": true,
       "title": "Something\nelse?",
