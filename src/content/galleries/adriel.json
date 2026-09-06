@@ -1,0 +1,38 @@
+{
+  "title": "Adriel",
+  "caption": "Graduation",
+  "date": "2024-09-27",
+  "tone": "night",
+  "cover": "/photos/adriel-01.jpg",
+  "intro": "",
+  "photos": [
+    {
+      "src": "/photos/adriel-01.jpg",
+      "alt": ""
+    },
+    {
+      "src": "/photos/adriel-02.jpg",
+      "alt": ""
+    },
+    {
+      "src": "/photos/adriel-03.jpg",
+      "alt": ""
+    },
+    {
+      "src": "/photos/adriel-04.jpg",
+      "alt": ""
+    },
+    {
+      "src": "/photos/adriel-05.jpg",
+      "alt": ""
+    },
+    {
+      "src": "/photos/adriel-06.jpg",
+      "alt": ""
+    },
+    {
+      "src": "/photos/adriel-07.jpg",
+      "alt": ""
+    }
+  ]
+}

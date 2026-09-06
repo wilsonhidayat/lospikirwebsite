@@ -1,0 +1,42 @@
+{
+  "title": "Kenneth Kusno",
+  "caption": "Graduation",
+  "date": "2025-02-14",
+  "tone": "dusk",
+  "cover": "/photos/kenneth-kusno-01.jpg",
+  "intro": "",
+  "photos": [
+    {
+      "src": "/photos/kenneth-kusno-01.jpg",
+      "alt": ""
+    },
+    {
+      "src": "/photos/kenneth-kusno-02.jpg",
+      "alt": ""
+    },
+    {
+      "src": "/photos/kenneth-kusno-03.jpg",
+      "alt": ""
+    },
+    {
+      "src": "/photos/kenneth-kusno-04.jpg",
+      "alt": ""
+    },
+    {
+      "src": "/photos/kenneth-kusno-05.jpg",
+      "alt": ""
+    },
+    {
+      "src": "/photos/kenneth-kusno-06.jpg",
+      "alt": ""
+    },
+    {
+      "src": "/photos/kenneth-kusno-07.jpg",
+      "alt": ""
+    },
+    {
+      "src": "/photos/kenneth-kusno-08.jpg",
+      "alt": ""
+    }
+  ]
+}

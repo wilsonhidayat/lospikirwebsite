@@ -1,0 +1,82 @@
+{
+  "title": "",
+  "caption": "Portrait",
+  "date": "2024-12-05",
+  "tone": "green",
+  "cover": "/photos/bobbi-01.jpg",
+  "intro": "",
+  "photos": [
+    {
+      "src": "/photos/bobbi-01.jpg",
+      "alt": ""
+    },
+    {
+      "src": "/photos/bobbi-02.jpg",
+      "alt": ""
+    },
+    {
+      "src": "/photos/bobbi-03.jpg",
+      "alt": ""
+    },
+    {
+      "src": "/photos/bobbi-04.jpg",
+      "alt": ""
+    },
+    {
+      "src": "/photos/bobbi-05.jpg",
+      "alt": ""
+    },
+    {
+      "src": "/photos/bobbi-06.jpg",
+      "alt": ""
+    },
+    {
+      "src": "/photos/bobbi-07.jpg",
+      "alt": ""
+    },
+    {
+      "src": "/photos/bobbi-08.jpg",
+      "alt": ""
+    },
+    {
+      "src": "/photos/bobbi-09.jpg",
+      "alt": ""
+    },
+    {
+      "src": "/photos/bobbi-10.jpg",
+      "alt": ""
+    },
+    {
+      "src": "/photos/bobbi-11.jpg",
+      "alt": ""
+    },
+    {
+      "src": "/photos/bobbi-12.jpg",
+      "alt": ""
+    },
+    {
+      "src": "/photos/bobbi-13.jpg",
+      "alt": ""
+    },
+    {
+      "src": "/photos/bobbi-14.jpg",
+      "alt": ""
+    },
+    {
+      "src": "/photos/bobbi-15.jpg",
+      "alt": ""
+    },
+    {
+      "src": "/photos/bobbi-16.jpg",
+      "alt": ""
+    },
+    {
+      "src": "/photos/bobbi-17.jpg",
+      "alt": ""
+    },
+    {
+      "src": "/photos/bobbi-18.jpg",
+      "alt": ""
+    }
+  ]
+}

@@ -1,0 +1,38 @@
+{
+  "title": "Ayesha",
+  "caption": "Pre-graduation",
+  "date": "2024-06-20",
+  "tone": "green",
+  "cover": "/photos/ayesha-01.jpg",
+  "intro": "",
+  "photos": [
+    {
+      "src": "/photos/ayesha-01.jpg",
+      "alt": ""
+    },
+    {
+      "src": "/photos/ayesha-02.jpg",
+      "alt": ""
+    },
+    {
+      "src": "/photos/ayesha-03.jpg",
+      "alt": ""
+    },
+    {
+      "src": "/photos/ayesha-04.jpg",
+      "alt": ""
+    },
+    {
+      "src": "/photos/ayesha-05.jpg",
+      "alt": ""
+    },
+    {
+      "src": "/photos/ayesha-06.jpg",
+      "alt": ""
+    },
+    {
+      "src": "/photos/ayesha-07.jpg",
+      "alt": ""
+    }
+  ]
+}

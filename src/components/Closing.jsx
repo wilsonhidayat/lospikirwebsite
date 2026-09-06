@@ -10,6 +10,7 @@ export default function Closing() {
     <section className="closing">
       <Photo
         tone="warm"
+        image={site.closing.image}
         caption="Closing photograph"
         parallax={0.1}
         style={{ position: 'absolute', inset: 0, borderRadius: 0 }}

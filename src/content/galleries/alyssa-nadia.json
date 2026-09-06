@@ -1,0 +1,30 @@
+{
+  "title": "Alyssa Nadia",
+  "caption": "Graduation",
+  "date": "2023-09-21",
+  "tone": "warm",
+  "cover": "/photos/alyssa-nadia-01.jpg",
+  "intro": "",
+  "photos": [
+    {
+      "src": "/photos/alyssa-nadia-01.jpg",
+      "alt": ""
+    },
+    {
+      "src": "/photos/alyssa-nadia-02.jpg",
+      "alt": ""
+    },
+    {
+      "src": "/photos/alyssa-nadia-03.jpg",
+      "alt": ""
+    },
+    {
+      "src": "/photos/alyssa-nadia-04.jpg",
+      "alt": ""
+    },
+    {
+      "src": "/photos/alyssa-nadia-05.jpg",
+      "alt": ""
+    }
+  ]
+}

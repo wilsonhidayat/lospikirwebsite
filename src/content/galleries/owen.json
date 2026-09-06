@@ -1,0 +1,34 @@
+{
+  "title": "Owen",
+  "caption": "Graduation",
+  "date": "2024-07-08",
+  "tone": "warm",
+  "cover": "/photos/owen-01.jpg",
+  "intro": "",
+  "photos": [
+    {
+      "src": "/photos/owen-01.jpg",
+      "alt": ""
+    },
+    {
+      "src": "/photos/owen-02.jpg",
+      "alt": ""
+    },
+    {
+      "src": "/photos/owen-03.jpg",
+      "alt": ""
+    },
+    {
+      "src": "/photos/owen-04.jpg",
+      "alt": ""
+    },
+    {
+      "src": "/photos/owen-05.jpg",
+      "alt": ""
+    },
+    {
+      "src": "/photos/owen-06.jpg",
+      "alt": ""
+    }
+  ]
+}

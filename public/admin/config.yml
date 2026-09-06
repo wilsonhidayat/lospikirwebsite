@@ -67,6 +67,7 @@ collections:
               - { name: eyebrow, label: "Small line above the headline", widget: string }
               - { name: headline, label: "Headline", widget: text, hint: "Press Enter for each line break." }
               - { name: headlineLight, label: "Final line (thin weight)", widget: string }
+              - { name: image, label: "Background photo", widget: image, required: false }
           - { name: statement, label: "About paragraph", widget: text }
           - name: investment
             label: "Investment / pricing section"
@@ -88,6 +89,7 @@ collections:
             widget: object
             fields:
               - { name: headline, label: "Headline", widget: text }
+              - { name: image, label: "Background photo", widget: image, required: false }
 
   # ----------------------------------------------------------------------
   - name: packages

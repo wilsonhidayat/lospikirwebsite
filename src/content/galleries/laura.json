@@ -1,0 +1,42 @@
+{
+  "title": "Laura",
+  "caption": "Personal branding",
+  "date": "2025-01-15",
+  "tone": "night",
+  "cover": "/photos/laura-01.jpg",
+  "intro": "",
+  "photos": [
+    {
+      "src": "/photos/laura-01.jpg",
+      "alt": ""
+    },
+    {
+      "src": "/photos/laura-02.jpg",
+      "alt": ""
+    },
+    {
+      "src": "/photos/laura-03.jpg",
+      "alt": ""
+    },
+    {
+      "src": "/photos/laura-04.jpg",
+      "alt": ""
+    },
+    {
+      "src": "/photos/laura-05.jpg",
+      "alt": ""
+    },
+    {
+      "src": "/photos/laura-06.jpg",
+      "alt": ""
+    },
+    {
+      "src": "/photos/laura-07.jpg",
+      "alt": ""
+    },
+    {
+      "src": "/photos/laura-08.jpg",
+      "alt": ""
+    }
+  ]
+}

@@ -169,11 +169,18 @@ To fix: drop a webfont into `public/fonts/`, add the `@font-face` rules to
 `src/styles/tokens.css`, and update `--font`. Free options that sit much closer
 to Helvetica than Arial: **Inter Tight** or **Archivo**.
 
+## Photo originals
+
+`originals/` holds the full-resolution files, kept out of git (see `.gitignore`).
+The web copies in `public/photos/` are resized to 1800px on the long edge and
+compressed. To add more later, the CMS handles the resize on upload; by hand,
+keep them small.
+
 ## Still to do
 
-- [ ] Real photographs (via `/admin`, or `public/photos/`)
-- [ ] Brochure PDF at `public/brochure/lospikir-guide.pdf`
+- [ ] Brochure PDF at `public/brochure/lospikir-guide.pdf` (or upload via the CMS)
 - [ ] Picflow client-gallery URL (Site & page text → Contact & links)
+- [ ] Check the auto-generated gallery captions / titles / order in `/admin`
 - [ ] Confirm the package copy — turnaround times, inclusions
 - [ ] `og-image.jpg` in `public/` for link previews
 - [ ] Typeface decision above

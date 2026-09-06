@@ -13,6 +13,7 @@ export default function Hero() {
     <section className="hero" id="top">
       <Photo
         tone="dusk"
+        image={site.hero.image}
         caption="Hero photograph"
         parallax={0.1}
         className="hero__photo"

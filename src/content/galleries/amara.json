@@ -1,0 +1,34 @@
+{
+  "title": "Amara Letitia",
+  "caption": "Graduation",
+  "date": "2023-10-06",
+  "tone": "dusk",
+  "cover": "/photos/amara-01.jpg",
+  "intro": "",
+  "photos": [
+    {
+      "src": "/photos/amara-01.jpg",
+      "alt": ""
+    },
+    {
+      "src": "/photos/amara-02.jpg",
+      "alt": ""
+    },
+    {
+      "src": "/photos/amara-03.jpg",
+      "alt": ""
+    },
+    {
+      "src": "/photos/amara-04.jpg",
+      "alt": ""
+    },
+    {
+      "src": "/photos/amara-05.jpg",
+      "alt": ""
+    },
+    {
+      "src": "/photos/amara-06.jpg",
+      "alt": ""
+    }
+  ]
+}
