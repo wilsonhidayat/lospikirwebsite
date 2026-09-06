@@ -1,6 +1,6 @@
 # Sveltia CMS — https://github.com/sveltia/sveltia-cms
-# Editing UI for everything in src/data/. Saving here commits to GitHub,
-# and Netlify rebuilds the site automatically.
+# Editing UI for the site content (src/data/ and src/content/). Saving here
+# commits to GitHub, and Netlify rebuilds the site automatically.
 
 backend:
   name: github
@@ -111,28 +111,35 @@ collections:
               - { name: ask, label: "Open-ended card (dashed outline, no photo)", widget: boolean, required: false, default: false }
 
   # ----------------------------------------------------------------------
+  # One entry per gallery. Each becomes its own page at /gallery/<file name>,
+  # and the newest few show in the strip on the home page.
   - name: galleries
-    label: "Gallery"
+    label: "Galleries"
+    label_singular: "Gallery"
+    folder: "src/content/galleries"
+    extension: json
+    format: json
+    create: true
+    identifier_field: caption
+    slug: "{{slug}}"
+    summary: "{{caption}}  {{title}}"
     editor:
       preview: false
-    files:
-      - name: galleries
-        label: "Gallery frames"
-        file: "src/data/galleries.json"
-        format: json
+    fields:
+      - { name: title, label: "Title (shown on the gallery's own page)", widget: string, required: false }
+      - { name: caption, label: "Small label (e.g. “Pre-wedding — Paris”)", widget: string }
+      - { name: date, label: "Date", widget: datetime, date_format: "YYYY-MM-DD", time_format: false, required: false, hint: "Sets the order — newest first." }
+      - { name: tone, label: "Placeholder colour (until a cover photo is set)", widget: select, options: [warm, green, bone, night, dusk], default: warm }
+      - { name: cover, label: "Cover photo (the frame in the home-page strip)", widget: image, required: false }
+      - { name: intro, label: "Intro paragraph (optional)", widget: text, required: false }
+      - name: photos
+        label: "Photos"
+        label_singular: "Photo"
+        widget: list
+        summary: "{{fields.alt}}"
         fields:
-          - name: items
-            label: "Frames"
-            label_singular: "Frame"
-            widget: list
-            summary: "{{fields.caption}} — {{fields.client}}"
-            fields:
-              - { name: id, label: "ID (unique, no spaces)", widget: string }
-              - { name: client, label: "Client / name under the frame", widget: string, required: false }
-              - { name: caption, label: "Small label across the frame", widget: string }
-              - { name: tone, label: "Placeholder colour", widget: select, options: [warm, green, bone, night, dusk], default: warm }
-              - { name: image, label: "Photo", widget: image, required: false }
-              - { name: href, label: "Link", widget: string, default: "#work" }
+          - { name: src, label: "Image", widget: image }
+          - { name: alt, label: "Description (accessibility, optional)", widget: string, required: false }
 
   # ----------------------------------------------------------------------
   - name: testimonials

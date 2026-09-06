@@ -38,15 +38,31 @@ time, GitHub will ask you to authorise the app.
 
 You can edit:
 
-| Section in the CMS | File it writes | What it controls |
+| Section in the CMS | File(s) it writes | What it controls |
 |---|---|---|
 | Site & page text | `src/data/site.json` | Business name, contact links, nav, and every headline/paragraph on the page |
 | Packages          | `src/data/packages.json` | The package cards and the pricing list (same data feeds both) |
-| Gallery           | `src/data/galleries.json` | The frames in the pinned horizontal gallery |
+| Galleries         | `src/content/galleries/*.json` | One entry per gallery — see below |
 | Testimonials      | `src/data/testimonials.json` | Client quotes. The section is hidden on the site until there is at least one |
 
 Saving commits to GitHub on the `main` branch, and Netlify redeploys within a
 minute or two. Photos you upload in the CMS land in `public/photos/`.
+
+### Galleries
+
+Each entry in **Galleries** is its own file and its own page on the site at
+`/gallery/<file-name>` (e.g. `/gallery/prewedding-paris`). To add one, click
+**New Gallery**, fill in:
+
+- **Caption** — the small label (e.g. "Pre-wedding — Paris"). Required.
+- **Title** — optional; the big heading on the gallery page. Falls back to the caption.
+- **Date** — controls the order. The home-page strip lists galleries newest first.
+- **Cover photo** — the frame shown in the strip on the home page.
+- **Photos** — click *Add Photo* for each image. These are what visitors see on
+  the gallery page (click any photo to open it full-screen).
+
+A gallery with no photos yet still gets a page — it just says the photos are on
+their way. Delete a gallery to remove its page and its frame from the strip.
 
 **Headlines wrap where you press Enter.** A headline field with two lines
 renders as two animated lines on the page; the trailing hero line is styled
@@ -89,15 +105,19 @@ public/
   brochure/             put lospikir-guide.pdf here
   photos/               photographs (the CMS uploads here)
 src/
-  main.jsx              entry point
-  App.jsx               section order — reorder the page here
+  main.jsx              entry point (router lives here)
+  App.jsx               routes + shared Nav / Footer
+  pages/
+    Home.jsx            the one-page site, section by section
+    GalleryPage.jsx     /gallery/<slug> — photo grid + lightbox
   lib/lines.js          splits a headline field into its visual lines
-  data/                 ALL COPY AND LINKS (edited via /admin)
+  data/                 COPY AND LINKS (edited via /admin)
     site.json           brand, contact, nav, headlines
     packages.json       what you photograph
-    galleries.json      the horizontal gallery
     testimonials.json   client quotes
     *.js                thin re-exports so components import a stable name
+  content/
+    galleries/          one JSON file per gallery
   components/           one file per section
   hooks/                scroll helpers
   styles/               one stylesheet per component
@@ -116,11 +136,12 @@ an email notification there: **Forms → Settings → Form notifications**.
 
 ## Adding photographs
 
-Easiest through the CMS (Packages / Gallery → Photo). By hand: drop files in
-`public/photos/` and set `image` to `/photos/your-file.jpg` in the JSON.
+Easiest through the CMS (Packages → Photo, or Galleries → a gallery → Photos).
+By hand: drop files in `public/photos/` and set the path to `/photos/your-file.jpg`.
 
-Until `image` is set, a tinted gradient placeholder stands in. Export at about
-2000px on the long edge and compress — these are full-bleed, so weight matters.
+Where no photo is set, a tinted gradient placeholder stands in. Export at about
+2000px on the long edge and compress — the strip and package shots run
+full-bleed, so weight matters.
 
 ## Animation
 

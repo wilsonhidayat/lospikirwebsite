@@ -1,4 +1,5 @@
 import { useRef, useState } from 'react'
+import { Link } from 'react-router-dom'
 import { motion, useMotionValueEvent, useScroll, useTransform } from 'framer-motion'
 import { galleries } from '../data/galleries.js'
 import { useTrackTravel } from '../hooks/useTrackTravel.js'
@@ -45,18 +46,20 @@ export default function PinnedGallery() {
 
         <motion.div className="gallery__track" ref={trackRef} style={{ x }}>
           {galleries.map((item, i) => (
-            <a className="gallery__slide" key={item.id} href={item.href}>
+            <Link className="gallery__slide" key={item.slug} to={`/gallery/${item.slug}`}>
               <Photo
                 tone={item.tone}
-                image={item.image}
+                image={item.cover}
                 caption={item.caption}
                 parallax={0}
               />
               <div className="gallery__meta label">
-                <span>{item.client}</span>
-                <span>{String(i + 1).padStart(2, '0')}</span>
+                <span>{item.title || item.caption}</span>
+                <span className="gallery__view">
+                  View{item.photos.length ? ` · ${item.photos.length}` : ''} →
+                </span>
               </div>
-            </a>
+            </Link>
           ))}
         </motion.div>
       </div>

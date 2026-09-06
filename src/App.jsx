@@ -1,31 +1,44 @@
+import { useEffect } from 'react'
+import { Routes, Route, Navigate, useLocation } from 'react-router-dom'
 import Nav from './components/Nav.jsx'
 import ScrollMeter from './components/ScrollMeter.jsx'
-import Hero from './components/Hero.jsx'
-import Statement from './components/Statement.jsx'
-import PinnedGallery from './components/PinnedGallery.jsx'
-import Packages from './components/Packages.jsx'
-import Testimonials from './components/Testimonials.jsx'
-import Investment from './components/Investment.jsx'
-import Closing from './components/Closing.jsx'
-import Enquire from './components/Enquire.jsx'
 import Footer from './components/Footer.jsx'
+import Home from './pages/Home.jsx'
+import GalleryPage from './pages/GalleryPage.jsx'
+
+/**
+ * On navigation: jump to the top for a new page, or to the #section when the
+ * URL carries a hash (e.g. arriving at "/#work" from a gallery page).
+ */
+function ScrollManager() {
+  const { pathname, hash } = useLocation()
+
+  useEffect(() => {
+    if (hash) {
+      const el = document.querySelector(hash)
+      if (el) {
+        el.scrollIntoView()
+        return
+      }
+    }
+    window.scrollTo(0, 0)
+  }, [pathname, hash])
+
+  return null
+}
 
 export default function App() {
   return (
     <>
+      <ScrollManager />
       <Nav />
       <ScrollMeter />
 
-      <main>
-        <Hero />
-        <Statement />
-        <PinnedGallery />
-        <Packages />
-        <Testimonials />
-        <Investment />
-        <Closing />
-        <Enquire />
-      </main>
+      <Routes>
+        <Route path="/" element={<Home />} />
+        <Route path="/gallery/:slug" element={<GalleryPage />} />
+        <Route path="*" element={<Navigate to="/" replace />} />
+      </Routes>
 
       <Footer />
     </>

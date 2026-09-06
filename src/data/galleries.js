@@ -1,15 +1,29 @@
 /**
- * The horizontal gallery that pins while you scroll.
+ * Galleries.
  *
- * Edit these in the CMS (/admin → Galleries). Add or remove entries freely —
- * the section measures the real width of the track and lengthens itself, and
- * the counter follows.
- *
- *   client  — shown under the frame. Leave blank to show only the number.
- *   caption — the small label across the top of the frame.
- *   tone    — placeholder gradient: 'warm' | 'green' | 'bone' | 'night' | 'dusk'
- *   image   — a photo in public/photos/ (the CMS uploads here). Replaces the gradient.
+ * One file per gallery in src/content/galleries/ — add, edit and remove them in
+ * the CMS (/admin → Galleries). Each becomes its own page at /gallery/<slug>,
+ * where <slug> is the file name. The home-page strip lists them newest first.
  */
-import data from './galleries.json'
+const files = import.meta.glob('../content/galleries/*.json', { eager: true })
 
-export const galleries = data.items
+export const galleries = Object.entries(files)
+  .map(([path, mod]) => {
+    const slug = path.split('/').pop().replace(/\.json$/, '')
+    const data = mod.default ?? mod
+    return {
+      slug,
+      title: data.title || '',
+      caption: data.caption || '',
+      date: data.date || '',
+      tone: data.tone || 'warm',
+      cover: data.cover || null,
+      intro: data.intro || '',
+      photos: Array.isArray(data.photos) ? data.photos.filter((p) => p && p.src) : [],
+    }
+  })
+  .sort((a, b) => String(b.date).localeCompare(String(a.date)))
+
+export function galleryBySlug(slug) {
+  return galleries.find((g) => g.slug === slug) ?? null
+}

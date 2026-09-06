@@ -1,9 +1,0 @@
-{
-  "items": [
-    { "id": "gallery-1", "client": "", "caption": "Pre-wedding — Paris", "tone": "warm", "image": null, "href": "#work" },
-    { "id": "gallery-2", "client": "", "caption": "Graduation", "tone": "green", "image": null, "href": "#work" },
-    { "id": "gallery-3", "client": "", "caption": "Portrait", "tone": "bone", "image": null, "href": "#work" },
-    { "id": "gallery-4", "client": "", "caption": "Events", "tone": "night", "image": null, "href": "#work" },
-    { "id": "gallery-5", "client": "", "caption": "Stills", "tone": "dusk", "image": null, "href": "#work" }
-  ]
-}
