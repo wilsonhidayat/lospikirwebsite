@@ -1,13 +1,13 @@
 {
   "name": "Lospikir",
-  "photographer": "Wilson Hidayat",
+  "photographer": "Emmanuel Wilson Christopher Hidayat",
   "kvk": "91722594",
   "ctaLabel": "Check your date",
   "ctaHref": "#enquire",
   "brochureLabel": "Download the brochure",
   "brochureHref": "/brochure/lospikir-guide.pdf",
   "contact": {
-    "email": "wilson@cprtmmnt.com",
+    "email": "wilson@cprtmmntcom",
     "whatsapp": "https://wa.me/message/76NOOON5BISPB1",
     "instagram": "https://www.instagram.com/wilsonhidayat/",
     "linkedin": "https://www.linkedin.com/in/wilsonhidayat/",
@@ -15,10 +15,22 @@
     "clientGallery": "https://picflow.com/"
   },
   "nav": [
-    { "label": "Work", "href": "#work" },
-    { "label": "Packages", "href": "#packages" },
-    { "label": "About", "href": "#about" },
-    { "label": "Brochure", "href": "/brochure/lospikir-guide.pdf" }
+    {
+      "label": "Work",
+      "href": "#work"
+    },
+    {
+      "label": "Packages",
+      "href": "#packages"
+    },
+    {
+      "label": "About",
+      "href": "#about"
+    },
+    {
+      "label": "Brochure",
+      "href": "/brochure/lospikir-guide.pdf"
+    }
   ],
   "hero": {
     "eyebrow": "Portrait · Pre-wedding · Graduation — Netherlands",
