@@ -52,21 +52,28 @@ minute or two. Photos you upload in the CMS land in `public/photos/`.
 renders as two animated lines on the page; the trailing hero line is styled
 separately in *Site & page text → Hero → Final line*.
 
-### Testing the CMS locally
+### Editing content locally (before / without deploying)
 
 ```bash
-npx @sveltia/cms-proxy-server   # terminal 1
-npm run dev                     # terminal 2
-# open http://localhost:5173/admin/  — no login, edits your local files
+npm run dev
 ```
+
+Open **http://localhost:5173/admin/** in **Chrome or Edge** and click
+**"Work with Local Repository"**, then pick this project folder. Sveltia edits
+the files on disk directly — no login, no proxy server. Refresh the site tab to
+see your changes. (The folder-picker needs Chrome/Edge; it is not in Safari or
+Firefox.)
+
+A small dev-only shim in `vite.config.js` serves `/admin/` during `npm run dev`;
+Netlify serves it without help.
 
 ### Notes for later
 
 - `public/admin/index.html` loads Sveltia CMS unpinned. Once you are live it is
   worth pinning a version — see the comment in that file.
-- If GitHub login ever fails, you can self-host the tiny OAuth endpoint (a
-  Cloudflare Worker) and set `base_url:` in `public/admin/config.yml`. Not
-  needed for now.
+- If GitHub login ever fails on the deployed site, you can self-host the tiny
+  OAuth endpoint (a Cloudflare Worker) and set `base_url:` in
+  `public/admin/config.yml`. Not needed for now.
 
 ---
 

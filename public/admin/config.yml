@@ -9,10 +9,9 @@ backend:
   # Login uses Sveltia's hosted GitHub OAuth — nothing to deploy.
   # If you ever self-host the auth endpoint, add:  base_url: https://your-auth-url
 
-# Lets you run the CMS against local files for testing:
-#   npx @sveltia/cms-proxy-server   (in one terminal)
-#   npm run dev                     (in another) → open http://localhost:5173/admin/
-local_backend: true
+# For local editing, open http://localhost:5173/admin/ in Chrome or Edge and
+# click "Work with Local Repository" — it edits the files on disk directly,
+# no login. (Sveltia does this natively; there is no proxy server to run.)
 
 media_folder: "public/photos"
 public_folder: "/photos"
