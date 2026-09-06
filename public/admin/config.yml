@@ -35,7 +35,13 @@ collections:
           - { name: ctaLabel, label: "Main button label", widget: string }
           - { name: ctaHref, label: "Main button link", widget: string, hint: "Usually #enquire" }
           - { name: brochureLabel, label: "Brochure button label", widget: string }
-          - { name: brochureHref, label: "Brochure link", widget: string, hint: "/brochure/lospikir-guide.pdf" }
+          - name: brochureHref
+            label: "Brochure PDF"
+            widget: file
+            required: false
+            media_folder: "/public/brochure"
+            public_folder: "/brochure"
+            hint: "Upload the pricing guide. Leave empty to hide the download buttons."
           - name: contact
             label: "Contact & links"
             widget: object

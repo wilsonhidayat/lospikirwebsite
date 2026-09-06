@@ -29,9 +29,11 @@ export default function Closing() {
           <a className="btn" href={site.ctaHref}>
             {site.ctaLabel}
           </a>
-          <a className="btn btn--ghost" href={site.brochureHref} download>
-            {site.brochureLabel}
-          </a>
+          {site.brochureHref && (
+            <a className="btn btn--ghost" href={site.brochureHref} download>
+              {site.brochureLabel}
+            </a>
+          )}
         </Reveal>
       </div>
     </section>

@@ -27,9 +27,15 @@ export default function Investment() {
         </Reveal>
 
         <Reveal className="investment__actions" delay={0.18}>
-          <a className="btn btn--pill" href={site.brochureHref} download>
-            {site.brochureLabel}
-          </a>
+          {site.brochureHref ? (
+            <a className="btn btn--pill" href={site.brochureHref} download>
+              {site.brochureLabel}
+            </a>
+          ) : (
+            <a className="btn btn--pill" href={site.ctaHref}>
+              {site.ctaLabel}
+            </a>
+          )}
           <a
             className="btn btn--ghost btn--pill"
             href={site.contact.whatsapp}
