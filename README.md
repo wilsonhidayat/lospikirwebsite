@@ -43,7 +43,6 @@ You can edit:
 | Site & page text | `src/data/site.json` | Business name, contact links, nav, and every headline/paragraph on the page |
 | Packages          | `src/data/packages.json` | The package cards and the pricing list (same data feeds both) |
 | Galleries         | `src/content/galleries/*.json` | One entry per gallery — see below |
-| Testimonials      | `src/data/testimonials.json` | Client quotes. The section is hidden on the site until there is at least one |
 
 Saving commits to GitHub on the `main` branch, and Netlify redeploys within a
 minute or two. Photos you upload in the CMS land in `public/photos/`.
@@ -114,7 +113,6 @@ src/
   data/                 COPY AND LINKS (edited via /admin)
     site.json           brand, contact, nav, headlines
     packages.json       what you photograph
-    testimonials.json   client quotes
     *.js                thin re-exports so components import a stable name
   content/
     galleries/          one JSON file per gallery
@@ -176,8 +174,7 @@ to Helvetica than Arial: **Inter Tight** or **Archivo**.
 - [ ] Real photographs (via `/admin`, or `public/photos/`)
 - [ ] Brochure PDF at `public/brochure/lospikir-guide.pdf`
 - [ ] Picflow client-gallery URL (Site & page text → Contact & links)
-- [ ] Confirm the package copy — turnaround times, photo counts, inclusions
-- [ ] Two real client quotes (Testimonials in `/admin`) — worth more than any design change
+- [ ] Confirm the package copy — turnaround times, inclusions
 - [ ] `og-image.jpg` in `public/` for link previews
 - [ ] Typeface decision above
 - [ ] Netlify Forms email notification for enquiries
