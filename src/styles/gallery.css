@@ -1,25 +1,14 @@
-/* The work, travelling sideways while the section is pinned. */
+/* Recent galleries — a horizontal strip you scroll freely. */
 
 .gallery {
   position: relative;
   background: var(--ink);
-}
-
-.gallery__stage {
-  position: sticky;
-  top: 0;
-  height: 100svh;
-  overflow: hidden;
-  display: flex;
-  align-items: center;
+  padding: clamp(80px, 11vw, 150px) 0;
 }
 
 .gallery__head {
-  position: absolute;
-  left: var(--pad);
-  top: 104px;
-  z-index: 3;
-  pointer-events: none;
+  padding: 0 var(--pad);
+  margin-bottom: clamp(30px, 4vw, 52px);
 }
 
 .gallery__count {
@@ -34,21 +23,37 @@
 .gallery__track {
   display: flex;
   gap: 18px;
-  padding: 0 var(--pad);
-  will-change: transform;
+  padding: 4px var(--pad) 20px;
+  overflow-x: auto;
+  overflow-y: hidden;
+  overscroll-behavior-x: contain;
+  scroll-snap-type: x proximity;
+  scrollbar-color: var(--line) transparent;
+}
+
+.gallery__track::-webkit-scrollbar {
+  height: 6px;
+}
+.gallery__track::-webkit-scrollbar-track {
+  background: transparent;
+}
+.gallery__track::-webkit-scrollbar-thumb {
+  background: rgba(243, 241, 236, 0.18);
+  border-radius: 999px;
 }
 
 .gallery__slide {
   flex: 0 0 auto;
   width: auto;
   min-width: 300px;
+  scroll-snap-align: start;
 }
 
-/* Height-driven so the frame grows with the viewport but never overflows
-   the pinned stage. Width follows from the aspect ratio. */
+/* Height-driven so the frames scale with the viewport. */
 .gallery__slide .photo {
-  height: min(82svh, 840px);
+  height: min(72svh, 760px);
   aspect-ratio: 4 / 5;
+  pointer-events: none;
 }
 
 .gallery__meta {
@@ -59,7 +64,6 @@
 }
 
 @media (max-width: 820px) {
-  .gallery__slide { width: 82vw; }
+  .gallery__slide { min-width: 78vw; }
   .gallery__slide .photo { height: auto; }
-  .gallery__head { top: 88px; }
 }
