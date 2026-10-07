@@ -4,6 +4,7 @@ import { lines } from '../lib/lines.js'
 import MaskLine from './MaskLine.jsx'
 import Reveal from './Reveal.jsx'
 import '../styles/investment.css'
+import { STAGGER } from '../motion.js'
 
 export default function Investment() {
   const { eyebrow, body } = site.investment
@@ -53,7 +54,7 @@ export default function Investment() {
               className="row"
               key={item.id}
               href={item.href}
-              delay={Math.min(i, 4) * 0.08}
+              delay={Math.min(i, 4) * STAGGER}
             >
               <span className="label row__index">{String(i + 1).padStart(2, '0')}</span>
               <h3 className="display row__title">{lines(item.title).join(' ')}</h3>

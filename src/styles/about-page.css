@@ -18,7 +18,6 @@
 
 .about__title {
   font-size: clamp(38px, 7vw, 96px);
-  letter-spacing: -0.032em;
 }
 
 .about__grid {
@@ -77,11 +76,17 @@
 
 .about__links a {
   color: var(--dim-2);
-  transition: color 0.3s;
+  transition: color var(--dur-hover) ease;
 }
 
-.about__links a:hover {
+.about__links a:active {
   color: var(--bone);
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .about__links a:hover {
+    color: var(--bone);
+  }
 }
 
 .about__cta {

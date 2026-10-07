@@ -4,6 +4,7 @@ import { lines } from '../lib/lines.js'
 import MaskLine from '../components/MaskLine.jsx'
 import Reveal from '../components/Reveal.jsx'
 import '../styles/about-page.css'
+import { STAGGER } from '../motion.js'
 
 export default function AboutPage() {
   const about = site.about ?? {}
@@ -43,7 +44,7 @@ export default function AboutPage() {
           )}
 
           {paragraphs.map((p, i) => (
-            <Reveal as="p" className="about__para" key={i} delay={0.06 + i * 0.05}>
+            <Reveal as="p" className="about__para" key={i} delay={0.06 + i * STAGGER}>
               {p}
             </Reveal>
           ))}

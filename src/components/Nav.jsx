@@ -1,7 +1,8 @@
-import { motion } from 'framer-motion'
+import { motion, useReducedMotion } from 'framer-motion'
 import { Link } from 'react-router-dom'
 import { site } from '../data/site.js'
 import { useHideOnScroll } from '../hooks/useHideOnScroll.js'
+import { DURATION, SPRING } from '../motion.js'
 import '../styles/nav.css'
 
 /**
@@ -32,15 +33,28 @@ function NavLink({ href, className, children }) {
   )
 }
 
+// Centred with left:50% in CSS; the -50% lives in the transform.
+const SHOWN = 'translate(-50%, 0px)'
+const HIDDEN = 'translate(-50%, -140px)'
+
 export default function Nav() {
   const hidden = useHideOnScroll()
+  const reduced = useReducedMotion()
+
+  // Reduced motion: no sliding, only a short fade.
+  const transform = reduced ? SHOWN : hidden ? HIDDEN : SHOWN
 
   return (
     <motion.nav
       className="nav"
-      initial={{ y: -120, opacity: 0, x: '-50%' }}
-      animate={{ y: hidden ? -140 : 0, opacity: hidden ? 0 : 1, x: '-50%' }}
-      transition={{ duration: 0.6, ease: [0.16, 1, 0.3, 1] }}
+      initial={{ opacity: 0, transform: reduced ? SHOWN : 'translate(-50%, -120px)' }}
+      animate={{ opacity: hidden ? 0 : 1, transform }}
+      // A spring, because the reader reverses this constantly just by
+      // changing scroll direction. It picks up from wherever the bar is and
+      // carries its velocity, so a quick down-up-down never feels mushy.
+      transition={reduced ? { duration: DURATION.fade } : SPRING}
+      // Invisible still means clickable unless we say otherwise.
+      style={{ pointerEvents: hidden ? 'none' : 'auto' }}
     >
       <Link to="/" aria-label={`${site.name} — home`}>
         <img className="nav__logo" src="/logo-bone.png" alt={site.name} />

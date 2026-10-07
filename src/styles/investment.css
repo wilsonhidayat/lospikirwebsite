@@ -8,7 +8,6 @@
 
 .investment__title {
   font-size: clamp(30px, 5vw, 68px);
-  letter-spacing: -0.032em;
 }
 
 .investment__body {
@@ -42,17 +41,33 @@
   border-radius: var(--r-row);
   background: var(--ink-2);
   border: 1px solid var(--line);
-  transition: background 0.45s, border-color 0.45s, transform 0.45s var(--ease);
+  transition:
+    background var(--dur-hover) ease,
+    border-color var(--dur-hover) ease,
+    translate var(--dur-move) var(--ease),
+    scale var(--dur-press) var(--ease);
 }
 
-.row:hover {
+/* `translate`, not `transform` — the row is a Framer Motion reveal, and its
+   inline transform used to override this shift so it never showed. */
+@media (hover: hover) and (pointer: fine) {
+  .row:hover {
+    background: var(--bone);
+    border-color: var(--bone);
+    translate: 6px 0;
+  }
+}
+
+/* Touch has no hover, so the press is where the row lights up. */
+.row:active {
   background: var(--bone);
   border-color: var(--bone);
-  transform: translateX(6px);
+  scale: 0.99;
+  transition-duration: 60ms;
 }
 
 .row > * {
-  transition: color 0.4s;
+  transition: color var(--dur-hover) ease;
 }
 
 .row__index {
@@ -61,7 +76,7 @@
 
 .row__title {
   font-size: clamp(18px, 2.1vw, 28px);
-  letter-spacing: -0.025em;
+  letter-spacing: var(--track-title);
   line-height: 1;
 }
 
@@ -76,11 +91,20 @@
   text-align: right;
 }
 
-.row:hover .row__index,
-.row:hover .row__title,
-.row:hover .row__specs,
-.row:hover .row__go {
+.row:active .row__index,
+.row:active .row__title,
+.row:active .row__specs,
+.row:active .row__go {
   color: var(--ink);
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .row:hover .row__index,
+  .row:hover .row__title,
+  .row:hover .row__specs,
+  .row:hover .row__go {
+    color: var(--ink);
+  }
 }
 
 @media (max-width: 820px) {

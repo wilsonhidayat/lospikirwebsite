@@ -63,6 +63,34 @@
   color: var(--dim);
 }
 
+/* Press: the cover gives a little under the finger. Cancelled the moment a
+   press turns into a drag — the strip should feel held, not squeezed. */
+.gallery__slide .photo {
+  transition: scale var(--dur-press) var(--ease);
+}
+
+.gallery__slide:active .photo {
+  scale: 0.98;
+}
+
+.gallery__track.is-dragging .gallery__slide:active .photo {
+  scale: none;
+}
+
+.gallery__track.is-dragging {
+  user-select: none;
+}
+
+/* A mouse can grab the strip; say so. */
+@media (hover: hover) and (pointer: fine) {
+  .gallery__track {
+    cursor: grab;
+  }
+  .gallery__track.is-dragging {
+    cursor: grabbing;
+  }
+}
+
 @media (max-width: 820px) {
   .gallery__slide { min-width: 78vw; }
   .gallery__slide .photo { height: auto; }

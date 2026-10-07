@@ -18,7 +18,6 @@
 
 .enquire__title {
   font-size: clamp(30px, 5vw, 64px);
-  letter-spacing: -0.032em;
 }
 
 .enquire__body {
@@ -41,8 +40,18 @@
   color: var(--dim-2);
 }
 
-.enquire__alt a:hover {
+.enquire__alt a {
+  transition: color var(--dur-hover) ease;
+}
+
+.enquire__alt a:active {
   color: var(--bone);
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .enquire__alt a:hover {
+    color: var(--bone);
+  }
 }
 
 /* --- form --- */
@@ -82,7 +91,7 @@
   font: inherit;
   font-size: 15px;
   color: var(--bone);
-  transition: border-color 0.35s;
+  transition: border-color var(--dur-hover) ease;
 }
 
 .field__input::placeholder {
@@ -114,9 +123,11 @@ textarea.field__input {
   margin-top: 4px;
 }
 
-.enquire__submit:hover:not(:disabled) {
-  background: transparent;
-  color: var(--bone);
+@media (hover: hover) and (pointer: fine) {
+  .enquire__submit:hover:not(:disabled) {
+    background: transparent;
+    color: var(--bone);
+  }
 }
 
 .enquire__submit:disabled {

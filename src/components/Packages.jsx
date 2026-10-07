@@ -3,6 +3,7 @@ import { lines } from '../lib/lines.js'
 import MaskLine from './MaskLine.jsx'
 import Reveal from './Reveal.jsx'
 import '../styles/packages.css'
+import { STAGGER } from '../motion.js'
 
 function Card({ item, index, delay }) {
   const number = String(index + 1).padStart(2, '0')
@@ -60,7 +61,7 @@ export default function Packages() {
 
         <div className="packages__grid">
           {packages.map((item, i) => (
-            <Card key={item.id} item={item} index={i} delay={Math.min(i, 4) * 0.09} />
+            <Card key={item.id} item={item} index={i} delay={Math.min(i, 4) * STAGGER} />
           ))}
         </div>
       </div>

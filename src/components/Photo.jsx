@@ -26,12 +26,16 @@ export default function Photo({
   const drift = Math.min(Math.max(parallax, 0), 0.12) * 100
   const y = useTransform(scrollYProgress, [0, 1], [`-${drift}%`, `${drift}%`])
 
+  // Static fills (gallery covers, reduced motion) are not bound to scroll at
+  // all and don't get a compositor layer they would never use.
+  const moving = !reduced && drift > 0
+
   return (
     <div ref={ref} className={`photo ${className}`} style={style}>
       <motion.span
-        className={`photo__fill ${image ? '' : `tone-${tone}`}`}
+        className={`photo__fill${moving ? ' photo__fill--moving' : ''}${image ? '' : ` tone-${tone}`}`}
         style={{
-          y: reduced ? 0 : y,
+          y: moving ? y : 0,
           backgroundImage: image ? `url(${image})` : undefined,
         }}
       />

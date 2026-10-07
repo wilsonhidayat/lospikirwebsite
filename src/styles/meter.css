@@ -27,22 +27,26 @@
   height: 26px;
 }
 
+/* Full height always; the visible length is a scaleY from the base.
+   Animating `height` re-ran layout on every tick change. */
 .meter__tick {
   display: block;
   width: 2px;
-  height: 9px;
+  height: 26px;
   background: var(--bone);
   opacity: 0.3;
-  transition: height 0.45s var(--ease), opacity 0.45s var(--ease);
+  transform: scaleY(0.35);
+  transform-origin: bottom;
+  transition: transform var(--dur-move) var(--ease), opacity var(--dur-move) var(--ease);
 }
 
 .meter__tick--on {
-  height: 26px;
+  transform: scaleY(1);
   opacity: 1;
 }
 
 .meter__tick--edge {
-  height: 17px;
+  transform: scaleY(0.65);
   opacity: 0.7;
 }
 
