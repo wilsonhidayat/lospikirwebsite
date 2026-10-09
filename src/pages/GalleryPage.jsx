@@ -82,7 +82,14 @@ function Lightbox({ photos, index, dir, origin, onClose, onStep }) {
         exit={reduced ? undefined : { transform: 'scale(0.9)' }}
         transition={SPRING}
       >
-        <button className="lb__close" aria-label="Close" onClick={onClose}>
+        <button
+          className="lb__close"
+          aria-label="Close"
+          onClick={(e) => {
+            e.stopPropagation()
+            onClose()
+          }}
+        >
           ✕
         </button>
         <button
