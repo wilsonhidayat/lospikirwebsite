@@ -26,10 +26,10 @@
   display: inline-block;
   color: var(--dim);
   margin-bottom: clamp(28px, 5vw, 52px);
-  transition: color 0.3s;
+  transition: color var(--dur-hover) ease;
 }
 
-.gp__back:hover {
+.gp__back:active {
   color: var(--bone);
 }
 
@@ -40,7 +40,6 @@
 
 .gp__title {
   font-size: clamp(34px, 6vw, 82px);
-  letter-spacing: -0.032em;
 }
 
 .gp__date {
@@ -75,17 +74,18 @@
   cursor: pointer;
   break-inside: avoid;
   -webkit-column-break-inside: avoid;
+  /* `scale`, not `transform`: the cell is a Framer reveal with an inline transform */
+  transition: scale var(--dur-press) var(--ease);
+}
+
+.gp__cell:active {
+  scale: 0.98;
 }
 
 .gp__cell img {
   width: 100%;
   display: block;
-  transition: opacity 0.4s, transform 0.9s var(--ease);
-}
-
-.gp__cell:hover img {
-  opacity: 0.86;
-  transform: scale(1.02);
+  transition: opacity var(--dur-hover) ease, transform var(--dur-move) var(--ease);
 }
 
 .gp__notice {
@@ -117,24 +117,53 @@
 
 .gp__more-list a {
   color: var(--dim-2);
-  transition: color 0.3s;
+  transition: color var(--dur-hover) ease;
 }
 
-.gp__more-list a:hover {
+.gp__more-list a:active {
   color: var(--bone);
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .gp__back:hover,
+  .gp__more-list a:hover {
+    color: var(--bone);
+  }
+  .gp__cell:hover img {
+    opacity: 0.86;
+    transform: scale(1.02);
+  }
 }
 
 /* --- lightbox --- */
 
+/* The backdrop fades; the frame inside it grows from the tapped photo. */
 .lb {
   position: fixed;
   inset: 0;
   z-index: 200;
   background: rgba(6, 6, 7, 0.95);
+}
+
+.lb__frame {
+  position: absolute;
+  inset: 0;
   display: grid;
   grid-template-columns: 72px 1fr 72px;
   align-items: center;
   justify-items: center;
+}
+
+/* Positioned so a departing photo can be lifted out of the flow while the
+   next one takes its place — they cross over rather than stack. */
+.lb__stage {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
 }
 
 .lb__img {
@@ -143,7 +172,14 @@
   width: auto;
   object-fit: contain;
   border-radius: 4px;
-  cursor: default;
+  cursor: grab;
+  touch-action: none;
+  -webkit-user-drag: none;
+  user-select: none;
+}
+
+.lb__img:active {
+  cursor: grabbing;
 }
 
 .lb__close {
@@ -156,11 +192,9 @@
   font-size: 18px;
   cursor: pointer;
   padding: 8px;
-  transition: color 0.3s;
-}
-
-.lb__close:hover {
-  color: var(--bone);
+  min-width: 44px;
+  min-height: 44px;
+  transition: color var(--dur-hover) ease, scale var(--dur-press) var(--ease);
 }
 
 .lb__nav {
@@ -171,11 +205,22 @@
   line-height: 1;
   cursor: pointer;
   padding: 12px;
-  transition: color 0.3s;
+  min-width: 44px;
+  min-height: 44px;
+  transition: color var(--dur-hover) ease, scale var(--dur-press) var(--ease);
 }
 
-.lb__nav:hover {
+.lb__nav:active,
+.lb__close:active {
   color: var(--bone);
+  scale: 0.9;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .lb__nav:hover,
+  .lb__close:hover {
+    color: var(--bone);
+  }
 }
 
 .lb__count {
@@ -190,8 +235,10 @@
   .gp {
     padding-top: 104px;
   }
-  .lb {
-    grid-template-columns: 40px 1fr 40px;
+  /* Swiping is the main way through on a phone; the arrows stay as a
+     visible hint and a fallback, at a size a thumb can hit. */
+  .lb__frame {
+    grid-template-columns: 44px 1fr 44px;
   }
   .lb__nav {
     font-size: 28px;

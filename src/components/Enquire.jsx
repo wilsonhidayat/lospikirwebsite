@@ -1,9 +1,11 @@
 import { useState } from 'react'
+import { AnimatePresence, motion, useReducedMotion } from 'framer-motion'
 import { site } from '../data/site.js'
 import { packages } from '../data/packages.js'
 import { lines } from '../lib/lines.js'
 import MaskLine from './MaskLine.jsx'
 import Reveal from './Reveal.jsx'
+import { DURATION, EASE } from '../motion.js'
 import '../styles/enquire.css'
 
 const FORM_NAME = 'enquiry'
@@ -18,6 +20,7 @@ export default function Enquire() {
   const { eyebrow, body, success } = site.enquire
   const headline = lines(site.enquire.headline)
   const [status, setStatus] = useState('idle') // idle | sending | done | error
+  const reduced = useReducedMotion()
 
   async function handleSubmit(event) {
     event.preventDefault()
@@ -64,12 +67,26 @@ export default function Enquire() {
         </div>
 
         <Reveal className="enquire__formwrap" delay={0.12}>
+          {/* The one moment on the site a client has just committed to
+              something. The form steps aside, then the reply rises in —
+              rather than one swapping for the other in a single frame. */}
+          <AnimatePresence mode="wait" initial={false}>
           {status === 'done' ? (
-            <p className="enquire__success" role="status">
+            <motion.p
+              key="done"
+              className="enquire__success"
+              role="status"
+              initial={{ opacity: 0, transform: reduced ? 'none' : 'translateY(14px)' }}
+              animate={{ opacity: 1, transform: reduced ? 'none' : 'translateY(0px)' }}
+              transition={{ duration: 0.6, ease: EASE }}
+            >
               {success}
-            </p>
+            </motion.p>
           ) : (
-            <form
+            <motion.form
+              key="form"
+              exit={{ opacity: 0 }}
+              transition={{ duration: DURATION.fade, ease: 'easeOut' }}
               className="enquire__form"
               name={FORM_NAME}
               method="POST"
@@ -137,8 +154,9 @@ export default function Enquire() {
                   Something went wrong sending that. Please email {site.contact.email} instead.
                 </p>
               )}
-            </form>
+            </motion.form>
           )}
+          </AnimatePresence>
         </Reveal>
       </div>
     </section>

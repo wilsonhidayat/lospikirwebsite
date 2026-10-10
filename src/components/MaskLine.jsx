@@ -1,5 +1,6 @@
 import { useRef } from 'react'
 import { motion, useInView, useReducedMotion } from 'framer-motion'
+import { DURATION, EASE } from '../motion.js'
 
 /**
  * A single line of display type sliding up out of a clipping mask.
@@ -26,9 +27,11 @@ export default function MaskLine({ children, delay = 0, className = '' }) {
       <motion.span
         style={{ display: 'block', paddingBottom: '0.07em' }}
         className={className}
-        initial={reduced ? false : { y: '120%' }}
-        animate={reduced ? undefined : { y: inView ? '0%' : '120%' }}
-        transition={{ duration: 1.1, delay, ease: [0.16, 1, 0.3, 1] }}
+        initial={reduced ? false : { transform: 'translateY(120%)' }}
+        animate={
+          reduced ? undefined : { transform: inView ? 'translateY(0%)' : 'translateY(120%)' }
+        }
+        transition={{ duration: DURATION.mask, delay, ease: EASE }}
       >
         {children}
       </motion.span>

@@ -23,7 +23,6 @@
 
 .closing__title {
   font-size: clamp(32px, 6vw, 86px);
-  letter-spacing: -0.032em;
 }
 
 .closing__actions {
@@ -61,8 +60,18 @@
   color: var(--dim);
 }
 
-.footer__links a:hover {
+.footer__links a {
+  transition: color var(--dur-hover) ease;
+}
+
+.footer__links a:active {
   color: var(--bone);
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .footer__links a:hover {
+    color: var(--bone);
+  }
 }
 
 .footer__legal {

@@ -39,12 +39,22 @@
   --pad: 34px;
   --section-y: clamp(80px, 10vw, 150px);
 
-  /* Motion */
+  /* Motion — one curve and a small duration scale. Mirrored in src/motion.js
+     so CSS and Framer Motion never drift apart. */
   --ease: cubic-bezier(0.16, 1, 0.3, 1);
+  --dur-press: 160ms; /* press feedback */
+  --dur-hover: 200ms; /* colour and background changes */
+  --dur-move: 240ms;  /* small on-screen movement */
+
+  /* Tracking is size-specific: large display type tightens, small titles
+     barely. One value across 18px and 96px is wrong at one end. */
+  --track-display: -0.032em;
+  --track-title: -0.01em;
 }
 
 @media (max-width: 820px) {
   :root {
+    --track-display: -0.022em; /* display sizes drop a lot on phones */
     --pad: 20px;
     --r-panel: 28px;
   }

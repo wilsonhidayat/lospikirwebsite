@@ -152,14 +152,33 @@ import Reveal from './components/Reveal.jsx'
 <MaskLine>One line of display type</MaskLine> // slides up out of a mask
 ```
 
-Two rules worth keeping:
+Timings and curves live in two mirrored places — `src/motion.js` for
+Framer Motion, the `--ease` / `--dur-*` tokens in `src/styles/tokens.css` for
+CSS. Change them together; don't hand-type a new curve.
+
+Rules worth keeping:
 
 - **One line per `MaskLine`.** A two-line string inside a single mask gets its
   descenders clipped, and separate masks let the lines stagger.
 - **Parallax is bounded.** `Photo` insets its fill by 16% and drifts at most 12%,
   so the edge never shows. Raising `parallax` past `0.12` will expose it.
+- **Hover and press effects use `scale` / `translate`, never `transform`.**
+  `Reveal` and `MaskLine` leave `transform` written inline on the element, which
+  silently overrides any CSS `transform` on the same element. The individual
+  properties compose with it instead. (This is why the Investment rows' hover
+  shift never used to show.)
+- **Every `:hover` sits inside `@media (hover: hover) and (pointer: fine)`.**
+  On touch, an ungated hover sticks after a tap.
+- **Everything pressable has an `:active` state**, and it fires on press, not
+  release. That is the only feedback a phone user gets.
+- **UI timings stay short.** Press 160ms, colour 200ms, small movement 240ms.
+  Scroll reveals are editorial and are allowed to be slower; hovers are not.
+- **Anything the reader can grab or reverse uses a spring** (`SPRING` in
+  `motion.js`) — the nav, the lightbox, the gallery strip's coast. Springs
+  start from where the element actually is and keep its velocity.
 
-Everything honours `prefers-reduced-motion` through Framer's `useReducedMotion`.
+Everything honours `prefers-reduced-motion`: slides become cross-fades, the
+lightbox and nav stop moving, and nothing is removed outright.
 
 ## Typeface
 

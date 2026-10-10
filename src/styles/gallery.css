@@ -9,6 +9,56 @@
 .gallery__head {
   padding: 0 var(--pad);
   margin-bottom: clamp(30px, 4vw, 52px);
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 24px;
+}
+
+/* --- arrow buttons ---------------------------------------------- */
+
+.gallery__arrows {
+  display: flex;
+  gap: 10px;
+  flex-shrink: 0;
+}
+
+.gallery__arrow {
+  width: 48px;
+  height: 48px;
+  border-radius: var(--pill);
+  border: 1px solid rgba(243, 241, 236, 0.34);
+  background: transparent;
+  color: var(--bone);
+  font: inherit;
+  font-size: 16px;
+  line-height: 1;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  -webkit-tap-highlight-color: transparent;
+  transition:
+    background var(--dur-hover) ease,
+    border-color var(--dur-hover) ease,
+    opacity var(--dur-hover) ease,
+    scale var(--dur-press) var(--ease);
+}
+
+.gallery__arrow:active:not(:disabled) {
+  scale: 0.92;
+}
+
+.gallery__arrow:disabled {
+  opacity: 0.28;
+  cursor: default;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .gallery__arrow:hover:not(:disabled) {
+    background: rgba(243, 241, 236, 0.09);
+    border-color: rgba(243, 241, 236, 0.6);
+  }
 }
 
 .gallery__count {
@@ -28,6 +78,8 @@
   overflow-y: hidden;
   overscroll-behavior-x: contain;
   scroll-snap-type: x proximity;
+  /* Snapped slides keep the page gutter, and the first one snaps to 0. */
+  scroll-padding-inline: var(--pad);
   scrollbar-color: var(--line) transparent;
 }
 
@@ -63,7 +115,36 @@
   color: var(--dim);
 }
 
+/* Press: the cover gives a little under the finger. Cancelled the moment a
+   press turns into a drag — the strip should feel held, not squeezed. */
+.gallery__slide .photo {
+  transition: scale var(--dur-press) var(--ease);
+}
+
+.gallery__slide:active .photo {
+  scale: 0.98;
+}
+
+.gallery__track.is-dragging .gallery__slide:active .photo {
+  scale: none;
+}
+
+.gallery__track.is-dragging {
+  user-select: none;
+}
+
+/* A mouse can grab the strip; say so. */
+@media (hover: hover) and (pointer: fine) {
+  .gallery__track {
+    cursor: grab;
+  }
+  .gallery__track.is-dragging {
+    cursor: grabbing;
+  }
+}
+
 @media (max-width: 820px) {
+  .gallery__arrow { width: 44px; height: 44px; }
   .gallery__slide { min-width: 78vw; }
   .gallery__slide .photo { height: auto; }
 }
