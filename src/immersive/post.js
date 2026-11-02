@@ -19,9 +19,12 @@
  *         between places (uCloud 0 → 1).
  *
  * Objects on layer 2 (sprites, transparent water jets, glows) are skipped by
- * the normal pass. The floating camera is drawn over the place with its own
+ * the normal pass. The floating print is drawn over the place with its own
  * depth (render's `overlay`); in the normal pass it only marks its pixels
- * (alpha 0), so they get no occlusion and block the sun rays.
+ * (alpha 0), so they get no occlusion, block the sun rays, and skip the film
+ * curve — the photo keeps its true colours. The memory wall is shown wholly
+ * that way (render's `flat`). A full-screen photo can be dissolved over it
+ * all (setPhoto + uPhoto), for the move between a photo and its place.
  */
 import { FullScreenQuad } from 'three/addons/postprocessing/Pass.js'
 import { NOISE_GLSL } from './world.js'
@@ -164,6 +167,13 @@ export function createPost(THREE, renderer, { quality = 'high' } = {}) {
     uCloudLit: { value: new THREE.Color(0xfff4ea) },
     uCloudShade: { value: new THREE.Color(0xe2c7b8) },
     uFade: { value: 0 },
+    // 1: show everything without the film curve (the memory wall); the
+    // overlay's pixels (the floating print) always are, so photos stay true
+    uFlat: { value: 0 },
+    // a photo laid over everything, dissolving in and out like film developing
+    tPhoto: { value: null },
+    uPhoto: { value: 0 },
+    uPhotoAspect: { value: 1.5 },
   }
 
   const material = new THREE.ShaderMaterial({
@@ -180,7 +190,8 @@ export function createPost(THREE, renderer, { quality = 'high' } = {}) {
       uniform float uAO; uniform float uAORadius; uniform float uBloom; uniform float uRays; uniform vec3 uRayColor;
       uniform float uExposure; uniform float uTime;
       uniform float uGrain; uniform float uVignette; uniform float uSaturation; uniform float uFringe; uniform vec3 uWarmth;
-      uniform float uCloud; uniform vec3 uCloudLit; uniform vec3 uCloudShade; uniform float uFade;
+      uniform float uCloud; uniform vec3 uCloudLit; uniform vec3 uCloudShade; uniform float uFade; uniform float uFlat;
+      uniform sampler2D tPhoto; uniform float uPhoto; uniform float uPhotoAspect;
       varying vec2 vUv;
       ${NOISE_GLSL}
 
@@ -240,18 +251,35 @@ export function createPost(THREE, renderer, { quality = 'high' } = {}) {
         c.g = texture2D(tColor, vUv).g;
         c.b = texture2D(tColor, vUv - fr).b;
 
-        if (uAO > 0.0) c *= mix(1.0, occlusion(vUv), uAO);
+        float flatMask = max(uFlat, 1.0 - texture2D(tNormal, vUv).a);
+        if (uAO > 0.0 && flatMask < 0.5) c *= mix(1.0, occlusion(vUv), uAO);
 
-        c = c * uExposure + texture2D(tBloom, vUv).rgb * uBloom;
-        c += texture2D(tRays, vUv).r * uRays * uRayColor;
+        vec3 glow = texture2D(tBloom, vUv).rgb * uBloom + texture2D(tRays, vUv).r * uRays * uRayColor;
+        // photographs (and the wall) as they are; the places through a film curve
+        vec3 plain = toSRGB(clamp(c + glow, 0.0, 1.0));
+        vec3 film = toSRGB(aces((c * uExposure + glow) / 0.6));
+        float l = dot(film, vec3(0.2126, 0.7152, 0.0722));
+        film = mix(vec3(l), film, uSaturation);
+        film *= mix(vec3(0.985, 0.99, 1.01), uWarmth, smoothstep(0.25, 0.85, l));
+        c = mix(film, plain, flatMask);
+        l = dot(c, vec3(0.2126, 0.7152, 0.0722));
 
-        // film curve and display colour
-        c = toSRGB(aces(c / 0.6));
-
-        // grade: a little colour, warm light, slightly cooler shade
-        float l = dot(c, vec3(0.2126, 0.7152, 0.0722));
-        c = mix(vec3(l), c, uSaturation);
-        c *= mix(vec3(0.985, 0.99, 1.01), uWarmth, smoothstep(0.25, 0.85, l));
+        // the photograph, developing into (or out of) the 3D place: it comes
+        // and goes in soft organic patches, with a warm glow at the edges
+        if (uPhoto > 0.001) {
+          vec2 suv = vUv - 0.5;
+          float ra = (uRes.x / uRes.y) / uPhotoAspect;
+          vec2 puv = ra > 1.0 ? vec2(suv.x, suv.y / ra) : vec2(suv.x * ra, suv.y);
+          puv = puv * (1.0 - 0.035 * uPhoto) + 0.5;
+          vec3 pc = toSRGB(texture2D(tPhoto, puv).rgb);
+          vec2 q = vUv * vec2(uRes.x / uRes.y, 1.0);
+          float n = fbm(q * 2.6) * 0.75 + fbm(q * 11.0 + 3.0) * 0.25;
+          float edge = uPhoto * 1.45 - 0.22;
+          float m = 1.0 - smoothstep(edge - 0.09, edge + 0.09, n);
+          float rim = 1.0 - abs(m * 2.0 - 1.0);
+          c = mix(c, pc, m);
+          c += vec3(1.0, 0.78, 0.55) * rim * 0.22 * step(0.001, 1.0 - uPhoto);
+        }
 
         // clouds for travelling between places
         if (uCloud > 0.001) {
@@ -323,11 +351,12 @@ export function createPost(THREE, renderer, { quality = 'high' } = {}) {
 
   /**
    * overlay: an optional { scene, camera } drawn over the place with its own
-   * depth — the floating camera, which must never cut into the scenery.
+   * depth — the floating print, which must never cut into the scenery.
    * sun: { uv: Vector2 (screen 0..1), strength 0..1, color } for the sun rays.
    */
-  function render(scene, camera, { time = 0, exposure = 1, overlay = null, sun = null } = {}) {
+  function render(scene, camera, { time = 0, exposure = 1, overlay = null, sun = null, flat = false } = {}) {
     uniforms.uTime.value = time
+    uniforms.uFlat.value = flat ? 1 : 0
     uniforms.uExposure.value = exposure
     uniforms.uProjInv.value.copy(camera.projectionMatrixInverse)
     // pixels per metre at 1 m distance, for sizing the occlusion radius
@@ -339,7 +368,8 @@ export function createPost(THREE, renderer, { quality = 'high' } = {}) {
     renderer.render(scene, camera)
     drawOver(overlay, false)
 
-    // 2. normals and depth, without that layer
+    // 2. normals and depth, without that layer (not needed when shown flat)
+    if (!flat) {
     camera.layers.disable(NO_INK_LAYER)
     const fog = scene.fog
     scene.fog = null
@@ -350,12 +380,13 @@ export function createPost(THREE, renderer, { quality = 'high' } = {}) {
     scene.fog = fog
     camera.layers.enable(NO_INK_LAYER)
     drawOver(overlay, true)
+    }
 
     // 3. bloom
     bloom(exposure)
 
     // 4. sun rays, when the sun is in front of us
-    const strength = sun?.strength ?? 0
+    const strength = flat ? 0 : sun?.strength ?? 0
     uniforms.uRays.value = strength * 0.55
     if (strength > 0.001) {
       raysMat.uniforms.uSun.value.copy(sun.uv)
@@ -386,6 +417,11 @@ export function createPost(THREE, renderer, { quality = 'high' } = {}) {
     setSize,
     render,
     renderClouds,
+    /** The photo to show full screen (uniforms.uPhoto sets how much). */
+    setPhoto(texture, aspect) {
+      uniforms.tPhoto.value = texture
+      uniforms.uPhotoAspect.value = aspect
+    },
     dispose() {
       for (const t of [color, normals, bloomA, bloomB, rays]) t.dispose()
       depthTexture.dispose()

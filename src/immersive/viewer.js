@@ -1,31 +1,29 @@
 /**
- * The 3D viewer behind the journey.
+ * The 3D viewer behind the tour.
  *
- * One place at a time, rendered as realistically as a browser allows —
- * physically based materials lit by the sun, soft shadows and the sky's own
- * light (an environment map made from the painted sky), finished in post.js
- * with occlusion, bloom, sun rays and a filmic curve — with
- * Wilson's camera floating in front of it. The view of the place never wanders:
- * it settles on the spot where the moment was shot and stays there while the
- * visitor flicks through the photos on the camera's screen. It only moves to
- * travel to another place, through the clouds.
+ *   wall      the memory wall: every project as an instant print on twine
+ *   place     one project's place, rendered as realistically as a browser
+ *             allows (physically based materials, sky light, soft shadows,
+ *             occlusion, bloom, sun rays, a filmic curve — see post.js), with
+ *             the current photo floating in the middle as a print in the wind
  *
- *   open(place)          travel there (or fade up, the first time)
- *   pose('intro'|'review')  the camera floating out in the place, lens toward
- *                        you — or turned round and brought close, its screen
- *                        showing the photos
- *   setMode('inside')    the camera drops away; drag to look around the place
+ * Moving between them:
+ *   enter(i)       fly into print i on the wall; its photo fills the screen,
+ *                  then "develops" into the 3D place as the view glides in
+ *   photo(i)       the wind takes the print away, the next drifts in, and the
+ *                  view moves to a new spot in the place
+ *   backToWall()   the place dissolves back into the photo, and the photo
+ *                  back onto its print on the wall
  *
- * The photo itself is not drawn here: every frame, onScreen() reports where the
- * camera's screen is on the page (four corners) and how squarely it faces the
- * visitor, and the journey lays a crisp, accessible <img> over exactly that.
+ * Every move is a time-based tween, so it can be interrupted.
  */
 import * as THREE from 'three'
 import { loadScene } from './scenes/index.js'
 import { createPost, NO_INK_LAYER } from './post.js'
 import { skyFromProject } from './palette.js'
-import { buildCameraModel } from './camera-model.js'
-import { easeInOutCubic, easeInOutSine, easeInCubic, clamp01, lerp } from './utils.js'
+import { buildWall } from './wall.js'
+import { buildPrint, disposePrint, loadImage } from './prints.js'
+import { easeInOutCubic, easeInOutSine, easeOutCubic, easeInCubic, clamp01, smooth } from './utils.js'
 
 /** A value that eases toward targets over time, interruptible. */
 function tween(initial) {
@@ -72,12 +70,14 @@ function tween(initial) {
 
 const wait = (s) => new Promise((r) => setTimeout(r, s * 1000))
 const NIGHT_OR_INDOOR = new Set(['waterfront-night', 'party-boat', 'studio', 'interior'])
+const fract = (v) => v - Math.floor(v)
+const ARRIVE_FROM = 0.72 // how far along its arrival path a place starts
 
-export async function createViewer({ canvas, quality = 'high', onError, onPhase, onScreen }) {
+export async function createViewer({ canvas, quality = 'high', onError, onPhase, onPrintRect }) {
   const renderer = new THREE.WebGLRenderer({ canvas, antialias: false, powerPreference: 'high-performance', alpha: false })
   renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, quality === 'low' ? 1 : 1.5))
   renderer.outputColorSpace = THREE.LinearSRGBColorSpace // post.js does the display conversion
-  renderer.toneMapping = THREE.NoToneMapping // and the tone curve
+  renderer.toneMapping = THREE.NoToneMapping // and the film curve
   renderer.shadowMap.enabled = true
   renderer.shadowMap.type = THREE.PCFSoftShadowMap
   renderer.setClearColor(0x0b0b0c, 1)
@@ -92,6 +92,12 @@ export async function createViewer({ canvas, quality = 'high', onError, onPhase,
   const post = createPost(THREE, renderer, { quality })
   const ctx = { quality }
   const pmrem = new THREE.PMREMGenerator(renderer)
+
+  const size = new THREE.Vector2() // drawing buffer, px
+  const css = new THREE.Vector2(1, 1) // canvas, CSS px
+  const wide = () => css.x / css.y >= 1
+
+  /* --- places --------------------------------------------------------- */
 
   /** Light the place with its own sky: reflections and soft ambient light. */
   function environment(place) {
@@ -108,42 +114,10 @@ export async function createViewer({ canvas, quality = 'high', onError, onPhase,
     sky.layers.set(NO_INK_LAYER)
   }
 
-  /* --- the floating camera ------------------------------------------------ */
-
-  // It has its own little scene, drawn over the place with its own depth, so
-  // it can sit close to the view without ever cutting into the scenery.
-  const rigScene = new THREE.Scene()
-  const rigCam = new THREE.PerspectiveCamera(46, 1, 0.05, 60)
-  rigCam.layers.enable(NO_INK_LAYER)
-  const rig = buildCameraModel(THREE)
-  rigScene.add(rig.group)
-  const rigHemi = new THREE.HemisphereLight(0xeef1f5, 0x5a5550, 1.1)
-  const rigKey = new THREE.DirectionalLight(0xffffff, 1.6) // from over the visitor's shoulder
-  rigKey.position.set(-1.2, 1.6, 2.2)
-  const rigRim = new THREE.DirectionalLight(0xffffff, 1.4) // the place's sun, from behind
-  rigRim.position.set(1.4, 1.1, -2)
-  rigScene.add(rigHemi, rigKey, rigRim)
-  const overlay = { scene: rigScene, camera: rigCam }
-
-  function lightRig(place) {
-    const L = place?.world?.light
-    if (!L) return
-    rigHemi.color.setHex(L.hemi[0])
-    rigHemi.groundColor.setHex(L.hemi[1])
-    rigHemi.intensity = 0.6 + L.hemi[2] * 0.5
-    rigKey.color.setHex(L.sky.horizon).lerp(new THREE.Color(0xffffff), 0.5)
-    rigKey.intensity = L.night ? 0.7 : 1.5
-    rigRim.color.setHex(L.sunColor)
-    rigRim.intensity = L.night ? 0.8 : 1.3 + L.sunIntensity * 0.25
-  }
-
-  /* --- places --------------------------------------------------------- */
-
   const cache = new Map()
   const pending = new Map()
-  const keepMax = quality === 'low' ? 2 : 4
-  const order = [] // most recently used last
-
+  const keepMax = quality === 'low' ? 2 : 3
+  const order = []
   const keyOf = (p) => `${p.scene}|${p.hero || ''}`
 
   function free(place) {
@@ -165,14 +139,9 @@ export async function createViewer({ canvas, quality = 'high', onError, onPhase,
     place.envTarget?.dispose()
   }
 
-  const size = new THREE.Vector2() // drawing buffer, px
-  const css = new THREE.Vector2(1, 1) // canvas, CSS px
-
   function fovFor(place) {
-    const a = css.x / css.y
-    return (place?.path?.fov || 48) * (a < 0.8 ? 1.35 : 1)
+    return (place?.path?.fov || 48) * (wide() ? 1 : 1.35)
   }
-
   function fit(place) {
     place.camera.aspect = css.x / css.y
     place.camera.fov = fovFor(place)
@@ -184,13 +153,11 @@ export async function createViewer({ canvas, quality = 'high', onError, onPhase,
     if (cache.has(key)) return Promise.resolve(cache.get(key))
     if (pending.has(key)) return pending.get(key)
     const job = (async () => {
-      await wait(0.016) // let the page paint before a heavy build
-      // night and indoor places keep their own sky; the rest follow the photos
+      await wait(0.016)
       ctx.sky = NIGHT_OR_INDOOR.has(p.scene) ? null : await skyFromProject(p)
       const place = await loadScene(p.scene, THREE, ctx)
       ctx.sky = null
       environment(place)
-      // sprites and anything transparent stay out of the normal pass
       place.scene.traverse((o) => {
         const m = o.material
         if (o.isSprite || (m && !Array.isArray(m) && m.transparent)) o.layers.set(NO_INK_LAYER)
@@ -203,11 +170,10 @@ export async function createViewer({ canvas, quality = 'high', onError, onPhase,
       renderer.compile(place.scene, place.camera)
       cache.set(key, place)
       pending.delete(key)
-      // keep memory in check: drop the least recently used
       order.push(key)
       while (order.length > keepMax) {
         const old = order.shift()
-        if (old !== keyOf(target || {}) && cache.has(old) && cache.get(old) !== current) {
+        if (cache.has(old) && cache.get(old) !== current) {
           free(cache.get(old))
           cache.delete(old)
         }
@@ -224,39 +190,65 @@ export async function createViewer({ canvas, quality = 'high', onError, onPhase,
 
   /* --- state ------------------------------------------------------------- */
 
-  let current = null // the place on screen
-  let target = null // the place being travelled to
-  const u = tween(1) // position along the current place's arrival path
-  const rise = tween(0) // lift into the sky when leaving
+  let mode = 'none' // 'wall' | 'place'
+  let wall = null
+  let current = null
+  let currentIndex = -1
+  const u = tween(1) // along the place's arrival path
+  const yaw = tween(0) // turn of the view, per photo
+  const orbit = tween(0) // swing round the subject, per photo
+  const spotMix = tween(1) // between listed viewpoints
   const cloud = tween(0)
   const fade = tween(1)
-  const pose = tween(0) // 0: floating out in the place, lens to you; 1: close, screen to you
-  const away = tween(0) // 1: dropped out of view (stepped inside)
-  let mode = 'pick'
-  const lookTarget = new THREE.Vector2()
-  const lookNow = new THREE.Vector2()
+  const photoMix = tween(0) // 1: the photo fills the screen
+  const zoom = tween(0) // wall: 0 at rest, 1 filling the screen with a print
   const pointer = new THREE.Vector2()
   const pointerNow = new THREE.Vector2()
-  let travelling = false
 
   const pos = new THREE.Vector3()
   const look = new THREE.Vector3()
+  const tmp = new THREE.Vector3()
+  const tmp2 = new THREE.Vector3()
   const yAxis = new THREE.Vector3(0, 1, 0)
 
-  /** The view of the place: still, once arrived. */
+  // scenes may list their own viewpoints (path.spots: [{ pos, look }]);
+  // the view glides from wherever it is to the next one
+  const viewNow = { pos: new THREE.Vector3(), look: new THREE.Vector3() }
+  let viewFrom = null
+  let viewTo = null
+  let viewLift = 0
+
+  /** The view of a place, at its current spot. */
   function placeCamera(place) {
     const c = place.camera
-    const f = clamp01(u.value)
-    place.posCurve.getPointAt(f, pos)
-    place.lookCurve.getPointAt(f, look)
+    if (place.path.spots && viewTo) {
+      const k = clamp01(spotMix.value)
+      pos.lerpVectors(viewFrom.pos, viewTo.pos, k)
+      look.lerpVectors(viewFrom.look, viewTo.look, k)
+      pos.y += Math.sin(Math.PI * k) * viewLift // a crane's arc, not a slide
+      // arriving: come down the path and settle onto the first spot
+      const f = clamp01(u.value)
+      if (f < 1) {
+        place.posCurve.getPointAt(f, tmp)
+        place.lookCurve.getPointAt(f, tmp2)
+        const w = smooth(clamp01((f - ARRIVE_FROM) / (1 - ARRIVE_FROM)))
+        pos.lerpVectors(tmp, pos, w)
+        look.lerpVectors(tmp2, look, w)
+      }
+    } else {
+      const f = clamp01(u.value)
+      place.posCurve.getPointAt(f, pos)
+      place.lookCurve.getPointAt(f, look)
+      if (Math.abs(orbit.value) > 1e-4) {
+        tmp.subVectors(pos, look).applyAxisAngle(yAxis, orbit.value)
+        pos.copy(look).add(tmp)
+      }
+    }
+    viewNow.pos.copy(pos)
+    viewNow.look.copy(look)
     if (place.anchor) {
       pos.add(place.anchor.position)
       look.add(place.anchor.position)
-    }
-    // leaving: lift up and tilt toward the sky
-    if (rise.value > 0) {
-      pos.y += rise.value * 60
-      look.y += rise.value * 140
     }
     if (place.groundAt) {
       const floor = place.groundAt(pos.x, pos.z) + (place.clearance ?? 1.2)
@@ -264,111 +256,36 @@ export async function createViewer({ canvas, quality = 'high', onError, onPhase,
     }
     c.position.copy(pos)
     c.lookAt(look)
-    // look around — only ever by the visitor's own drag, when inside
-    c.rotateOnWorldAxis(yAxis, -lookNow.x)
-    c.rotateX(lookNow.y)
-    // frame the place's subject beside the floating camera, not behind it:
-    // to the left on wide screens, above it on phones (none when inside)
-    const k = 1 - away.value
-    const wide = css.x / css.y >= 1
-    c.setViewOffset(css.x, css.y, wide ? css.x * 0.26 * k : 0, wide ? 0 : css.y * 0.26 * k, css.x, css.y)
+    c.rotateOnWorldAxis(yAxis, yaw.value - pointerNow.x * 0.02)
+    c.rotateX(pointerNow.y * 0.012)
   }
 
-  /* --- where the floating camera sits on the page ------------------------ */
-
-  // The camera model's screen, in its own space (see camera-model.js)
-  const S = rig.screen
-  const hump = 0.7 // from the screen's centre up to the top of the viewfinder
-  const below = 0.31 // from the screen's centre down to the base
-
-  /** Screen centre (px), size (px per model unit), distance and angles for a pose. */
-  function layout(which) {
-    const W = css.x
-    const H = css.y
-    const wide = W / H >= 1
-    if (which === 'review') {
-      if (wide) {
-        const lcdH = Math.min(0.35 * H, (0.4 * W) / 1.5)
-        const ppu = lcdH / (S.halfH * 2)
-        const cy = Math.min(Math.max(0.5 * H, 0.1 * H + hump * ppu), H - below * ppu - 0.05 * H)
-        return { cx: W * (W > 1100 ? 0.62 : 0.56), cy, ppu, d: 2.2, yaw: Math.PI, pitch: 0 }
-      }
-      const lcdW = Math.min(0.84 * W, 0.3 * H * 1.5)
-      const ppu = lcdW / (S.halfW * 2)
-      return { cx: W / 2, cy: Math.min(0.6 * H, H - 0.27 * H - below * ppu), ppu, d: 2.2, yaw: Math.PI, pitch: 0 }
+  /** For scenes without listed spots: along the arrival path, turned, swung. */
+  function derivedSpot(i) {
+    if (i === 0) return { u: 1, yaw: 0, orbit: 0 }
+    return {
+      u: 1 - 0.1 - 0.32 * fract(i * 0.618),
+      yaw: (i % 2 ? 1 : -1) * (0.16 + 0.2 * fract(i * 0.37)),
+      orbit: ((i % 3) - 1) * 0.07,
     }
-    // intro: further out in the place, three-quarters on, lens toward you
-    const ref = layout('review')
-    return wide
-      ? { cx: W * 0.7, cy: H * 0.42, ppu: ref.ppu * 0.36, d: 16, yaw: 0.8, pitch: 0.14 }
-      : { cx: W * 0.56, cy: H * 0.5, ppu: ref.ppu * 0.5, d: 16, yaw: 0.8, pitch: 0.14 }
   }
 
-  const rot = new THREE.Euler(0, 0, 0, 'YXZ')
-  const q = new THREE.Quaternion()
-  const anchor = new THREE.Vector3()
-  const spot = new THREE.Vector3()
-  const corner = new THREE.Vector3()
-  const normal = new THREE.Vector3()
-  const toEye = new THREE.Vector3()
-  const quad = [
-    [0, 0],
-    [0, 0],
-    [0, 0],
-    [0, 0],
-  ]
-  // the screen's corners as the visitor sees them (from behind the camera,
-  // so the model's +X is on the left): TL, TR, BR, BL
-  const corners = [
-    [1, 1],
-    [-1, 1],
-    [-1, -1],
-    [1, -1],
-  ]
-
-  function placeRig(time) {
-    const A = layout('intro')
-    const B = layout('review')
-    const k = easeInOutCubic(clamp01(pose.value))
-    const d = lerp(A.d, B.d, k)
-    let cx = lerp(A.cx, B.cx, k)
-    let cy = lerp(A.cy, B.cy, k)
-    const ppu = lerp(A.ppu, B.ppu, k)
-    // floating: a slow drift, and a lean toward the pointer
-    cy += Math.sin(time * 0.9) * css.y * 0.004 + away.value * css.y * 1.05
-    cx += Math.sin(time * 0.37) * css.x * 0.002
-    const yaw = lerp(A.yaw, B.yaw, k) + Math.sin(time * 0.45) * 0.02 + pointerNow.x * 0.06
-    const pitch = lerp(A.pitch, B.pitch, k) + Math.sin(time * 0.6) * 0.012 - pointerNow.y * 0.045 - away.value * 0.3
-    const roll = Math.sin(time * 0.31) * 0.008
-
-    const tanY = Math.tan(THREE.MathUtils.degToRad(rigCam.fov / 2))
-    const hh = d * tanY
-    const hw = hh * rigCam.aspect
-    const s = (ppu * 2 * hh) / css.y // model units → world units at distance d
-
-    rot.set(pitch, yaw, roll)
-    q.setFromEuler(rot)
-    rig.group.quaternion.copy(q)
-    rig.group.scale.setScalar(s)
-    // put the screen's centre exactly at (cx, cy), at distance d
-    anchor.set((cx / css.x) * 2 - 1, -((cy / css.y) * 2 - 1), 0)
-    spot.set(anchor.x * hw, anchor.y * hh, -d)
-    corner.copy(S.center).multiplyScalar(s).applyQuaternion(q)
-    rig.group.position.copy(spot).sub(corner)
-
-    if (!onScreen) return
-    rig.group.updateMatrixWorld()
-    for (let i = 0; i < 4; i++) {
-      corner.set(S.center.x + corners[i][0] * S.halfW, S.center.y + corners[i][1] * S.halfH, S.center.z)
-      rig.group.localToWorld(corner)
-      corner.project(rigCam)
-      quad[i][0] = (corner.x * 0.5 + 0.5) * css.x
-      quad[i][1] = (-corner.y * 0.5 + 0.5) * css.y
+  function goToSpot(i, seconds) {
+    if (!current) return Promise.resolve()
+    const spots = current.path.spots
+    if (spots) {
+      const next = spots[i % spots.length]
+      viewFrom = { pos: viewNow.pos.clone(), look: viewNow.look.clone() }
+      viewTo = next
+      viewLift = Math.min(5, viewFrom.pos.distanceTo(next.pos) * 0.1)
+      spotMix.set(0)
+      yaw.to(0, seconds)
+      return spotMix.to(1, seconds, easeInOutCubic)
     }
-    normal.set(0, 0, -1).applyQuaternion(q)
-    toEye.copy(spot).negate().normalize()
-    const facing = normal.dot(toEye)
-    onScreen({ quad, facing, cloud: Math.max(cloud.value, fade.value), away: away.value })
+    const s = derivedSpot(i)
+    yaw.to(s.yaw, seconds, easeInOutCubic)
+    orbit.to(s.orbit, seconds, easeInOutCubic)
+    return u.to(s.u, seconds, easeInOutCubic)
   }
 
   /* --- the sun on screen, for its rays ---------------------------------- */
@@ -387,15 +304,151 @@ export async function createViewer({ canvas, quality = 'high', onError, onPhase,
     const facing = forward.dot(w.sunDir)
     sunPoint.copy(w.sunDir).multiplyScalar(5000).add(c.position).project(c)
     sunInfo.uv.set(sunPoint.x * 0.5 + 0.5, sunPoint.y * 0.5 + 0.5)
-    // strongest looking toward the sun; gone once it's well off screen
     const off = Math.max(Math.abs(sunPoint.x), Math.abs(sunPoint.y))
     const k = clamp01((facing - 0.05) / 0.45) * clamp01((2.2 - off) / 1.2) * (w.sunDir.y > 0 ? 1 : 0)
-    sunInfo.strength = k * (w.light?.night ? 0.12 : 1) * (1 - cloud.value)
+    sunInfo.strength = k * (w.light?.night ? 0.12 : 1) * (1 - cloud.value) * (1 - photoMix.value)
     sunInfo.color.setHex(w.light?.sunColor ?? 0xffffff)
     return sunInfo
   }
 
-  /* --- sizing ------------------------------------------------------------ */
+  /* --- the floating print (place mode) ------------------------------------ */
+
+  const printScene = new THREE.Scene()
+  const printCam = new THREE.PerspectiveCamera(40, 1, 0.05, 50)
+  printCam.layers.enable(NO_INK_LAYER)
+  const overlay = { scene: printScene, camera: printCam }
+  const printCache = new Map() // src → Promise<mesh>
+  const printOrder = []
+  let slots = [] // { mesh, enter, exit, dir, phase }
+  let printTitle = ''
+
+  function getPrint(src) {
+    const key = `${src}|${printTitle}`
+    if (!printCache.has(key)) {
+      printCache.set(key, buildPrint(THREE, renderer, src, { title: printTitle, width: 1, maxPx: quality === 'low' ? 900 : 1500 }))
+      printOrder.push(key)
+      while (printOrder.length > 8) {
+        const old = printOrder.shift()
+        const job = printCache.get(old)
+        printCache.delete(old)
+        job
+          .then((m) => {
+            if (!slots.some((s) => s.mesh === m)) disposePrint(m)
+          })
+          .catch(() => {})
+      }
+    }
+    return printCache.get(key)
+  }
+
+  /** Size and place of the print on screen, in px. */
+  function printLayout(mesh) {
+    const { w, h } = mesh.userData
+    const W = css.x
+    const H = css.y
+    const maxH = wide() ? 0.64 * H : 0.5 * H
+    const maxW = wide() ? 0.48 * W : 0.82 * W
+    const scale = Math.min(maxH / h, maxW / w) // px per print unit
+    return { cx: W * (wide() ? 0.56 : 0.5), cy: H * (wide() ? 0.47 : 0.42), scale }
+  }
+
+  const corner = new THREE.Vector3()
+  const rect = { x: 0, y: 0, w: 0, h: 0, visible: false }
+  function placePrints(time) {
+    const tanY = Math.tan(THREE.MathUtils.degToRad(printCam.fov / 2))
+    const d = 3
+    const upp = (2 * d * tanY) / css.y // world units per px at distance d
+    let settled = null
+    for (const s of slots) {
+      const L = printLayout(s.mesh)
+      const ke = s.enter == null ? 1 : easeOutCubic(clamp01((time - s.enter) / 1.5))
+      const kx = s.exit == null ? 0 : easeInCubic(clamp01((time - s.exit) / 1.2))
+      const dir = s.dir
+      // in from one side on the wind, out and away on the other
+      const ox = dir * (1 - ke) * css.x * 0.8 - dir * kx * css.x * 0.95
+      const oy = -(1 - ke) * css.y * 0.08 - kx * css.y * 0.22
+      const sway = Math.sin(time * 0.8 + s.phase)
+      const m = s.mesh
+      const cx = L.cx + ox + Math.sin(time * 0.45 + s.phase) * css.x * 0.004
+      const cy = L.cy + oy + Math.sin(time * 0.7 + s.phase) * css.y * 0.006
+      const world = L.scale * upp
+      m.scale.setScalar(world)
+      m.rotation.set(
+        0.04 * sway - pointerNow.y * 0.05 + kx * 0.4,
+        dir * (1 - ke) * 0.9 - dir * kx * 0.8 + pointerNow.x * 0.07 + 0.05 * Math.sin(time * 0.5 + s.phase),
+        dir * (1 - ke) * 0.35 - dir * kx * 0.6 + 0.025 * sway
+      )
+      // the print hangs from its top edge; centre it on (cx, cy)
+      const x = ((cx / css.x) * 2 - 1) * d * tanY * printCam.aspect
+      const y = -((cy / css.y) * 2 - 1) * d * tanY
+      corner.set(0, (m.userData.h * world) / 2, 0).applyEuler(m.rotation)
+      m.position.set(x, y, -d).add(corner)
+      const uni = m.material.uniforms
+      uni.uTime.value = time
+      uni.uWind.value = 1 + (1 - ke) * 1.6 + kx * 2.4
+      uni.uOpacity.value = (1 - kx * kx) * (1 - photoMix.value)
+      if (s.exit == null && ke > 0.9) settled = { m, L }
+    }
+    slots = slots.filter((s) => {
+      const gone = s.exit != null && time - s.exit > 1.25
+      if (gone) printScene.remove(s.mesh)
+      return !gone
+    })
+    if (onPrintRect) {
+      if (settled && photoMix.value < 0.05) {
+        const { m, L } = settled
+        rect.w = m.userData.w * L.scale
+        rect.h = m.userData.h * L.scale
+        rect.x = L.cx - rect.w / 2
+        rect.y = L.cy - rect.h / 2
+        rect.visible = true
+      } else rect.visible = false
+      onPrintRect(rect)
+    }
+  }
+
+  async function showPrint(src, dir = 1) {
+    const mesh = await getPrint(src)
+    const time = performance.now() / 1000
+    const same = slots.find((s) => s.mesh === mesh)
+    for (const s of slots) if (s !== same && s.exit == null) s.exit = time
+    if (same) {
+      same.exit = null
+      same.enter = time
+      return
+    }
+    printScene.add(mesh)
+    slots.push({ mesh, enter: time + 0.35, exit: null, dir, phase: Math.random() * 6 })
+  }
+
+  function clearPrints() {
+    for (const s of slots) printScene.remove(s.mesh)
+    slots = []
+  }
+
+  /* --- the photo, full screen (between the wall and the place) ----------- */
+
+  const photoTextures = new Map()
+  function photoTexture(src) {
+    if (!photoTextures.has(src)) {
+      photoTextures.set(
+        src,
+        loadImage(src).then((img) => {
+          const t = new THREE.Texture(img)
+          t.colorSpace = THREE.SRGBColorSpace
+          t.needsUpdate = true
+          return t
+        })
+      )
+    }
+    return photoTextures.get(src)
+  }
+  async function setPhoto(src) {
+    const t = await photoTexture(src)
+    post.setPhoto(t, t.image.naturalWidth / t.image.naturalHeight)
+  }
+
+  /* --- render loop ------------------------------------------------------- */
 
   function resize() {
     const w = canvas.clientWidth || window.innerWidth
@@ -405,13 +458,16 @@ export async function createViewer({ canvas, quality = 'high', onError, onPhase,
     renderer.getDrawingBufferSize(size)
     post.setSize(size.x, size.y)
     for (const p of cache.values()) fit(p)
-    rigCam.aspect = w / h
-    rigCam.fov = fovFor(current)
-    rigCam.updateProjectionMatrix()
+    printCam.aspect = w / h
+    printCam.fov = wide() ? 40 : 52
+    printCam.updateProjectionMatrix()
+    wall?.layout(w / h)
   }
   resize()
 
-  /* --- render loop ------------------------------------------------------- */
+  const restA = { pos: new THREE.Vector3(), look: new THREE.Vector3(), panRange: 0 }
+  const restB = { pos: new THREE.Vector3(), look: new THREE.Vector3() }
+  let zoomIndex = 0
 
   let raf = 0
   let running = false
@@ -419,26 +475,42 @@ export async function createViewer({ canvas, quality = 'high', onError, onPhase,
     raf = requestAnimationFrame(frame)
     if (lost) return
     const time = performance.now() / 1000
-    u.update(time)
-    rise.update(time)
-    cloud.update(time)
-    fade.update(time)
-    pose.update(time)
-    away.update(time)
-    lookNow.lerp(lookTarget, 0.08)
-    pointerNow.lerp(pointer, 0.05)
+    for (const t of [u, yaw, orbit, spotMix, cloud, fade, photoMix, zoom]) t.update(time)
+    pointerNow.lerp(pointer, 0.06)
     post.uniforms.uCloud.value = cloud.value
     post.uniforms.uFade.value = fade.value
+    post.uniforms.uPhoto.value = photoMix.value
 
-    placeRig(time)
-    if (current) {
+    if (mode === 'wall' && wall) {
+      wall.update(time, pointerNow)
+      wall.restPose(restA)
+      const k = easeInOutCubic(clamp01(zoom.value))
+      const cam = wall.camera
+      if (k > 0) {
+        wall.printPose(zoomIndex, restB)
+        cam.position.lerpVectors(restA.pos, restB.pos, k)
+        look.lerpVectors(restA.look, restB.look, k)
+      } else {
+        cam.position.copy(restA.pos)
+        look.copy(restA.look)
+      }
+      cam.position.x += pointerNow.x * 0.35 * (1 - k)
+      cam.position.y += pointerNow.y * 0.2 * (1 - k)
+      cam.lookAt(look)
+      post.render(wall.scene, cam, { time, flat: true })
+      if (onPrintRect && rect.visible) {
+        rect.visible = false
+        onPrintRect(rect)
+      }
+    } else if (mode === 'place' && current) {
       current.update?.(time)
       current.world?.tick?.(time)
       placeCamera(current)
+      placePrints(time)
       post.render(current.scene, current.camera, {
         time,
         exposure: current.world?.exposure ?? 1,
-        overlay: away.value < 0.999 ? overlay : null,
+        overlay: slots.length ? overlay : null,
         sun: sunOnScreen(current),
       })
     } else {
@@ -446,97 +518,141 @@ export async function createViewer({ canvas, quality = 'high', onError, onPhase,
     }
   }
 
-  /* --- the journey -------------------------------------------------------- */
-
-  function setCloudColours(place) {
-    const s = place?.world?.light?.sky
-    if (!s) return
-    post.uniforms.uCloudLit.value.setHex(s.cloudLit)
-    post.uniforms.uCloudShade.value.setHex(s.cloudShade)
-  }
-
-  let journey = 0 // cancels an older open() if a newer one starts
-
-  /**
-   * Travel to a place: up into the clouds, across, and down to the spot the
-   * moment was shot from. Slow on purpose, so each place arrives like a new
-   * chapter. Resolves when the view has settled.
-   */
-  async function open(p) {
-    const id = ++journey
-    target = p
-    travelling = true
-    const first = !current
-    const loading = ensure(p)
-    if (first) {
-      onPhase?.('loading')
-      cloud.set(1)
-      fade.set(0)
-    } else {
-      onPhase?.('leaving')
-      setCloudColours(current)
-      lookTarget.set(0, 0)
-      await Promise.all([rise.to(1, 1.8, easeInCubic), cloud.to(1, 1.6, easeInOutSine)])
-      if (id !== journey) return false
-      onPhase?.('loading')
-    }
-    const place = await loading
-    if (id !== journey) return false
-    current = place
-    rigScene.environment = place.scene.environment || null
-    rigCam.fov = fovFor(place)
-    rigCam.updateProjectionMatrix()
-    lightRig(place)
-    setCloudColours(place)
-    rise.set(0)
-    u.set(0)
-    onPhase?.('arriving')
-    cloud.to(0, 2.2, easeInOutSine)
-    await u.to(1, 5.2, easeInOutCubic)
-    if (id !== journey) return false
-    travelling = false
-    onPhase?.('arrived')
-    return true
-  }
+  let journey = 0
 
   return {
-    open,
-    /** Float the camera out in the place ('intro') or bring it close, screen first ('review'). */
-    pose(which, seconds = 2.6) {
-      const v = which === 'review' ? 1 : 0
-      if (seconds <= 0) {
-        pose.set(v)
-        return Promise.resolve()
+    /** Build the wall for these projects (once) and show it. */
+    async showWall(items) {
+      const id = ++journey
+      if (!wall) {
+        wall = await buildWall(THREE, renderer, items, { quality })
+        wall.layout(css.x / css.y)
       }
-      return pose.to(v, seconds, easeInOutSine)
+      if (id !== journey) return
+      mode = 'wall'
+      cloud.set(0)
+      zoom.set(0)
+      photoMix.set(0)
+      await fade.to(0, 1.4, easeInOutSine)
+      onPhase?.('wall')
     },
-    /** 'pick' — browsing on the camera; 'inside' — the camera drops away, look around. */
-    async setMode(next) {
-      mode = next
-      lookTarget.set(0, 0)
-      if (next === 'inside') await away.to(1, 1.4, easeInCubic)
-      else await away.to(0, 1.6, easeInOutCubic)
+    /** Get the wall ready without showing it. */
+    prepareWall(items) {
+      if (!wall) {
+        return buildWall(THREE, renderer, items, { quality }).then((w) => {
+          if (!wall) {
+            wall = w
+            wall.layout(css.x / css.y)
+          } else w.dispose()
+        })
+      }
+      return Promise.resolve()
     },
-    /** Turn back to the moment and raise the camera again. */
-    async returnToMoment() {
-      lookTarget.set(0, 0)
-      await wait(0.9)
-      await away.to(0, 1.4, easeInOutCubic)
+
+    /** The print under the pointer on the wall (or -1); it lifts toward you. */
+    wallHover(ndcX, ndcY) {
+      if (mode !== 'wall' || !wall || zoom.value > 0.01) return -1
+      const i = wall.pick(new THREE.Vector2(ndcX, ndcY))
+      wall.hover(i)
+      return i
     },
-    /** Drag to look around (inside), in pixels moved. */
-    drag(dx, dy) {
-      if (mode !== 'inside') return
-      lookTarget.x = Math.max(-0.9, Math.min(0.9, lookTarget.x + dx * 0.004))
-      lookTarget.y = Math.max(-0.35, Math.min(0.35, lookTarget.y - dy * 0.003))
+    /** Drag the wall (when it's taller than the screen). */
+    wallPan(dx, dy) {
+      if (mode !== 'wall' || !wall) return
+      wall.restPose(restA)
+      wall.panBy(-dx * 0.01, dy * 0.012, restA.panRange)
     },
+
+    /**
+     * Into project i: fly into its print on the wall (if it's showing), the
+     * photo fills the screen, then develops into the place as the view glides in.
+     */
+    async enter(i, item, { title = '' } = {}) {
+      const id = ++journey
+      currentIndex = i
+      printTitle = title
+      onPhase?.('entering')
+      const loading = ensure(item)
+      const photoReady = setPhoto(item.hero)
+      getPrint(item.hero).catch(() => {})
+      if (mode === 'wall' && wall) {
+        zoomIndex = i
+        wall.hover(-1)
+        await zoom.to(1, 1.6, easeInOutCubic)
+        if (id !== journey) return false
+        await photoReady
+        await photoMix.to(1, 0.9, easeInOutSine)
+      } else {
+        await photoReady
+        photoMix.set(1)
+        await fade.to(0, 0.8, easeInOutSine)
+      }
+      if (id !== journey) return false
+      onPhase?.('loading')
+      const place = await loading
+      if (id !== journey) return false
+      current = place
+      mode = 'place'
+      clearPrints()
+      if (place.path.spots) {
+        viewTo = place.path.spots[0]
+        viewFrom = viewTo
+        spotMix.set(1)
+      } else {
+        viewTo = viewFrom = null
+      }
+      yaw.set(0)
+      orbit.set(0)
+      u.set(ARRIVE_FROM)
+      zoom.set(0)
+      onPhase?.('arriving')
+      // the photo develops into the place while the view settles where it was taken
+      u.to(1, 4.6, easeOutCubic)
+      await wait(0.5)
+      await photoMix.to(0, 2.8, easeInOutSine)
+      if (id !== journey) return false
+      showPrint(item.hero, 1)
+      onPhase?.('arrived')
+      return true
+    },
+
+    /** Photo i: the next print on the wind, and a new view of the place. */
+    photo(i, src, dir = 1) {
+      if (mode !== 'place') return
+      showPrint(src, dir)
+      goToSpot(i, 3.8)
+    },
+    preloadPrint(src) {
+      getPrint(src).catch(() => {})
+    },
+
+    /** Back to the wall: the place dissolves into the photo, the photo onto its print. */
+    async backToWall(src) {
+      const id = ++journey
+      onPhase?.('leaving')
+      if (mode === 'place') {
+        if (src) await setPhoto(src)
+        const time = performance.now() / 1000
+        for (const s of slots) if (s.exit == null) s.exit = time
+        await photoMix.to(1, 1.3, easeInOutSine)
+        if (id !== journey) return
+      }
+      clearPrints()
+      if (!wall) return
+      mode = 'wall'
+      zoomIndex = Math.max(0, currentIndex)
+      zoom.set(1)
+      await photoMix.to(0, 0.9, easeInOutSine)
+      await zoom.to(0, 1.8, easeInOutCubic)
+      if (id !== journey) return
+      onPhase?.('wall')
+    },
+
     setPointer(x, y) {
       pointer.set(x, y)
     },
     preload(p) {
       return ensure(p).catch(() => {})
-    },
-    get travelling() {
-      return travelling
     },
     resize,
     start() {
@@ -554,7 +670,9 @@ export async function createViewer({ canvas, quality = 'high', onError, onPhase,
       cancelAnimationFrame(raf)
       for (const p of cache.values()) free(p)
       cache.clear()
-      free({ scene: rigScene })
+      wall?.dispose()
+      for (const job of printCache.values()) job.then(disposePrint).catch(() => {})
+      for (const job of photoTextures.values()) job.then((t) => t.dispose()).catch(() => {})
       pmrem.dispose()
       post.dispose()
       renderer.dispose()

@@ -215,7 +215,7 @@ export default function GalleryPage() {
     <>
       {/* Each gallery opens in the place it was shot, if it has one */}
       {gallery.scene && gallery.hero && (
-        <Journey key={gallery.slug} items={chapters} intro={false} variant="gallery" skip="#photos" skipLabel="View as a regular gallery" />
+        <Journey key={gallery.slug} items={chapters} variant="gallery" skip="#photos" skipLabel="View as a regular gallery" />
       )}
     <main className="gp" id="photos">
       <header className="gp__head">

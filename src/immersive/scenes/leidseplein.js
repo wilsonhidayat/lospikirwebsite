@@ -114,16 +114,23 @@ function facadeTexture(THREE, { wall = '#7a3a28', mortar = '#a28470', floors = 5
 }
 
 /** A box building with a painted front (+Z face in its own space) and plain sides. */
+// materials are shared between buildings that look alike
+const mats = new Map()
+function shared(key, make) {
+  if (!mats.has(key)) mats.set(key, make())
+  return mats.get(key)
+}
+
 function building(THREE, { w, h, d, front, side = 0x6e4a3a, roof = 0x3d3f44, gable = null }) {
   const group = new THREE.Group()
-  const sideMat = new THREE.MeshStandardMaterial({ color: side, roughness: 0.92 })
-  const frontMat = new THREE.MeshStandardMaterial({ map: front, roughness: 0.9 })
+  const sideMat = shared(`side${side}`, () => new THREE.MeshStandardMaterial({ color: side, roughness: 0.92 }))
+  const frontMat = shared(front.uuid, () => new THREE.MeshStandardMaterial({ map: front, roughness: 0.9 }))
   // box faces: +x, −x, +y, −y, +z, −z
   const body = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), [sideMat, sideMat, sideMat, sideMat, frontMat, sideMat])
   body.position.y = h / 2
   body.castShadow = body.receiveShadow = true
   group.add(body)
-  const roofMat = new THREE.MeshStandardMaterial({ color: roof, roughness: 0.6, metalness: 0.2 })
+  const roofMat = shared(`roof${roof}`, () => new THREE.MeshStandardMaterial({ color: roof, roughness: 0.6, metalness: 0.2 }))
   if (gable) {
     // a stepped or pointed gable on the front, Amsterdam-style
     const shape = new THREE.Shape()
@@ -225,7 +232,12 @@ function addPlaneTrees(THREE, scene, spots, { seed = 9, lights = true, low = fal
 
 /* --- the scene ----------------------------------------------------------- */
 
+// the Singelgracht runs along the square's south side, past the tram stop
+const CANAL_N = -60
+const CANAL_S = -78
+
 export function buildLeidseplein(THREE, ctx, { light = 'day' } = {}) {
+  mats.clear()
   const world = createWorld(THREE, ctx, light, {
     // low winter sun from the south-west
     sun: { elevation: 15, azimuth: 215 },
@@ -236,13 +248,22 @@ export function buildLeidseplein(THREE, ctx, { light = 'day' } = {}) {
   const low = ctx.quality === 'low'
 
   // The square: brick paving, a wide pale border
-  const ground = new THREE.Mesh(
-    new THREE.PlaneGeometry(1200, 1200),
-    pavingMaterial(THREE, { base: '#8f8077', tile: 64, repeat: [300, 300], cobble: true, rough: 0.9 })
-  )
-  ground.rotation.x = -Math.PI / 2
-  ground.receiveShadow = true
-  scene.add(ground)
+  // the ground, in two parts either side of the Singelgracht canal
+  const groundMat = pavingMaterial(THREE, { base: '#8f8077', tile: 64, repeat: [1, 1], cobble: true, rough: 0.9 })
+  for (const [z0, z1] of [
+    [CANAL_N, 700],
+    [-700, CANAL_S],
+  ]) {
+    const d = z1 - z0
+    const geo = new THREE.PlaneGeometry(1400, d)
+    const uv = geo.attributes.uv
+    for (let i = 0; i < uv.count; i++) uv.setXY(i, uv.getX(i) * (1400 / 4), uv.getY(i) * (d / 4))
+    const g = new THREE.Mesh(geo, groundMat)
+    g.rotation.x = -Math.PI / 2
+    g.position.z = (z0 + z1) / 2
+    g.receiveShadow = true
+    scene.add(g)
+  }
   const slabs = new THREE.Mesh(
     new THREE.CircleGeometry(15, 48),
     Object.assign(pavingMaterial(THREE, { base: '#9a948c', tile: 96, repeat: [4, 4], rough: 0.85 }), {
@@ -336,6 +357,14 @@ export function buildLeidseplein(THREE, ctx, { light = 'day' } = {}) {
   for (let x = -40; x <= 40; x += 9) {
     trees.push({ x: x + range(rand, -1, 1), z: -32 + range(rand, -1, 1) })
   }
+  // along both quays of the canal
+  for (let x = -150; x <= 150; x += 10) {
+    if (Math.abs(x + 14) < 9) continue // the bridge
+    trees.push({ x: x + range(rand, -1, 1), z: CANAL_N + 3.5 })
+    trees.push({ x: x + range(rand, -1, 1), z: CANAL_S - 3.5 })
+  }
+  // and down Leidsestraat
+  for (let x = 64; x <= 150; x += 14) trees.push({ x, z: 15.5 })
   addPlaneTrees(THREE, scene, low ? trees.filter((_, i) => i % 2 === 0) : trees, { low })
 
   /* tram tracks and the overhead wires across the square */
@@ -384,40 +413,108 @@ export function buildLeidseplein(THREE, ctx, { light = 'day' } = {}) {
     b.rotation.y = ry
     scene.add(b)
   }
-  // the tall brick hotel behind the fountain
+  // facades are painted once per look and shared
+  const texCache = new Map()
+  const front = (opts) => {
+    const k = JSON.stringify(opts)
+    if (!texCache.has(k)) texCache.set(k, facadeTexture(THREE, opts))
+    return texCache.get(k)
+  }
+  const awnings = ['#6b1f22', '#24344a', '#2f4a3b', '#7a5a1e', '#3a2a40']
+  const walls = ['#5b3324', '#7a3a28', '#e7e1d5', '#3d2a22', '#6d4a3a', '#2f4a3b']
+  const cafeFronts = walls.map((wall, i) => front({ wall, floors: 4, cols: 3, ground: 'cafe', awning: awnings[i % awnings.length], seed: 20 + i }))
+  const plainFronts = walls.map((wall, i) => front({ wall, floors: 4 + (i % 2), cols: 3, ground: 'plain', seed: 40 + i }))
+
+  /** A row of narrow houses from (x, z) along (dx, dz), fronts turned by `ry`. */
+  function row(x, z, dx, dz, length, ry, { cafe = true, hMin = 14, hMax = 21, d = 14 } = {}) {
+    let t = 0
+    while (t < length) {
+      const w = range(rand, 7, 11)
+      const b = building(THREE, {
+        w,
+        h: range(rand, hMin, hMax),
+        d,
+        front: pick(rand, cafe ? cafeFronts : plainFronts),
+        side: 0x4f3226,
+        gable: pick(rand, ['step', 'point', 'step', null]),
+      })
+      place(b, x + dx * (t + w / 2), z + dz * (t + w / 2), ry)
+      t += w + 0.2
+    }
+  }
+
+  /* the Singelgracht: water between stone quays, the Leidsebrug across it */
+  const canal = waterMaterial(THREE, { palette: { ...world.light, water: { deep: 0x2f3a36, shallow: 0x55625b, stroke: 0xffd7a6 } }, scale: 0.35, strokes: 0.6 })
+  const canalWater = new THREE.Mesh(new THREE.PlaneGeometry(1400, CANAL_N - CANAL_S), canal)
+  canalWater.rotation.x = -Math.PI / 2
+  canalWater.position.set(0, -1.5, (CANAL_N + CANAL_S) / 2)
+  scene.add(canalWater)
+  const quayStone = new THREE.MeshStandardMaterial({ color: 0x6e655c, roughness: 0.9 })
+  for (const z of [CANAL_N - 0.4, CANAL_S + 0.4]) {
+    const q = new THREE.Mesh(new THREE.BoxGeometry(1400, 1.8, 0.8), quayStone)
+    q.position.set(0, -0.8, z)
+    q.receiveShadow = true
+    scene.add(q)
+  }
+  const bed = new THREE.Mesh(new THREE.BoxGeometry(1400, 0.2, CANAL_N - CANAL_S), new THREE.MeshBasicMaterial({ color: 0x0d1210 }))
+  bed.position.set(0, -2.6, (CANAL_N + CANAL_S) / 2)
+  scene.add(bed)
+  const bridgeStone = new THREE.MeshStandardMaterial({ color: 0x8e8478, roughness: 0.85 })
+  const deck = new THREE.Mesh(new THREE.BoxGeometry(16, 0.9, CANAL_N - CANAL_S + 4), bridgeStone)
+  deck.position.set(-14, 0.05, (CANAL_N + CANAL_S) / 2)
+  deck.castShadow = deck.receiveShadow = true
+  scene.add(deck)
+  const arch = new THREE.Mesh(new THREE.CylinderGeometry(6, 6, 16, 24, 1, false, 0, Math.PI), bridgeStone)
+  arch.rotation.z = Math.PI / 2
+  arch.rotation.y = Math.PI / 2
+  arch.scale.set(1, 1, 0.45)
+  arch.position.set(-14, -1.9, (CANAL_N + CANAL_S) / 2)
+  scene.add(arch)
+  const railBatch = beamBatch(THREE)
+  for (const x of [-21.6, -6.4]) {
+    for (let z = CANAL_S - 2; z <= CANAL_N + 2; z += 2) railBatch.add(V(x, 0.5, z), V(x, 1.5, z), 0.08)
+    railBatch.add(V(x, 1.5, CANAL_S - 2), V(x, 1.5, CANAL_N + 2), 0.12)
+  }
+  scene.add(railBatch.build(new THREE.MeshStandardMaterial({ color: 0x2c2f33, roughness: 0.4, metalness: 0.7 })))
+
+  // the tall brick hotel across the canal, behind the fountain
   place(
     building(THREE, {
       w: 64,
       h: 42,
       d: 20,
-      front: facadeTexture(THREE, { wall: '#b39a82', mortar: '#cbb8a4', floors: 13, cols: 14, frame: '#d9d2c6', seed: 3, w: 1024, h: 768 }),
+      front: front({ wall: '#b39a82', mortar: '#cbb8a4', floors: 13, cols: 14, frame: '#d9d2c6', seed: 3, w: 1024, h: 768 }),
       side: 0xa38c76,
     }),
-    6,
-    -78,
+    10,
+    -104,
     0
   )
-  // lower blocks either side of it
-  place(building(THREE, { w: 30, h: 22, d: 16, front: facadeTexture(THREE, { wall: '#6b3a2c', floors: 6, cols: 6, seed: 5 }), side: 0x5d3426 }), -44, -70, 0.12)
-  place(building(THREE, { w: 26, h: 18, d: 16, front: facadeTexture(THREE, { wall: '#d9d1c2', mortar: null, floors: 5, cols: 5, frame: '#ffffff', seed: 6 }), side: 0xbdb3a2 }), 52, -70, -0.1)
+  place(building(THREE, { w: 30, h: 22, d: 16, front: front({ wall: '#6b3a2c', floors: 6, cols: 6, seed: 5 }), side: 0x5d3426 }), -42, -98, 0.08)
+  place(building(THREE, { w: 26, h: 18, d: 16, front: front({ wall: '#d9d1c2', mortar: null, floors: 5, cols: 5, frame: '#ffffff', seed: 6 }), side: 0xbdb3a2 }), 60, -98, -0.06)
+  row(-160, -92, 1, 0, 90, 0, { cafe: false, hMin: 16, hMax: 24 })
+  row(76, -92, 1, 0, 120, 0, { cafe: false, hMin: 16, hMax: 24 })
 
   // the Stadsschouwburg, on the left: red brick, white stone bands, an arcade
   const schouwburg = building(THREE, {
     w: 50,
     h: 24,
     d: 32,
-    front: facadeTexture(THREE, { wall: '#8a3b2b', mortar: '#b07a66', floors: 3, cols: 7, ground: 'arcade', band: '#e9e1d2', frame: '#f2ece0', seed: 8, w: 1024, h: 512 }),
+    front: front({ wall: '#8a3b2b', mortar: '#b07a66', floors: 3, cols: 7, ground: 'arcade', band: '#e9e1d2', frame: '#f2ece0', seed: 8, w: 1024, h: 512 }),
     side: 0x7a3426,
     gable: 'point',
   })
   place(schouwburg, -60, -2, Math.PI / 2)
+  // and the street running on behind it
+  row(-78, 24, 0, 1, 80, Math.PI / 2, { cafe: true })
+  row(-78, -20, 0, -1, 30, Math.PI / 2, { cafe: false })
 
   // the American Hotel, back right, with its corner tower
   const american = building(THREE, {
     w: 34,
     h: 26,
     d: 26,
-    front: facadeTexture(THREE, { wall: '#7d4a33', mortar: '#a3775f', floors: 5, cols: 8, ground: 'cafe', band: '#cfc2a8', seed: 11, awning: '#24344a', w: 1024, h: 768 }),
+    front: front({ wall: '#7d4a33', mortar: '#a3775f', floors: 5, cols: 8, ground: 'cafe', band: '#cfc2a8', seed: 11, awning: '#24344a', w: 1024, h: 768 }),
     side: 0x6e412d,
   })
   place(american, 50, -36, -Math.PI / 4)
@@ -429,57 +526,52 @@ export function buildLeidseplein(THREE, ctx, { light = 'day' } = {}) {
   dome.position.set(38, 38, -24)
   scene.add(dome)
 
-  // café houses down the right-hand side, gables to the square
-  const awnings = ['#6b1f22', '#24344a', '#2f4a3b', '#7a5a1e', '#3a2a40']
-  const walls = ['#5b3324', '#7a3a28', '#e7e1d5', '#3d2a22', '#6d4a3a', '#2f4a3b']
-  let z = -14
-  let s = 20
-  while (z < 70) {
-    const w = range(rand, 7, 11)
-    const h = range(rand, 15, 21)
-    const b = building(THREE, {
-      w,
-      h,
-      d: 16,
-      front: facadeTexture(THREE, { wall: pick(rand, walls), floors: 4, cols: 3, ground: 'cafe', awning: pick(rand, awnings), seed: s++ }),
-      side: 0x4f3226,
-      gable: pick(rand, ['step', 'point', null]),
-    })
-    place(b, 48 + range(rand, -0.5, 0.5), z + w / 2, -Math.PI / 2)
-    z += w + 0.2
+  // café houses down the right-hand side, with Leidsestraat opening between them
+  row(48, -14, 0, 1, 25, -Math.PI / 2)
+  row(48, 31, 0, 1, 40, -Math.PI / 2)
+  // Leidsestraat itself: narrow, busy, houses close on both sides, a tram line
+  row(56, 11, 1, 0, 190, Math.PI, { hMin: 15, hMax: 22 })
+  row(56, 31, 1, 0, 190, 0, { hMin: 15, hMax: 22 })
+  for (const zz of [20.3, 21.7]) {
+    const r = new THREE.Mesh(new THREE.BoxGeometry(200, 0.04, 0.12), rail)
+    r.position.set(150, 0.03, zz)
+    scene.add(r)
   }
-  // and along the far side of the tram line, behind the viewer
-  let x = -70
-  while (x < 70) {
-    const w = range(rand, 7, 11)
-    const b = building(THREE, {
-      w,
-      h: range(rand, 14, 20),
-      d: 14,
-      front: facadeTexture(THREE, { wall: pick(rand, walls), floors: 4, cols: 3, ground: 'cafe', awning: pick(rand, awnings), seed: s++ }),
-      side: 0x4f3226,
-      gable: pick(rand, ['step', 'point', null]),
-    })
-    place(b, x + w / 2, 52, Math.PI)
-    x += w + 0.2
-  }
-  // the city beyond, fading into the haze
-  const far = new THREE.MeshStandardMaterial({ color: 0x8f7a6c, roughness: 1 })
+
+  // the far side of the square, behind the viewer, and the street beyond
+  row(-70, 52, 1, 0, 140, Math.PI)
+  row(-70, 84, 1, 0, 140, 0, { cafe: false })
+
+  // the rest of the city, out into the haze: blocks with real facades
+  const cityMats = [plainFronts[0], plainFronts[2], plainFronts[4], plainFronts[1]].map((map) => {
+    const t = map.clone()
+    t.wrapS = t.wrapT = THREE.RepeatWrapping
+    t.repeat.set(3, 1)
+    t.needsUpdate = true
+    return new THREE.MeshStandardMaterial({ map: t, roughness: 0.95 })
+  })
   const block = new THREE.BoxGeometry(1, 1, 1).translate(0, 0.5, 0)
-  const blocks = new THREE.InstancedMesh(block, far, 160)
   const m4 = new THREE.Matrix4()
-  let n = 0
-  for (let i = 0; i < 400 && n < 160; i++) {
-    const a = rand() * Math.PI * 2
-    const r = range(rand, 120, 420)
-    const bx = Math.cos(a) * r
-    const bz = Math.sin(a) * r
-    if (bz > 40 && Math.abs(bx) < 60) continue
-    m4.compose(new THREE.Vector3(bx, 0, bz), new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), rand() * 3), new THREE.Vector3(range(rand, 14, 30), range(rand, 12, 26), range(rand, 14, 30)))
-    blocks.setMatrixAt(n++, m4)
+  const per = cityMats.map(() => [])
+  for (let i = 0; i < 900; i++) {
+    const bx = range(rand, -480, 480)
+    const bz = range(rand, -480, 480)
+    const nearSquare = bx > -110 && bx < 260 && bz > -125 && bz < 110
+    const inCanal = bz > CANAL_S - 4 && bz < CANAL_N + 4
+    if (nearSquare || inCanal) continue
+    per[i % per.length].push([bx, bz])
   }
-  blocks.count = n
-  scene.add(blocks)
+  per.forEach((list, mi) => {
+    const blocks = new THREE.InstancedMesh(block, cityMats[mi], list.length)
+    list.forEach(([bx, bz], j) => {
+      const q = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), (Math.floor(rand() * 4) * Math.PI) / 2)
+      m4.compose(new THREE.Vector3(bx, 0, bz), q, new THREE.Vector3(range(rand, 18, 34), range(rand, 14, 24), range(rand, 12, 18)))
+      blocks.setMatrixAt(j, m4)
+    })
+    blocks.castShadow = false
+    blocks.receiveShadow = true
+    scene.add(blocks)
+  })
 
   world.focusShadows(new THREE.Vector3(0, 0, -6), 60)
 
@@ -501,6 +593,16 @@ export function buildLeidseplein(THREE, ctx, { light = 'day' } = {}) {
     ],
     fov: 52,
     near: 0.3,
+    // one viewpoint per photo, round the square and beyond it
+    spots: [
+      { pos: new THREE.Vector3(1.5, 1.7, 12.5), look: new THREE.Vector3(-2, 7.5, -40) }, // the fountain, the hotel behind
+      { pos: new THREE.Vector3(-36, 2, 10), look: new THREE.Vector3(30, 6, -24) }, // across the square to the American
+      { pos: new THREE.Vector3(-14, 3.2, -69), look: new THREE.Vector3(80, 2, -69) }, // on the Leidsebrug, down the canal
+      { pos: new THREE.Vector3(66, 1.8, 21), look: new THREE.Vector3(220, 9, 21) }, // up Leidsestraat
+      { pos: new THREE.Vector3(36, 15, -36), look: new THREE.Vector3(-14, 0, 6) }, // over the square from the hotel's corner
+      { pos: new THREE.Vector3(-28, 1.8, -22), look: new THREE.Vector3(-62, 11, 0) }, // the theatre's arcade
+      { pos: new THREE.Vector3(18, 1.8, -42), look: new THREE.Vector3(-6, 4, 6) }, // from the tram stop, back to the fountain
+    ],
   }
 
   return {
