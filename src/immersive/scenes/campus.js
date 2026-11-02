@@ -108,7 +108,7 @@ export function buildCampus(THREE, ctx, { light = 'overcast' } = {}) {
     l.receiveShadow = true
     scene.add(l)
   }
-  const pondMat = waterMaterial(THREE, { color: 0x2d3634, repeat: 10 })
+  const pondMat = waterMaterial(THREE, { palette: world.light, scale: 0.3, strokes: 0.5 })
   Object.assign(pondMat, { polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -8 })
   const pond = new THREE.Mesh(new THREE.PlaneGeometry(70, 26), pondMat)
   pond.rotation.x = -Math.PI / 2

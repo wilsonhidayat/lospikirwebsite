@@ -55,13 +55,7 @@ export function buildWaterfront(THREE, ctx, { light = 'sunset', bridge = false, 
 
   /* --- water and quays ------------------------------------------------ */
 
-  const water = waterMaterial(THREE, {
-    color: night ? 0x0a0f16 : 0x3a4146,
-    roughness: night ? 0.03 : 0.08,
-    repeat: 90,
-    stretch: [4, 1],
-    strength: 0.45,
-  })
+  const water = waterMaterial(THREE, { palette: world.light, scale: 1.1 })
   const river = new THREE.Mesh(new THREE.PlaneGeometry(4000, -RIVER_FAR + 10), water)
   river.rotation.x = -Math.PI / 2
   river.position.set(0, 0, RIVER_FAR / 2 - 5)

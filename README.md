@@ -182,14 +182,37 @@ lightbox and nav stop moving, and nothing is removed outright.
 
 ---
 
-## The immersive opening (3D)
+## The journey (3D)
 
-The home page opens with a scroll-driven 3D sequence. Each featured project is
-a chapter: your camera (an A7 III with a 24-70 f/2.8, built in code, no logos)
-turns to face the visitor, they move through the lens into the **place** the
-photograph was taken, the viewfinder shows the real settings from the photo's
-EXIF, the shutter fires, and the place becomes the photograph. Every gallery
-page opens the same way, for its own place.
+The home page opens on a painted sea at sunset: a yacht flying the LOSPIKIR
+flag, gulls, a slow swell. Nothing moves until the visitor chooses to.
+
+1. **Begin the journey** — the view rises into the clouds and comes down in the
+   first project's place (Paris, the Amsterdam canals, the dunes…). A title card
+   names the chapter.
+2. **Browse like on the back of a camera** — a playback screen shows the
+   project's photos (arrows, swipe, ← →, filmstrip) with the real shutter,
+   aperture, ISO and focal length from each file. The 3D place stays put; the
+   view eases to a new spot in it for each photo.
+3. **Step inside** — the view pulls back so the visitor can drag to look around
+   the place. **Take the shot** flies back to the moment with a shutter flash
+   (and a click, if sound is on).
+4. **Next place** (the arrows at the bottom, or `[` `]`) — up through the clouds
+   and down into the next project. **Open the gallery** goes to the full page.
+
+The page never scroll-jacks: scrolling past the journey goes straight on to the
+rest of the site. Every gallery page opens with the same viewer, for its own
+place.
+
+**The look.** The 3D is painted rather than photo-real: toon shading, a hand-
+painted sky and water with brush-stroke waves, soft ink outlines and a
+painterly filter, film grain and a vignette (`post.js`, `style.js`).
+
+**The sky matches the photo.** When a place loads, its sky colours are read
+from the moment photo — the band of open sky in it, even below a bridge — so a
+sunset shoot gets a sunset sky and a grey beach day a grey one. If the moment
+has no sky, the nearest photos in the project with a clear blue sky are used.
+Night and indoor places keep their own lighting.
 
 ### Editing it in the CMS (`/admin` → Galleries)
 
@@ -197,34 +220,37 @@ page opens the same way, for its own place.
 |---|---|
 | **Place** | The 3D world: Paris, Amsterdam canals, Dunes and beach, University campus, City waterfront at sunset / at night, On the water at night, Light-filled interior, Studio, or None. |
 | **Where it was shot** | The line under the title, e.g. "Trocadéro, Paris". |
-| **The moment** | The photo the flight lands on. Defaults to the cover. |
+| **The moment** | The photo the journey lands on, and where its sky is read from. A project needs both a Place and a Moment to appear in the journey. |
 | **Describe the moment photo** | Alt text for screen readers and Google. |
-| **Home-page position** | 1, 2, 3… puts the project in the home sequence in that order. Leave empty to keep it off the home page. |
+| **Home-page position** | 1, 2, 3… puts the project first in the journey in that order. Other projects with a place and moment follow. |
 
-A new project just needs a Place picked — no 3D work. The viewfinder reads ISO,
-shutter, aperture and focal length straight from the photo, so export with
-metadata kept.
+A new project just needs a Place and a Moment — no 3D work. The playback screen
+reads ISO, shutter, aperture and focal length straight from the photo, so export
+with metadata kept.
 
 ### Who sees what
 
-Visitors get the classic page instead (same content) when they've asked their
-device for reduced motion, have Data Saver on, or their browser has no WebGL 2.
-Add `?classic` to any URL to see it yourself. Phones get a lighter version
-(fewer grass blades, lower resolution, only nearby scenes kept in memory).
+Visitors get the same browsing over a softly blurred photo instead of 3D when
+they've asked their device for reduced motion, have Data Saver on, or their
+browser has no WebGL 2. Add `?classic` to any URL to see it yourself. Phones get
+a lighter version (lower resolution, simpler painting filter, fewer places kept
+in memory).
 
 ### Where the code is
 
 ```
 src/immersive/
-  Immersive.jsx      the scroll stage, viewfinder, shutter flash, photo reveal
-  timeline.js        the choreography — a pure function of scroll position
-  engine.js          three.js renderer, the lens "portal", camera flights
-  camera-model.js    the camera body and lens
-  world.js           sky, sun, haze, water, trees, night lights
-  scenes/            one file per place (paris, amsterdam, coast, campus,
+  Journey.jsx        the screens: intro, playback screen, step inside, places nav
+  viewer.js          three.js renderer, camera moves, cloud transitions
+  post.js            the painted look: outlines, brush filter, grade, grain
+  style.js           toon shading for every scene
+  palette.js         reads the sky colours out of a photo
+  world.js           painted sky, light presets, water, trees, night lights
+  scenes/            one file per place (sea, paris, amsterdam, coast, campus,
                      waterfront, interior) + index.js to register new ones
   exif.js            reads camera settings from a JPEG
   shutter-sound.js   the shutter click, synthesised (no audio file)
+src/styles/journey.css
 ```
 
 Sound is off until the visitor turns it on. There is no background music yet.

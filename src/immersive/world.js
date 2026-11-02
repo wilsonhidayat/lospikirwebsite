@@ -1,13 +1,17 @@
 /**
- * The shared kit every place is built from: a physically based sky and sun,
- * atmospheric haze, image-based lighting taken from that sky, water, trees,
- * glowing lamps and lit windows for night scenes.
+ * The shared kit every place is built from, in an illustrated style: a
+ * painted sky with soft clouds and a glowing sun, haze that melts into the
+ * horizon, cel-shaded light (see style.js), stylised water with white wave
+ * strokes, trees, lamps and lit windows for night scenes.
+ *
+ * Colours are authored as they should appear on screen (sRGB hex); the
+ * final composite (post.js) leaves mid-tones alone and only rolls off the
+ * highlights, so what's written here is what you see.
  *
  * World units are metres.
  */
-import { Sky } from 'three/addons/objects/Sky.js'
 import { mergeVertices } from 'three/addons/utils/BufferGeometryUtils.js'
-import { noiseNormalMap, paintTexture, grain, blotches, seeded, range, glowTexture } from './utils.js'
+import { paintTexture, grain, blotches, seeded, range, glowTexture } from './utils.js'
 
 /** Sun direction from elevation/azimuth in degrees (azimuth 0 = +Z, 90 = +X). */
 export function sunVector(THREE, elevation, azimuth) {
@@ -17,78 +21,117 @@ export function sunVector(THREE, elevation, azimuth) {
 }
 
 /**
- * Light presets — the time of day each photograph was taken in.
- * exposure is renderer.toneMappingExposure.
+ * Light presets — the time of day each photograph was taken in — as a
+ * painter's palette: sky, clouds, haze, water, and the light on things.
  */
 export const LIGHT = {
   day: {
     sun: { elevation: 38, azimuth: 200 },
-    sky: { turbidity: 6, rayleigh: 1.4, mieCoefficient: 0.004, mieDirectionalG: 0.8 },
-    fog: { color: 0xbcc8d4, density: 0.00065 },
+    sky: { zenith: 0x6f9fd8, horizon: 0xd3e2ee, ground: 0x9aa4ab, sun: 0xfff3dc, cloudLit: 0xffffff, cloudShade: 0xbac8da, clouds: 0.45 },
+    water: { deep: 0x3f5d70, shallow: 0x6f8fa3, stroke: 0xf3f6f8 },
+    fog: { color: 0xd3e2ee, density: 0.00065 },
     sunColor: 0xfff2e2,
-    sunIntensity: 3.2,
-    hemi: [0xcfe0ff, 0x6b6150, 0.9],
-    exposure: 0.55,
+    sunIntensity: 2.0,
+    hemi: [0xdfeaff, 0x8a8070, 0.9],
+    exposure: 1.0,
   },
   overcast: {
     sun: { elevation: 30, azimuth: 160 },
-    sky: { turbidity: 14, rayleigh: 2.4, mieCoefficient: 0.012, mieDirectionalG: 0.7 },
-    fog: { color: 0xc9cfd6, density: 0.0011 },
-    sunColor: 0xf3f1ee,
-    sunIntensity: 1.5,
-    hemi: [0xe2e8ef, 0x75706a, 1.4],
-    exposure: 0.62,
+    sky: { zenith: 0xa7b4c3, horizon: 0xe4e7ea, ground: 0xb0b2b2, sun: 0xfffaf0, cloudLit: 0xf6f5f2, cloudShade: 0xb9bec5, clouds: 0.85 },
+    water: { deep: 0x55616a, shallow: 0x7e8a92, stroke: 0xf2f1ee },
+    fog: { color: 0xdde1e5, density: 0.0011 },
+    sunColor: 0xf6f3ee,
+    sunIntensity: 1.3,
+    hemi: [0xeef1f5, 0x8f8a82, 1.25],
+    exposure: 1.0,
   },
   golden: {
     sun: { elevation: 9, azimuth: 250 },
-    sky: { turbidity: 8, rayleigh: 2.2, mieCoefficient: 0.006, mieDirectionalG: 0.86 },
-    fog: { color: 0xe6c9a3, density: 0.0009 },
-    sunColor: 0xffc58a,
-    sunIntensity: 3.6,
-    hemi: [0xffd9b0, 0x5a4a3a, 0.7],
-    exposure: 0.5,
+    sky: { zenith: 0x7ea3c9, horizon: 0xf6d3a4, ground: 0xb79f86, sun: 0xffd590, cloudLit: 0xffe4c0, cloudShade: 0xc79e8f, clouds: 0.5 },
+    water: { deep: 0x4c5a5e, shallow: 0x8a8f86, stroke: 0xfff1dc },
+    fog: { color: 0xeed4b2, density: 0.0009 },
+    sunColor: 0xffc994,
+    sunIntensity: 2.2,
+    hemi: [0xffe2c0, 0x6f5d4c, 0.75],
+    exposure: 1.0,
   },
   sunset: {
-    sun: { elevation: 2.2, azimuth: 255 },
-    sky: { turbidity: 9, rayleigh: 3, mieCoefficient: 0.008, mieDirectionalG: 0.9 },
-    fog: { color: 0xd9a77f, density: 0.0012 },
-    sunColor: 0xff9a55,
-    sunIntensity: 3.0,
-    hemi: [0xffb98a, 0x3d3040, 0.6],
-    exposure: 0.48,
+    // the palette of the reference: a peach sky, soft clouds, slate-grey sea
+    sun: { elevation: 3, azimuth: 255 },
+    sky: { zenith: 0xe8a37f, horizon: 0xf6c9a1, ground: 0xc79a80, sun: 0xfff0d6, cloudLit: 0xfad8b6, cloudShade: 0xdc9d80, clouds: 0.55 },
+    water: { deep: 0x58616c, shallow: 0x7b838c, stroke: 0xf1e7dd },
+    fog: { color: 0xf0c49f, density: 0.0012 },
+    sunColor: 0xffb98a,
+    sunIntensity: 2.0,
+    hemi: [0xffcfa8, 0x5b4c55, 0.7],
+    exposure: 1.0,
   },
   night: {
     night: true,
     sun: { elevation: -12, azimuth: 300 },
     moon: { elevation: 28, azimuth: 120 },
-    fog: { color: 0x0b1020, density: 0.0016 },
+    sky: { zenith: 0x060a19, horizon: 0x1d2646, ground: 0x0d1020, sun: 0x9fb2e0, cloudLit: 0x2b3352, cloudShade: 0x161b30, clouds: 0.3 },
+    water: { deep: 0x0b1222, shallow: 0x18223a, stroke: 0xffd7a6 },
+    fog: { color: 0x141b33, density: 0.0016 },
     sunColor: 0x9db4ff,
-    sunIntensity: 0.25,
-    hemi: [0x22304f, 0x0a0a0c, 0.35],
-    exposure: 0.95,
+    sunIntensity: 0.35,
+    hemi: [0x34436b, 0x0d0d12, 0.45],
+    exposure: 1.0,
   },
   interior: {
     sun: { elevation: 24, azimuth: 230 },
-    sky: { turbidity: 5, rayleigh: 1.2, mieCoefficient: 0.004, mieDirectionalG: 0.8 },
+    sky: { zenith: 0x83aedb, horizon: 0xe6eef2, ground: 0xb3ab9a, sun: 0xfff3dc, cloudLit: 0xffffff, cloudShade: 0xc6d2de, clouds: 0.35 },
+    water: { deep: 0x3f5d70, shallow: 0x6f8fa3, stroke: 0xf3f6f8 },
     fog: null,
     sunColor: 0xfff0dc,
-    sunIntensity: 4.0,
-    hemi: [0xf4ead8, 0x8a7b68, 1.1],
-    exposure: 0.62,
+    sunIntensity: 2.4,
+    hemi: [0xfaf1e2, 0x9a8b78, 1.05],
+    exposure: 1.0,
   },
 }
 
-/* --- night sky: gradient + stars, as a shader on a big sphere ---------- */
+/* --- the painted sky -------------------------------------------------- */
 
-function nightDome(THREE) {
+const NOISE_GLSL = /* glsl */ `
+  float hash2(vec2 p) { p = fract(p * vec2(123.34, 456.21)); p += dot(p, p + 45.32); return fract(p.x * p.y); }
+  float vnoise(vec2 p) {
+    vec2 i = floor(p); vec2 f = fract(p);
+    vec2 u = f * f * (3.0 - 2.0 * f);
+    return mix(mix(hash2(i), hash2(i + vec2(1.0, 0.0)), u.x), mix(hash2(i + vec2(0.0, 1.0)), hash2(i + vec2(1.0, 1.0)), u.x), u.y);
+  }
+  float fbm(vec2 p) {
+    float s = 0.0; float a = 0.5;
+    for (int i = 0; i < 5; i++) { s += a * vnoise(p); p = p * 2.03 + 17.1; a *= 0.5; }
+    return s;
+  }
+`
+export { NOISE_GLSL }
+
+/**
+ * A sky dome painted in a shader: a gradient from horizon to zenith, a soft
+ * glowing sun, and rounded clouds with a lit side and a shaded side — the
+ * gentle cel look of the reference. At night: deep blue and stars.
+ */
+function paintedSky(THREE, L, sunDir) {
+  const S = L.sky
+  const col = (h) => new THREE.Color(h)
+  const uniforms = {
+    uZenith: { value: col(S.zenith) },
+    uHorizon: { value: col(S.horizon) },
+    uGround: { value: col(S.ground) },
+    uSunDir: { value: sunDir.clone() },
+    uSunColor: { value: col(S.sun) },
+    uCloudLit: { value: col(S.cloudLit) },
+    uCloudShade: { value: col(S.cloudShade) },
+    uClouds: { value: S.clouds },
+    uNight: { value: L.night ? 1 : 0 },
+    uTime: { value: 0 },
+  }
   const mat = new THREE.ShaderMaterial({
     side: THREE.BackSide,
     depthWrite: false,
-    uniforms: {
-      top: { value: new THREE.Color(0x02040b) },
-      horizon: { value: new THREE.Color(0x1a2240) },
-      glow: { value: new THREE.Color(0x4a3a40) },
-    },
+    fog: false,
+    uniforms,
     vertexShader: /* glsl */ `
       varying vec3 vDir;
       void main() {
@@ -98,27 +141,49 @@ function nightDome(THREE) {
         gl_Position.z = gl_Position.w; // always at the far plane
       }`,
     fragmentShader: /* glsl */ `
-      uniform vec3 top; uniform vec3 horizon; uniform vec3 glow;
+      uniform vec3 uZenith; uniform vec3 uHorizon; uniform vec3 uGround;
+      uniform vec3 uSunDir; uniform vec3 uSunColor;
+      uniform vec3 uCloudLit; uniform vec3 uCloudShade; uniform float uClouds;
+      uniform float uNight; uniform float uTime;
       varying vec3 vDir;
-      float hash(vec3 p){ p = fract(p * 0.3183099 + 0.1); p *= 17.0; return fract(p.x * p.y * p.z * (p.x + p.y + p.z)); }
+      ${NOISE_GLSL}
+      float hash3(vec3 p){ p = fract(p * 0.3183099 + 0.1); p *= 17.0; return fract(p.x * p.y * p.z * (p.x + p.y + p.z)); }
       void main() {
-        float h = clamp(vDir.y, 0.0, 1.0);
-        vec3 col = mix(horizon, top, pow(h, 0.45));
-        // city light pollution near the horizon
-        col += glow * exp(-h * 14.0) * 0.6;
-        // stars, thinned near the horizon
-        vec3 cell = floor(vDir * 420.0);
-        float s = hash(cell);
-        float star = step(0.9975, s) * smoothstep(0.05, 0.4, h);
-        col += vec3(star) * (0.6 + 0.4 * hash(cell + 3.1));
+        vec3 d = normalize(vDir);
+        float h = d.y;
+        vec3 col = mix(uHorizon, uZenith, smoothstep(0.0, 0.6, h));
+        col = mix(col, uGround, smoothstep(0.0, -0.06, h));
+        // the sun: a soft halo and a painted disc
+        float sd = max(dot(d, normalize(uSunDir)), 0.0);
+        col += uSunColor * (pow(sd, 6.0) * 0.22 + pow(sd, 60.0) * 0.35) * (1.0 - uNight * 0.7);
+        col = mix(col, uSunColor * 1.25, smoothstep(0.99935, 0.99965, sd) * (1.0 - uNight));
+        // clouds, projected onto a high flat layer so they flatten toward the horizon
+        if (h > 0.0) {
+          vec2 p = d.xz / (h + 0.1) * 0.9 + vec2(uTime * 0.0035, uTime * 0.001);
+          float n = fbm(p);
+          float edge = 0.62 - uClouds * 0.24;
+          float c = smoothstep(edge, edge + 0.07, n);
+          // a lit top and a shaded belly, offset toward the sun
+          float lit = smoothstep(0.45, 0.7, fbm(p + normalize(uSunDir.xz + 0.0001) * 0.06));
+          vec3 cc = mix(uCloudShade, uCloudLit, lit);
+          cc += uSunColor * pow(sd, 10.0) * 0.25;
+          col = mix(col, cc, c * smoothstep(0.0, 0.06, h) * 0.95);
+        }
+        // stars at night
+        if (uNight > 0.5) {
+          vec3 cell = floor(d * 420.0);
+          float star = step(0.9975, hash3(cell)) * smoothstep(0.05, 0.4, h);
+          col += vec3(star) * (0.6 + 0.4 * hash3(cell + 3.1));
+        }
         gl_FragColor = vec4(col, 1.0);
-        #include <tonemapping_fragment>
-        #include <colorspace_fragment>
       }`,
   })
   const mesh = new THREE.Mesh(new THREE.SphereGeometry(9000, 48, 24), mat)
   mesh.frustumCulled = false
   mesh.renderOrder = -1
+  mesh.userData.tick = (t) => {
+    uniforms.uTime.value = t
+  }
   return mesh
 }
 
@@ -127,36 +192,24 @@ function nightDome(THREE) {
  * helper to aim the shadow camera at the area the viewer ends up in.
  */
 export function createWorld(THREE, ctx, lightName = 'day', overrides = {}) {
-  const L = { ...LIGHT[lightName], ...overrides }
+  const base = LIGHT[lightName]
+  const L = {
+    ...base,
+    ...overrides,
+    sky: { ...base.sky, ...(overrides.sky || {}) },
+    water: { ...base.water, ...(overrides.water || {}) },
+  }
+  // The sky read from the project's own photograph (palette.js), when it has
+  // one: the painted sky, the haze and the water's reflections all follow it.
+  if (ctx.sky && !L.night) L.sky = { ...L.sky, ...ctx.sky }
   const scene = new THREE.Scene()
   const sunDir = sunVector(THREE, L.sun.elevation, L.sun.azimuth)
 
-  // Sky — used both as the visible backdrop and as the lighting environment
-  let skyMesh
-  if (L.night) {
-    skyMesh = nightDome(THREE)
-  } else {
-    const sky = new Sky()
-    sky.scale.setScalar(9000)
-    const u = sky.material.uniforms
-    u.turbidity.value = L.sky.turbidity
-    u.rayleigh.value = L.sky.rayleigh
-    u.mieCoefficient.value = L.sky.mieCoefficient
-    u.mieDirectionalG.value = L.sky.mieDirectionalG
-    u.sunPosition.value.copy(sunDir)
-    skyMesh = sky
-  }
-  scene.add(skyMesh)
-
-  // Image-based light from the sky itself, so every surface is lit by the
-  // same sky the viewer sees. Rendered once.
-  const envScene = new THREE.Scene()
-  envScene.add(skyMesh.clone())
-  const envRT = ctx.pmrem.fromScene(envScene, 0.02, 1, 12000)
-  scene.environment = envRT.texture
-  scene.environmentIntensity = L.night ? 0.35 : 1.0
-
-  if (L.fog) scene.fog = new THREE.FogExp2(L.fog.color, L.fog.density)
+  const sky = paintedSky(THREE, L, sunDir)
+  scene.add(sky)
+  // the haze takes the sky's horizon colour, so the land melts into it
+  if (L.fog) scene.fog = new THREE.FogExp2(L.sky.horizon, L.fog.density)
+  scene.userData.light = L
 
   const hemi = new THREE.HemisphereLight(L.hemi[0], L.hemi[1], L.hemi[2])
   scene.add(hemi)
@@ -170,6 +223,7 @@ export function createWorld(THREE, ctx, lightName = 'day', overrides = {}) {
   sun.shadow.mapSize.set(size, size)
   sun.shadow.bias = -0.0003
   sun.shadow.normalBias = 0.04
+  sun.shadow.radius = 3
   const sc = sun.shadow.camera
   sc.near = 1
   sc.far = 900
@@ -191,6 +245,9 @@ export function createWorld(THREE, ctx, lightName = 'day', overrides = {}) {
     sun.shadow.needsUpdate = true
   }
 
+  // the stylised water picks up this world's palette
+  ctx.palette = L
+
   return {
     scene,
     sun,
@@ -198,36 +255,87 @@ export function createWorld(THREE, ctx, lightName = 'day', overrides = {}) {
     light: L,
     exposure: L.exposure,
     focusShadows,
-    dispose() {
-      envRT.dispose()
+    tick(t) {
+      sky.userData.tick(t)
     },
+    dispose() {},
   }
 }
 
 /* --- materials ------------------------------------------------------- */
 
-/** Water: dark, glossy, with drifting ripples. Call tick(t) every frame. */
-export function waterMaterial(THREE, { color = 0x1d2b2e, roughness = 0.06, repeat = 40, stretch = [1, 3], strength = 0.35 } = {}) {
-  const normalA = noiseNormalMap(THREE, 256, { cells: 6, strength: 2.2, octaves: 4, stretch })
-  const normalB = normalA.clone()
-  normalB.needsUpdate = true
-  normalA.repeat.set(repeat, repeat)
-  normalB.repeat.set(repeat * 1.7, repeat * 1.7)
-  const mat = new THREE.MeshPhysicalMaterial({
-    color,
-    roughness,
-    metalness: 0,
-    normalMap: normalA,
-    normalScale: new THREE.Vector2(strength, strength),
-    clearcoat: 1,
-    clearcoatRoughness: 0.02,
-    clearcoatNormalMap: normalB,
-    clearcoatNormalScale: new THREE.Vector2(strength * 0.6, strength * 0.6),
+/**
+ * Stylised water, like the sea in the reference: a slate body that turns
+ * toward the sky's colour at grazing angles, white wave strokes that drift,
+ * and a glittering path toward the sun. Uses the palette of the most recently
+ * created world (createWorld sets ctx.palette), or `palette` if given.
+ * Call material.userData.tick(t) every frame.
+ */
+export function waterMaterial(THREE, { palette = null, scale = 1, strokes = 1, ctx = null } = {}) {
+  const L = palette || ctx?.palette || LIGHT.day
+  const W = L.water
+  const sunDir = sunVector(THREE, L.night ? L.moon.elevation : L.sun.elevation, L.night ? L.moon.azimuth : L.sun.azimuth)
+  const uniforms = THREE.UniformsUtils.merge([
+    THREE.UniformsLib.fog,
+    {
+      uTime: { value: 0 },
+      uDeep: { value: new THREE.Color(W.deep) },
+      uShallow: { value: new THREE.Color(W.shallow) },
+      uSky: { value: new THREE.Color(L.sky.horizon) },
+      uStroke: { value: new THREE.Color(W.stroke) },
+      uSun: { value: new THREE.Color(L.sky.sun) },
+      uSunDir: { value: sunDir },
+      uScale: { value: scale },
+      uStrokes: { value: strokes },
+      uNight: { value: L.night ? 1 : 0 },
+    },
+  ])
+  const mat = new THREE.ShaderMaterial({
+    uniforms,
+    fog: true,
+    vertexShader: /* glsl */ `
+      varying vec3 vWorld;
+      #include <fog_pars_vertex>
+      void main() {
+        vec4 wp = modelMatrix * vec4(position, 1.0);
+        vWorld = wp.xyz;
+        vec4 mvPosition = viewMatrix * wp;
+        gl_Position = projectionMatrix * mvPosition;
+        #include <fog_vertex>
+      }`,
+    fragmentShader: /* glsl */ `
+      uniform float uTime; uniform vec3 uDeep; uniform vec3 uShallow; uniform vec3 uSky;
+      uniform vec3 uStroke; uniform vec3 uSun; uniform vec3 uSunDir;
+      uniform float uScale; uniform float uStrokes; uniform float uNight;
+      varying vec3 vWorld;
+      #include <fog_pars_fragment>
+      ${NOISE_GLSL}
+      void main() {
+        vec3 v = normalize(cameraPosition - vWorld);
+        float graze = 1.0 - clamp(v.y, 0.0, 1.0);
+        vec3 col = mix(uDeep, uShallow, smoothstep(0.2, 0.9, graze));
+        col = mix(col, uSky, pow(graze, 6.0) * 0.55);
+        // long, thin wave strokes, stretched along the swell
+        vec2 p = vWorld.xz * 0.045 / uScale;
+        float t = uTime * 0.05;
+        float n = fbm(vec2(p.x * 0.35 + t, p.y * 1.6 - t * 0.6));
+        float band = abs(n - 0.52);
+        float stroke = (1.0 - smoothstep(0.0, 0.018, band)) * smoothstep(0.35, 0.75, fbm(p * 0.7 + 3.0 + t * 0.4));
+        // the glitter path toward the sun
+        vec3 h = normalize(v + normalize(uSunDir));
+        float glint = pow(max(h.y, 0.0), 220.0) * smoothstep(0.55, 0.62, fbm(p * 2.2 - t));
+        col = mix(col, uStroke, stroke * uStrokes * (0.55 + 0.45 * graze));
+        col += uSun * glint * (1.2 - uNight * 0.4);
+        // night: warm city light scattered across the ripples
+        col += uStroke * uNight * stroke * 0.25;
+        gl_FragColor = vec4(col, 1.0);
+        #include <fog_fragment>
+      }`,
   })
   mat.userData.tick = (t) => {
-    normalA.offset.set(t * 0.004, t * 0.011)
-    normalB.offset.set(-t * 0.006, t * 0.007)
+    mat.uniforms.uTime.value = t
   }
+  mat.userData.stylised = true
   return mat
 }
 

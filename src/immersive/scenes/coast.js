@@ -12,6 +12,7 @@
  */
 import { createWorld, waterMaterial } from '../world.js'
 import { fbm, ridged, seeded, range, paintTexture, grain } from '../utils.js'
+import { NO_INK_LAYER } from '../post.js'
 
 // The path wanders through the dunes toward the sea
 const pathX = (z) => 14 * Math.sin(z * 0.012) + 5 * Math.sin(z * 0.031 + 1.3)
@@ -90,7 +91,7 @@ export function buildCoast(THREE, ctx, { light = 'sunset' } = {}) {
 
   const sea = new THREE.Mesh(
     new THREE.PlaneGeometry(9000, 4000),
-    waterMaterial(THREE, { color: 0x34454a, repeat: 260, stretch: [4, 1], strength: 0.5, roughness: 0.12 })
+    waterMaterial(THREE, { palette: world.light, scale: 1.4 })
   )
   sea.rotation.x = -Math.PI / 2
   sea.position.set(0, -0.9, -2200)
@@ -209,6 +210,7 @@ export function buildCoast(THREE, ctx, { light = 'sunset' } = {}) {
   if (grass.instanceColor) grass.instanceColor.needsUpdate = true
   grass.receiveShadow = true
   grass.frustumCulled = false
+  grass.layers.set(NO_INK_LAYER) // blades sway in the shader; no ink lines on them
   scene.add(grass)
 
   // A few wooden posts of an old beach fence along the dune foot

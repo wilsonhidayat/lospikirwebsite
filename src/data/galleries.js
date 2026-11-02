@@ -43,3 +43,12 @@ export function galleryBySlug(slug) {
 export const featuredGalleries = galleries
   .filter((g) => g.featured > 0 && g.scene && g.hero)
   .sort((a, b) => a.featured - b.featured)
+
+/**
+ * The journey's chapters: the featured projects in their set order, then
+ * every other project with a place, newest first.
+ */
+export const journeyGalleries = [
+  ...featuredGalleries,
+  ...galleries.filter((g) => !(g.featured > 0) && g.scene && g.hero),
+]

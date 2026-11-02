@@ -192,7 +192,7 @@ export function buildAmsterdam(THREE, ctx, { light = 'golden' } = {}) {
   const reach = low ? 130 : 210
 
   // Water
-  const water = waterMaterial(THREE, { color: 0x2e3524, repeat: 18, stretch: [3, 1], strength: 0.25 })
+  const water = waterMaterial(THREE, { palette: { ...world.light, water: { deep: 0x3d4a3c, shallow: 0x5d6a55, stroke: 0xf3ead8 } }, scale: 0.35, strokes: 0.6 })
   const canal = new THREE.Mesh(new THREE.PlaneGeometry(reach * 2 + 120, CANAL_HALF * 2), water)
   canal.rotation.x = -Math.PI / 2
   canal.position.y = 0.2

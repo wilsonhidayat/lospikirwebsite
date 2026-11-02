@@ -5,8 +5,7 @@ import { galleries, galleryBySlug } from '../data/galleries.js'
 import { DURATION, SPRING, STAGGER, project } from '../motion.js'
 import Reveal from '../components/Reveal.jsx'
 import MaskLine from '../components/MaskLine.jsx'
-import Immersive from '../immersive/Immersive.jsx'
-import { immersiveSupported } from '../immersive/support.js'
+import Journey from '../immersive/Journey.jsx'
 import '../styles/gallery-page.css'
 
 function formatDate(value) {
@@ -154,9 +153,7 @@ export default function GalleryPage() {
   const gallery = galleryBySlug(slug)
   const [active, setActive] = useState(null)
   const [dir, setDir] = useState(1)
-  // Each gallery opens by flying into the place it was shot, if it has one
-  const [immersive, setImmersive] = useState(() => immersiveSupported())
-  // a stable list, so the experience doesn't reload on every re-render
+  // a stable list, so the journey doesn't reload on every re-render
   const chapters = useMemo(() => (gallery ? [gallery] : []), [gallery])
 
   // Where the lightbox grows from and shrinks back to, as a fraction of the
@@ -216,15 +213,9 @@ export default function GalleryPage() {
 
   return (
     <>
-      {immersive && gallery.scene && gallery.hero && (
-        <Immersive
-          key={gallery.slug}
-          chapters={chapters}
-          variant="gallery"
-          skipTo="#photos"
-          skipLabel="Skip to photos"
-          onFail={() => setImmersive(false)}
-        />
+      {/* Each gallery opens in the place it was shot, if it has one */}
+      {gallery.scene && gallery.hero && (
+        <Journey key={gallery.slug} items={chapters} intro={false} variant="gallery" after="#photos" />
       )}
     <main className="gp" id="photos">
       <header className="gp__head">

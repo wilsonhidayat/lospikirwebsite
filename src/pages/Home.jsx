@@ -1,27 +1,18 @@
-import { useState } from 'react'
-import Hero from '../components/Hero.jsx'
 import Statement from '../components/Statement.jsx'
 import PinnedGallery from '../components/PinnedGallery.jsx'
 import Packages from '../components/Packages.jsx'
 import Investment from '../components/Investment.jsx'
 import Closing from '../components/Closing.jsx'
 import Enquire from '../components/Enquire.jsx'
-import Immersive from '../immersive/Immersive.jsx'
-import { immersiveSupported } from '../immersive/support.js'
-import { featuredGalleries } from '../data/galleries.js'
+import Journey from '../immersive/Journey.jsx'
+import { journeyGalleries } from '../data/galleries.js'
 
 export default function Home() {
-  // The 3D sequence where the browser can run it; the classic hero otherwise
-  // (reduced motion, no WebGL 2, Data Saver, ?classic, or if it fails).
-  const [immersive, setImmersive] = useState(() => featuredGalleries.length > 0 && immersiveSupported())
-
   return (
     <main>
-      {immersive ? (
-        <Immersive chapters={featuredGalleries} onFail={() => setImmersive(false)} />
-      ) : (
-        <Hero />
-      )}
+      {/* The journey: every project as a chapter in the place it was shot.
+          It handles its own fallback (no WebGL / reduced motion). */}
+      <Journey items={journeyGalleries} after="#about" />
       <Statement />
       <PinnedGallery />
       <Packages />

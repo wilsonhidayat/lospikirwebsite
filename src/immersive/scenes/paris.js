@@ -303,7 +303,7 @@ export function buildParis(THREE, ctx, { light = 'overcast' } = {}) {
   lawn(45, -620, 70, 900)
 
   // The Seine, with stone quays
-  const water = waterMaterial(THREE, { color: 0x27332f, repeat: 60, stretch: [1, 3] })
+  const water = waterMaterial(THREE, { palette: world.light, scale: 0.6, strokes: 0.7 })
   const seine = new THREE.Mesh(new THREE.PlaneGeometry(6000, 110), water)
   seine.rotation.x = -Math.PI / 2
   seine.position.set(0, -4, 285)
@@ -348,7 +348,7 @@ export function buildParis(THREE, ctx, { light = 'overcast' } = {}) {
   // Trocadéro gardens: lawns, the long fountain basin, tree rows
   lawn(-70, 470, 80, 280)
   lawn(70, 470, 80, 280)
-  const basinMat = waterMaterial(THREE, { color: 0x2c3a3c, repeat: 12 })
+  const basinMat = waterMaterial(THREE, { palette: world.light, scale: 0.25, strokes: 0.4 })
   Object.assign(basinMat, { polygonOffset: true, polygonOffsetFactor: -1, polygonOffsetUnits: -4 })
   const basin = new THREE.Mesh(new THREE.PlaneGeometry(50, 180), basinMat)
   basin.rotation.x = -Math.PI / 2
