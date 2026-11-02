@@ -10,7 +10,7 @@
  * Coordinates in metres. The tower stands at the origin; the Trocadéro is
  * toward +Z.
  */
-import { createWorld, waterMaterial, pavingMaterial, addTrees } from '../world.js'
+import { createWorld, grassMaterial, waterMaterial, pavingMaterial, addTrees } from '../world.js'
 import { beamBatch, paintTexture, grain, blotches, seeded, range } from '../utils.js'
 
 /* --- the tower --------------------------------------------------------- */
@@ -412,9 +412,12 @@ export function buildParis(THREE, ctx, { light = 'overcast' } = {}) {
   scene.add(tower)
 
   // Champ de Mars lawn behind the tower
-  const lawnMat = new THREE.MeshStandardMaterial({ color: 0x4f6a35, roughness: 1, polygonOffset: true, polygonOffsetFactor: -1, polygonOffsetUnits: -4 })
+  const lawnMat = grassMaterial(THREE, { repeat: [1, 1] })
   const lawn = (x, z, w, d) => {
-    const m = new THREE.Mesh(new THREE.PlaneGeometry(w, d), lawnMat)
+    const geo = new THREE.PlaneGeometry(w, d)
+    const uv = geo.attributes.uv
+    for (let i = 0; i < uv.count; i++) uv.setXY(i, (uv.getX(i) * w) / 8, (uv.getY(i) * d) / 8) // 8 m per tile
+    const m = new THREE.Mesh(geo, lawnMat)
     m.rotation.x = -Math.PI / 2
     m.position.set(x, 0.05, z)
     m.receiveShadow = true

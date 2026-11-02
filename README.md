@@ -184,31 +184,33 @@ lightbox and nav stop moving, and nothing is removed outright.
 
 ## The tour (3D)
 
-The home page is the tour. It opens in the first project's place — painted
-in 3D — with Wilson's camera (an A7 III with a 24-70 f/2.8, built in code, no
-logos) floating in it, lens toward the visitor.
+The home page is the tour.
 
-1. **Start the tour** — the camera turns round and comes close. Its screen
-   shows the project's photos, big and crisp (they are real images laid over
-   the 3D, not part of the render). Arrows, swipe or ← → flick through them;
-   tap a photo to see it full screen.
-2. **The place stays still** while browsing — only the camera floats.
-3. **Step inside** — the camera drops away so the visitor can drag to look
-   around; **Take the shot** brings it back with a shutter flash.
-4. **Next gallery** (the arrows at the bottom, or `[` `]`) travels up through
-   the clouds and down into the next place. On the last one the button becomes
-   **Work together →**, which leads to the packages, pricing and enquiry right
-   below the tour.
-5. **Skip the tour** is always on screen and goes to the regular site at
-   `/work` (hero, recent galleries, packages, pricing, enquiry).
+1. **First visit** — an instant print slides out of the dark, the photo on it
+   develops, and it opens up into the landing photo (once per visit; tap to
+   skip).
+2. **Landing** — one photo, full screen (the CMS hero photo), with **Start
+   exploring** and **Skip the tour** (the regular site at `/work`).
+3. **The wall of memories** — every project as an Instax print (Mini for
+   upright photos, Wide for landscape), pegged to twine with little lights,
+   swaying. Hovering lifts a print; choosing one flies into it.
+4. **Into the place** — the photo fills the screen and develops into the 3D
+   place where it was taken while the view glides in. The photos float in the
+   middle as prints bending in the wind; each new photo blows in as the old
+   one blows away, and the view moves somewhere new in the place. Tap a print
+   to see the photo full screen.
+5. **After the last photo** — **View other memories** goes back to the wall,
+   and **Work together** leads to the packages, pricing and enquiry below.
 
-The only text in the tour is each gallery's title. Gallery pages open with the
-same camera for their own place; "View as a regular gallery" jumps to the grid.
+The only text in the tour is each gallery's title (handwritten on the print).
+Gallery pages open straight into their own place; "View as a regular gallery"
+jumps to the grid.
 
-**The look.** Painted rather than photo-real: toon shading, a hand-painted sky
-and water, soft ink outlines, a painterly filter and film grain (`post.js`,
-`style.js`). The packages / pricing / enquiry after the tour are painted in
-the same dusk light (`styles/after-tour.css`).
+**The look.** As realistic as a browser allows: physically based materials,
+each place lit by its own sky (an environment map), soft shadows, ambient
+occlusion, bloom on bright lights, sun rays through clouds, trees and
+lattice, realistic water, and a filmic curve (`post.js`). The prints and the
+wall skip the film curve so the photos keep their true colours.
 
 **The sky matches the photo.** Each place's sky colours are read from its
 moment photo (`palette.js`); night and indoor places keep their own light.
@@ -237,13 +239,11 @@ in memory).
 
 ```
 src/immersive/
-  Journey.jsx        the tour's screens: start, the photos on the camera, step
-                     inside, full screen, galleries nav, skip
-  viewer.js          three.js renderer, the floating camera, cloud transitions
-  camera-model.js    the camera body and lens
-  quad.js            pins the photo onto the camera's screen
-  post.js            the painted look: outlines, brush filter, grade, grain
-  style.js           toon shading for every scene
+  Journey.jsx        the tour's screens: intro, landing, wall, place, full screen
+  viewer.js          three.js renderer, the wall, the places, the floating print
+  wall.js            the wall of memories
+  prints.js          Instax prints: painted frame, handwritten title, wind shader
+  post.js            occlusion, bloom, sun rays, film curve, photo dissolve
   palette.js         reads the sky colours out of a photo
   world.js           painted sky, light presets, water, trees, night lights
   scenes/            one file per place (paris, amsterdam, leidseplein, coast,

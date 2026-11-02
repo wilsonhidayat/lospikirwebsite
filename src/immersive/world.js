@@ -10,7 +10,7 @@
  * World units are metres.
  */
 import { mergeVertices } from 'three/addons/utils/BufferGeometryUtils.js'
-import { paintTexture, grain, blotches, seeded, range, glowTexture } from './utils.js'
+import { paintTexture, grain, blotches, seeded, range, glowTexture, noiseNormalMap } from './utils.js'
 
 /** Sun direction from elevation/azimuth in degrees (azimuth 0 = +Z, 90 = +X). */
 export function sunVector(THREE, elevation, azimuth) {
@@ -158,9 +158,9 @@ function paintedSky(THREE, L, sunDir) {
         col = mix(col, uHorizon * 1.08 + 0.02, (1.0 - smoothstep(0.0, 0.12, h)) * 0.5);
         col = mix(col, uGround, smoothstep(0.0, -0.08, h));
         float day = 1.0 - uNight * 0.85;
-        col += uSunColor * (pow(sd, 4.0) * 0.18 + pow(sd, 24.0) * 0.35 + pow(sd, 400.0) * 1.2) * day;
+        col += uSunColor * (pow(sd, 4.0) * 0.12 + pow(sd, 24.0) * 0.25 + pow(sd, 400.0) * 0.8) * day;
         // the sun's disc, far brighter than anything else (it blooms and casts rays)
-        col += uSunColor * smoothstep(0.99955, 0.99975, sd) * 30.0 * day;
+        col += uSunColor * smoothstep(0.99955, 0.99975, sd) * 16.0 * day;
 
         // clouds on a high layer: soft-edged, thick in the middle, lit from the
         // sun's side, dark-bellied, with a bright rim when the sun is behind them
@@ -429,6 +429,57 @@ export function pavingMaterial(THREE, { base = '#a39b8e', joint = 'rgba(40,36,30
   return new THREE.MeshStandardMaterial({ map: tex, roughness: rough, metalness: 0 })
 }
 
+/**
+ * A mown lawn: mottled greens, faint mowing stripes and blade-level grain, so
+ * grass reads as grass rather than a flat green sheet.
+ */
+export function grassMaterial(THREE, { base = '#557236', repeat = [40, 40], stripes = true, seed = 21 } = {}) {
+  const map = paintTexture(
+    THREE,
+    512,
+    512,
+    (g, w, h) => {
+      g.fillStyle = base
+      g.fillRect(0, 0, w, h)
+      const rand = seeded(seed)
+      if (stripes) {
+        for (let x = 0; x < w; x += 64) {
+          g.fillStyle = (x / 64) % 2 ? 'rgba(255,255,220,0.05)' : 'rgba(0,20,0,0.06)'
+          g.fillRect(x, 0, 64, h)
+        }
+      }
+      blotches(g, w, h, { color: 'rgba(80,70,20,0.10)', count: 26, seed, size: 0.18 })
+      blotches(g, w, h, { color: 'rgba(10,40,10,0.10)', count: 26, seed: seed + 5, size: 0.14 })
+      // individual blades
+      for (let i = 0; i < 9000; i++) {
+        const x = rand() * w
+        const y = rand() * h
+        const l = 2 + rand() * 4
+        g.strokeStyle = rand() < 0.5 ? 'rgba(170,190,90,0.22)' : 'rgba(20,40,10,0.25)'
+        g.lineWidth = 1
+        g.beginPath()
+        g.moveTo(x, y)
+        g.lineTo(x + (rand() - 0.5) * 2, y - l)
+        g.stroke()
+      }
+      grain(g, w, h, 16, seed)
+    },
+    { kind: 'color', repeat }
+  )
+  const normalMap = noiseNormalMap(THREE, 256, { cells: 64, strength: 2, octaves: 2 })
+  normalMap.repeat.set(repeat[0] * 2, repeat[1] * 2)
+  return new THREE.MeshStandardMaterial({
+    map,
+    normalMap,
+    normalScale: new THREE.Vector2(0.5, 0.5),
+    roughness: 0.95,
+    metalness: 0,
+    polygonOffset: true,
+    polygonOffsetFactor: -1,
+    polygonOffsetUnits: -4,
+  })
+}
+
 /* --- vegetation -------------------------------------------------------- */
 
 /**
@@ -458,9 +509,24 @@ export function addTrees(THREE, scene, spots, { seed = 5, leaf = [0x3d5a2a, 0x52
   trunkGeo.translate(0, 0.5, 0)
 
   const blobsPer = 4
+  // spherical UVs so a leafy bump can wrap the lumps
+  {
+    const p = canopyGeo.attributes.position
+    const uv = new Float32Array(p.count * 2)
+    for (let i = 0; i < p.count; i++) {
+      const x = p.getX(i)
+      const y = p.getY(i)
+      const z = p.getZ(i)
+      uv[i * 2] = 0.5 + Math.atan2(z, x) / (2 * Math.PI)
+      uv[i * 2 + 1] = 0.5 + Math.asin(Math.max(-1, Math.min(1, y / Math.hypot(x, y, z)))) / Math.PI
+    }
+    canopyGeo.setAttribute('uv', new THREE.BufferAttribute(uv, 2))
+  }
+  const leafy = noiseNormalMap(THREE, 256, { cells: 40, strength: 4, octaves: 3 })
+  leafy.repeat.set(4, 3)
   const canopy = new THREE.InstancedMesh(
     canopyGeo,
-    new THREE.MeshStandardMaterial({ roughness: 0.95, metalness: 0, flatShading: false }),
+    new THREE.MeshStandardMaterial({ roughness: 0.85, metalness: 0, normalMap: leafy, normalScale: new THREE.Vector2(1.2, 1.2) }),
     spots.length * blobsPer
   )
   const trunks = new THREE.InstancedMesh(

@@ -152,7 +152,7 @@ export function createPost(THREE, renderer, { quality = 'high' } = {}) {
     uProjScale: { value: 1 },
     uAO: { value: high ? 1 : 0.7 },
     uAORadius: { value: 1.4 }, // metres
-    uBloom: { value: 0.16 },
+    uBloom: { value: 0.1 },
     uRays: { value: 0 },
     uRayColor: { value: new THREE.Color(0xfff0d8) },
     uExposure: { value: 1 },
@@ -387,7 +387,7 @@ export function createPost(THREE, renderer, { quality = 'high' } = {}) {
 
     // 4. sun rays, when the sun is in front of us
     const strength = flat ? 0 : sun?.strength ?? 0
-    uniforms.uRays.value = strength * 0.55
+    uniforms.uRays.value = strength * 0.3
     if (strength > 0.001) {
       raysMat.uniforms.uSun.value.copy(sun.uv)
       if (sun.color) uniforms.uRayColor.value.copy(sun.color)

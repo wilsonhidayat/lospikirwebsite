@@ -9,7 +9,7 @@
  *
  * Metres.
  */
-import { createWorld, waterMaterial, pavingMaterial, addTrees } from '../world.js'
+import { createWorld, grassMaterial, waterMaterial, pavingMaterial, addTrees } from '../world.js'
 import { paintTexture, grain, blotches, seeded, range, scaleBoxUVs, beamBatch } from '../utils.js'
 
 function curtainWall(THREE, { tint = '#5d6b78', seed = 3, cols = 8, rows = 4 } = {}) {
@@ -96,13 +96,16 @@ export function buildCampus(THREE, ctx, { light = 'overcast' } = {}) {
   plaza.rotation.x = -Math.PI / 2
   plaza.receiveShadow = true
   scene.add(plaza)
-  const lawnMat = new THREE.MeshStandardMaterial({ color: 0x55703a, roughness: 1, polygonOffset: true, polygonOffsetFactor: -1, polygonOffsetUnits: -4 })
+  const lawnMat = grassMaterial(THREE, { repeat: [1, 1] })
   for (const [x, z, w, d] of [
     [-70, 40, 80, 60],
     [80, 60, 70, 90],
     [-20, -120, 160, 70],
   ]) {
-    const l = new THREE.Mesh(new THREE.PlaneGeometry(w, d), lawnMat)
+    const geo = new THREE.PlaneGeometry(w, d)
+    const uv = geo.attributes.uv
+    for (let i = 0; i < uv.count; i++) uv.setXY(i, (uv.getX(i) * w) / 8, (uv.getY(i) * d) / 8) // 8 m per tile
+    const l = new THREE.Mesh(geo, lawnMat)
     l.rotation.x = -Math.PI / 2
     l.position.set(x, 0.04, z)
     l.receiveShadow = true

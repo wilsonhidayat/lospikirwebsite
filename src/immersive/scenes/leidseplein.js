@@ -176,7 +176,7 @@ function building(THREE, { w, h, d, front, side = 0x6e4a3a, roof = 0x3d3f44, gab
 
 function addPlaneTrees(THREE, scene, spots, { seed = 9, lights = true, low = false } = {}) {
   const rand = seeded(seed)
-  const bark = new THREE.MeshStandardMaterial({ color: 0xa79a88, roughness: 0.95 })
+  const bark = new THREE.MeshStandardMaterial({ color: 0x7a7064, roughness: 0.95 })
   const wood = beamBatch(THREE)
   const bulbs = []
   const V = (x, y, z) => new THREE.Vector3(x, y, z)

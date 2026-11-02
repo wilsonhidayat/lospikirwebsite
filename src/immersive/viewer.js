@@ -258,6 +258,10 @@ export async function createViewer({ canvas, quality = 'high', onError, onPhase,
     c.lookAt(look)
     c.rotateOnWorldAxis(yAxis, yaw.value - pointerNow.x * 0.02)
     c.rotateX(pointerNow.y * 0.012)
+    // on wide screens the print floats right of centre, so frame the place's
+    // subject to its left rather than behind it
+    if (wide()) c.setViewOffset(css.x, css.y, css.x * 0.2 * (1 - photoMix.value), 0, css.x, css.y)
+    else c.clearViewOffset()
   }
 
   /** For scenes without listed spots: along the arrival path, turned, swung. */
@@ -349,7 +353,7 @@ export async function createViewer({ canvas, quality = 'high', onError, onPhase,
     const maxH = wide() ? 0.64 * H : 0.5 * H
     const maxW = wide() ? 0.48 * W : 0.82 * W
     const scale = Math.min(maxH / h, maxW / w) // px per print unit
-    return { cx: W * (wide() ? 0.56 : 0.5), cy: H * (wide() ? 0.47 : 0.42), scale }
+    return { cx: W * (wide() ? 0.62 : 0.5), cy: H * (wide() ? 0.47 : 0.42), scale }
   }
 
   const corner = new THREE.Vector3()
