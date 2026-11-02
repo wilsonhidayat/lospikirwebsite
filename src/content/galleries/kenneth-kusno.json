@@ -5,6 +5,11 @@
   "tone": "dusk",
   "cover": "/photos/kenneth-kusno-04.jpg",
   "intro": "",
+  "scene": "campus",
+  "place": "TU/e campus, Eindhoven",
+  "hero": "/photos/kenneth-kusno-04.jpg",
+  "heroAlt": "A graduate throwing his cap into the air in front of a glass university building",
+  "featured": 6,
   "photos": [
     {
       "src": "/photos/kenneth-kusno-01.jpg",

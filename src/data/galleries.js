@@ -19,6 +19,13 @@ export const galleries = Object.entries(files)
       tone: data.tone || 'warm',
       cover: data.cover || null,
       intro: data.intro || '',
+      // the immersive opening: which place to fly into, and the photograph
+      // it resolves into (defaults to the cover)
+      scene: data.scene && data.scene !== 'none' ? data.scene : null,
+      place: data.place || '',
+      hero: data.hero || data.cover || null,
+      alt: data.heroAlt || '',
+      featured: Number(data.featured) || 0,
       photos: Array.isArray(data.photos) ? data.photos.filter((p) => p && p.src) : [],
     }
   })
@@ -27,3 +34,12 @@ export const galleries = Object.entries(files)
 export function galleryBySlug(slug) {
   return galleries.find((g) => g.slug === slug) ?? null
 }
+
+/**
+ * Projects that get a chapter in the home-page experience, in the order set
+ * by their "featured" number (1 first). Only galleries with a place and a
+ * photograph qualify.
+ */
+export const featuredGalleries = galleries
+  .filter((g) => g.featured > 0 && g.scene && g.hero)
+  .sort((a, b) => a.featured - b.featured)

@@ -180,6 +180,63 @@ Rules worth keeping:
 Everything honours `prefers-reduced-motion`: slides become cross-fades, the
 lightbox and nav stop moving, and nothing is removed outright.
 
+---
+
+## The immersive opening (3D)
+
+The home page opens with a scroll-driven 3D sequence. Each featured project is
+a chapter: your camera (an A7 III with a 24-70 f/2.8, built in code, no logos)
+turns to face the visitor, they move through the lens into the **place** the
+photograph was taken, the viewfinder shows the real settings from the photo's
+EXIF, the shutter fires, and the place becomes the photograph. Every gallery
+page opens the same way, for its own place.
+
+### Editing it in the CMS (`/admin` → Galleries)
+
+| Field | What it does |
+|---|---|
+| **Place** | The 3D world: Paris, Amsterdam canals, Dunes and beach, University campus, City waterfront at sunset / at night, On the water at night, Light-filled interior, Studio, or None. |
+| **Where it was shot** | The line under the title, e.g. "Trocadéro, Paris". |
+| **The moment** | The photo the flight lands on. Defaults to the cover. |
+| **Describe the moment photo** | Alt text for screen readers and Google. |
+| **Home-page position** | 1, 2, 3… puts the project in the home sequence in that order. Leave empty to keep it off the home page. |
+
+A new project just needs a Place picked — no 3D work. The viewfinder reads ISO,
+shutter, aperture and focal length straight from the photo, so export with
+metadata kept.
+
+### Who sees what
+
+Visitors get the classic page instead (same content) when they've asked their
+device for reduced motion, have Data Saver on, or their browser has no WebGL 2.
+Add `?classic` to any URL to see it yourself. Phones get a lighter version
+(fewer grass blades, lower resolution, only nearby scenes kept in memory).
+
+### Where the code is
+
+```
+src/immersive/
+  Immersive.jsx      the scroll stage, viewfinder, shutter flash, photo reveal
+  timeline.js        the choreography — a pure function of scroll position
+  engine.js          three.js renderer, the lens "portal", camera flights
+  camera-model.js    the camera body and lens
+  world.js           sky, sun, haze, water, trees, night lights
+  scenes/            one file per place (paris, amsterdam, coast, campus,
+                     waterfront, interior) + index.js to register new ones
+  exif.js            reads camera settings from a JPEG
+  shutter-sound.js   the shutter click, synthesised (no audio file)
+```
+
+Sound is off until the visitor turns it on. There is no background music yet.
+
+### Privacy and tracking
+
+The site sets **no cookies** and has no ad trackers, so no cookie banner is
+needed. Visitor statistics are optional: create a site at plausible.io, then in
+Netlify add the environment variable `VITE_PLAUSIBLE_DOMAIN=lospikir.com` and
+redeploy. The privacy page (`/privacy`) updates itself to say so. Have the
+privacy text checked before relying on it.
+
 ## Typeface
 
 Set in **Helvetica Neue**, taken from the logo. It is a system face on macOS and
@@ -204,3 +261,5 @@ keep them small.
 - [ ] `og-image.jpg` in `public/` for link previews
 - [ ] Typeface decision above
 - [ ] Netlify Forms email notification for enquiries
+- [ ] Check the places I couldn't identify from the photos: Alyssa Nadia, Amara (master's) — set *Where it was shot* in the CMS
+- [ ] Optional: Plausible statistics (see *Privacy and tracking*)

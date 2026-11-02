@@ -5,6 +5,11 @@
   "tone": "bone",
   "cover": "/photos/mieri-fathi-01.jpg",
   "intro": "",
+  "scene": "coast",
+  "place": "The dunes and the beach, at sunset",
+  "hero": "/photos/mieri-fathi-08.jpg",
+  "heroAlt": "A couple walking hand in hand along a sandy path through tall golden dune grass toward the sea",
+  "featured": 3,
   "photos": [
     {
       "src": "/photos/mieri-fathi-01.jpg",

@@ -5,6 +5,11 @@
   "tone": "warm",
   "cover": "/photos/evan-inez-paris-08.jpg",
   "intro": "",
+  "scene": "paris",
+  "place": "Trocadéro, Paris",
+  "hero": "/photos/evan-inez-paris-08.jpg",
+  "heroAlt": "A bride and groom on the stone steps of the Trocadéro, the Eiffel Tower rising behind them under a soft grey sky",
+  "featured": 1,
   "photos": [
     {
       "src": "/photos/evan-inez-paris-01.jpg",

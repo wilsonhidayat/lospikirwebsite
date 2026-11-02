@@ -104,3 +104,22 @@
     grid-template-columns: 1fr;
   }
 }
+
+/* --- privacy page ---------------------------------------------- */
+
+.privacy h2 {
+  margin: 40px 0 10px;
+  font-size: 18px;
+  font-weight: 700;
+  letter-spacing: var(--track-title);
+}
+
+.privacy a {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.privacy__updated {
+  margin-top: 48px;
+  color: var(--dim);
+}

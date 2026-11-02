@@ -6,6 +6,7 @@ import Footer from './components/Footer.jsx'
 import Home from './pages/Home.jsx'
 import AboutPage from './pages/AboutPage.jsx'
 import GalleryPage from './pages/GalleryPage.jsx'
+import PrivacyPage from './pages/PrivacyPage.jsx'
 
 /**
  * On navigation: jump to the top for a new page, or to the #section when the
@@ -39,6 +40,7 @@ export default function App() {
         <Route path="/" element={<Home />} />
         <Route path="/about" element={<AboutPage />} />
         <Route path="/gallery/:slug" element={<GalleryPage />} />
+        <Route path="/privacy" element={<PrivacyPage />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
 

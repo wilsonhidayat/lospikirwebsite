@@ -5,6 +5,8 @@
   "tone": "night",
   "cover": "/photos/laura-04.jpg",
   "intro": "",
+  "scene": "interior",
+  "place": "A light-filled house in the countryside",
   "photos": [
     {
       "src": "/photos/laura-01.jpg",

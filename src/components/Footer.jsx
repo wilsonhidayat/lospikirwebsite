@@ -1,3 +1,4 @@
+import { Link } from 'react-router-dom'
 import { site } from '../data/site.js'
 import '../styles/closing.css'
 
@@ -26,7 +27,8 @@ export default function Footer() {
         </div>
 
         <div className="footer__legal label">
-          © {year} {site.name} — {site.photographer} · KVK {site.kvk}
+          © {year} {site.name} — {site.photographer} · KVK {site.kvk} ·{' '}
+          <Link to="/privacy">Privacy</Link>
         </div>
       </div>
     </footer>

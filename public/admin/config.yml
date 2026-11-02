@@ -150,6 +150,26 @@ collections:
       - { name: tone, label: "Placeholder colour (until a cover photo is set)", widget: select, options: [warm, green, bone, night, dusk], default: warm }
       - { name: cover, label: "Cover photo (the frame in the home-page strip)", widget: image, required: false }
       - { name: intro, label: "Intro paragraph (optional)", widget: text, required: false }
+      - name: scene
+        label: "Place (the 3D world the gallery opens in)"
+        widget: select
+        default: none
+        options:
+          - { label: "None — classic page", value: none }
+          - { label: "Paris", value: paris }
+          - { label: "Amsterdam canals", value: amsterdam }
+          - { label: "Dunes and beach", value: coast }
+          - { label: "University campus", value: campus }
+          - { label: "City waterfront at sunset", value: waterfront-sunset }
+          - { label: "City waterfront at night", value: waterfront-night }
+          - { label: "On the water at night", value: party-boat }
+          - { label: "Light-filled interior", value: interior }
+          - { label: "Studio", value: studio }
+        hint: "Pick the one closest to where it was shot."
+      - { name: place, label: "Where it was shot (e.g. “Trocadéro, Paris”)", widget: string, required: false }
+      - { name: hero, label: "The moment — the photo the 3D flight lands on", widget: image, required: false, hint: "Defaults to the cover photo." }
+      - { name: heroAlt, label: "Describe the moment photo (for screen readers and Google)", widget: string, required: false }
+      - { name: featured, label: "Home-page position (1 = first, empty = not on the home page)", widget: number, value_type: int, min: 1, required: false }
       - name: photos
         label: "Photos"
         label_singular: "Photo"
