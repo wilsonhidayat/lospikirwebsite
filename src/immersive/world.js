@@ -1,12 +1,11 @@
 /**
- * The shared kit every place is built from, in an illustrated style: a
- * painted sky with soft clouds and a glowing sun, haze that melts into the
- * horizon, cel-shaded light (see style.js), stylised water with white wave
- * strokes, trees, lamps and lit windows for night scenes.
+ * The shared kit every place is built from: a sky (gradient from the photo,
+ * soft lit clouds, a bright sun) that also lights the scene, haze that melts
+ * into the horizon, a shadow-casting sun, realistic water with ripples and
+ * sun glitter, trees, lamps with pools of light, and lit windows at night.
  *
- * Colours are authored as they should appear on screen (sRGB hex); the
- * final composite (post.js) leaves mid-tones alone and only rolls off the
- * highlights, so what's written here is what you see.
+ * Colours are authored as sRGB hex; post.js maps the HDR result to the
+ * screen with a filmic curve.
  *
  * World units are metres.
  */
@@ -151,23 +150,34 @@ function paintedSky(THREE, L, sunDir) {
       void main() {
         vec3 d = normalize(vDir);
         float h = d.y;
-        vec3 col = mix(uHorizon, uZenith, smoothstep(0.0, 0.6, h));
-        col = mix(col, uGround, smoothstep(0.0, -0.06, h));
-        // the sun: a soft halo and a painted disc
-        float sd = max(dot(d, normalize(uSunDir)), 0.0);
-        col += uSunColor * (pow(sd, 6.0) * 0.22 + pow(sd, 60.0) * 0.35) * (1.0 - uNight * 0.7);
-        col = mix(col, uSunColor * 1.25, smoothstep(0.99935, 0.99965, sd) * (1.0 - uNight));
-        // clouds, projected onto a high flat layer so they flatten toward the horizon
+        vec3 sunDir = normalize(uSunDir);
+        float sd = max(dot(d, sunDir), 0.0);
+        // the sky's own gradient (read from the photo), with denser air and a
+        // brighter, whiter haze low down — and forward scattering round the sun
+        vec3 col = mix(uHorizon, uZenith, pow(smoothstep(-0.02, 0.75, h), 0.7));
+        col = mix(col, uHorizon * 1.08 + 0.02, (1.0 - smoothstep(0.0, 0.12, h)) * 0.5);
+        col = mix(col, uGround, smoothstep(0.0, -0.08, h));
+        float day = 1.0 - uNight * 0.85;
+        col += uSunColor * (pow(sd, 4.0) * 0.18 + pow(sd, 24.0) * 0.35 + pow(sd, 400.0) * 1.2) * day;
+        // the sun's disc, far brighter than anything else (it blooms and casts rays)
+        col += uSunColor * smoothstep(0.99955, 0.99975, sd) * 30.0 * day;
+
+        // clouds on a high layer: soft-edged, thick in the middle, lit from the
+        // sun's side, dark-bellied, with a bright rim when the sun is behind them
         if (h > 0.0) {
-          vec2 p = d.xz / (h + 0.1) * 0.9 + vec2(uTime * 0.0035, uTime * 0.001);
-          float n = fbm(p);
-          float edge = 0.62 - uClouds * 0.24;
-          float c = smoothstep(edge, edge + 0.07, n);
-          // a lit top and a shaded belly, offset toward the sun
-          float lit = smoothstep(0.45, 0.7, fbm(p + normalize(uSunDir.xz + 0.0001) * 0.06));
-          vec3 cc = mix(uCloudShade, uCloudLit, lit);
-          cc += uSunColor * pow(sd, 10.0) * 0.25;
-          col = mix(col, cc, c * smoothstep(0.0, 0.06, h) * 0.95);
+          vec2 p = d.xz / (h + 0.12) * 0.9 + vec2(uTime * 0.0035, uTime * 0.001);
+          float n = fbm(p) * 0.75 + fbm(p * 2.3 + 7.0) * 0.25;
+          float edge = 0.6 - uClouds * 0.26;
+          float density = smoothstep(edge - 0.04, edge + 0.22, n);
+          vec2 toSun = normalize(sunDir.xz + 0.0001) * 0.08;
+          float nSun = fbm(p + toSun) * 0.75 + fbm((p + toSun) * 2.3 + 7.0) * 0.25;
+          float lit = clamp(0.55 + (n - nSun) * 5.0, 0.0, 1.0);
+          vec3 base = mix(uCloudShade * 0.82, uCloudLit, lit);
+          base = mix(base, uCloudShade * 0.7, smoothstep(0.55, 1.0, density) * 0.35);
+          float rim = pow(sd, 6.0) * (1.0 - smoothstep(0.0, 0.6, density));
+          base += uSunColor * (rim * 1.6 + pow(sd, 18.0) * 0.4) * day;
+          float fade = smoothstep(0.0, 0.1, h);
+          col = mix(col, base, density * fade * 0.97);
         }
         // stars at night
         if (uNight > 0.5) {
@@ -251,7 +261,9 @@ export function createWorld(THREE, ctx, lightName = 'day', overrides = {}) {
   return {
     scene,
     sun,
-    sunDir,
+    sunDir: lightDir,
+    sky,
+    hemi,
     light: L,
     exposure: L.exposure,
     focusShadows,
@@ -282,6 +294,7 @@ export function waterMaterial(THREE, { palette = null, scale = 1, strokes = 1, c
       uDeep: { value: new THREE.Color(W.deep) },
       uShallow: { value: new THREE.Color(W.shallow) },
       uSky: { value: new THREE.Color(L.sky.horizon) },
+      uZenith: { value: new THREE.Color(L.sky.zenith) },
       uStroke: { value: new THREE.Color(W.stroke) },
       uSun: { value: new THREE.Color(L.sky.sun) },
       uSunDir: { value: sunDir },
@@ -304,30 +317,49 @@ export function waterMaterial(THREE, { palette = null, scale = 1, strokes = 1, c
         #include <fog_vertex>
       }`,
     fragmentShader: /* glsl */ `
-      uniform float uTime; uniform vec3 uDeep; uniform vec3 uShallow; uniform vec3 uSky;
+      uniform float uTime; uniform vec3 uDeep; uniform vec3 uShallow; uniform vec3 uSky; uniform vec3 uZenith;
       uniform vec3 uStroke; uniform vec3 uSun; uniform vec3 uSunDir;
       uniform float uScale; uniform float uStrokes; uniform float uNight;
       varying vec3 vWorld;
       #include <fog_pars_fragment>
       ${NOISE_GLSL}
+      // two sets of ripples drifting different ways
+      float waves(vec2 p, float t) {
+        return fbm(p + vec2(t * 0.4, t * 0.15)) * 0.6 + fbm(p * 2.7 - vec2(t * 0.25, t * 0.5)) * 0.4;
+      }
       void main() {
-        vec3 v = normalize(cameraPosition - vWorld);
-        float graze = 1.0 - clamp(v.y, 0.0, 1.0);
-        vec3 col = mix(uDeep, uShallow, smoothstep(0.2, 0.9, graze));
-        col = mix(col, uSky, pow(graze, 6.0) * 0.55);
-        // long, thin wave strokes, stretched along the swell
-        vec2 p = vWorld.xz * 0.045 / uScale;
-        float t = uTime * 0.05;
-        float n = fbm(vec2(p.x * 0.35 + t, p.y * 1.6 - t * 0.6));
-        float band = abs(n - 0.52);
-        float stroke = (1.0 - smoothstep(0.0, 0.018, band)) * smoothstep(0.35, 0.75, fbm(p * 0.7 + 3.0 + t * 0.4));
-        // the glitter path toward the sun
-        vec3 h = normalize(v + normalize(uSunDir));
-        float glint = pow(max(h.y, 0.0), 220.0) * smoothstep(0.55, 0.62, fbm(p * 2.2 - t));
-        col = mix(col, uStroke, stroke * uStrokes * (0.55 + 0.45 * graze));
-        col += uSun * glint * (1.2 - uNight * 0.4);
-        // night: warm city light scattered across the ripples
-        col += uStroke * uNight * stroke * 0.25;
+        vec3 toEye = cameraPosition - vWorld;
+        float dist = length(toEye);
+        vec3 v = toEye / dist;
+        vec2 p = vWorld.xz * 0.16 / uScale;
+        float t = uTime * 0.35;
+        float e = 0.03;
+        float h0 = waves(p, t);
+        float hx = waves(p + vec2(e, 0.0), t);
+        float hz = waves(p + vec2(0.0, e), t);
+        // ripples flatten with distance, as real water does (and to stay calm on screen)
+        float chop = 0.55 / (1.0 + dist * 0.012 * uScale);
+        vec3 n = normalize(vec3(-(hx - h0) / e * chop, 1.0, -(hz - h0) / e * chop));
+
+        vec3 r = reflect(-v, n);
+        r.y = abs(r.y);
+        float cosT = max(dot(n, v), 0.0);
+        float fres = 0.02 + 0.98 * pow(1.0 - cosT, 5.0);
+        vec3 sunDir = normalize(uSunDir);
+        float sd = max(dot(r, sunDir), 0.0);
+        vec3 refl = mix(uSky, uZenith, smoothstep(0.0, 0.5, r.y));
+        // the sun's glitter: a hard specular core and a softer sheen
+        refl += uSun * (pow(sd, 900.0) * 60.0 + pow(sd, 80.0) * 0.8) * (1.0 - uNight * 0.85);
+        // what's under the surface: dark, a little lighter where the ripples face the light
+        vec3 body = mix(uDeep, uShallow, clamp(0.35 + n.x * 2.0 + n.z, 0.0, 1.0));
+        body *= 0.55 + 0.45 * max(dot(n, sunDir), 0.0);
+        vec3 col = mix(body, refl, fres);
+        // night: the city's lights broken into long wobbling streaks on the water
+        if (uNight > 0.5) {
+          float streak = fbm(vec2(vWorld.x * 0.08, vWorld.z * 0.9 + t * 0.6));
+          float cluster = smoothstep(0.45, 0.8, fbm(vWorld.xz * 0.015 + 4.0));
+          col += uStroke * pow(max(streak - 0.35, 0.0) * 2.4, 3.0) * cluster * 2.5 * uStrokes;
+        }
         gl_FragColor = vec4(col, 1.0);
         #include <fog_fragment>
       }`,
@@ -335,7 +367,6 @@ export function waterMaterial(THREE, { palette = null, scale = 1, strokes = 1, c
   mat.userData.tick = (t) => {
     mat.uniforms.uTime.value = t
   }
-  mat.userData.stylised = true
   return mat
 }
 
@@ -510,11 +541,28 @@ export function addLamps(THREE, scene, spots, { color = 0xffc98a, height = 5 } =
     depthWrite: false,
     opacity: 0.55,
   })
+  // the pool of light each lamp throws on the ground
+  const poolMat = new THREE.MeshBasicMaterial({
+    map: glowTex,
+    color,
+    transparent: true,
+    opacity: 0.32,
+    blending: THREE.AdditiveBlending,
+    depthWrite: false,
+    polygonOffset: true,
+    polygonOffsetFactor: -4,
+    polygonOffsetUnits: -8,
+  })
+  const poolGeo = new THREE.PlaneGeometry(1, 1).rotateX(-Math.PI / 2)
   spots.forEach((s) => {
     const sp = new THREE.Sprite(glowMat)
     sp.position.set(s.x, (s.y || 0) + height, s.z)
-    sp.scale.setScalar(4.5)
+    sp.scale.setScalar(3.2)
     scene.add(sp)
+    const pool = new THREE.Mesh(poolGeo, poolMat)
+    pool.position.set(s.x, (s.y || 0) + 0.04, s.z)
+    pool.scale.setScalar(height * 2.6)
+    scene.add(pool)
   })
 }
 

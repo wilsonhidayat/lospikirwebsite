@@ -136,9 +136,16 @@ export function readPhoto(url) {
         }
         top = lift(top, 0.58)
         low = lift(low, 0.62)
-        // grey, even skies are overcast; saturated ones are clear
-        const greyness = 1 - Math.min(1, sat(top) * 2.2)
-        const clouds = Math.min(0.9, 0.3 + greyness * 0.6)
+        // grey skies are overcast; blotchy ones are cloudy; clean, even blue
+        // (even a pale winter blue) is clear
+        const greyness = 1 - Math.min(1, sat(top) * 3)
+        const texture = variance(data, w, y0, y1, avg(data, w, y0, y1))
+        const clouds = Math.min(0.88, 0.12 + greyness * 0.5 + texture * 3)
+        // the photo's band is usually low in the sky; overhead is deeper blue
+        if (top[2] >= top[0] * 0.95) {
+          const l = (top[0] + top[1] + top[2]) / 3
+          top = top.map((v) => Math.max(0, Math.min(255, (l + (v - l) * 1.35) * 0.93)))
+        }
         resolve({
           tone,
           sky: {

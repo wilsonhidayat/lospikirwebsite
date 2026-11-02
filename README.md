@@ -182,51 +182,48 @@ lightbox and nav stop moving, and nothing is removed outright.
 
 ---
 
-## The journey (3D)
+## The tour (3D)
 
-The home page opens on a painted sea at sunset: a yacht flying the LOSPIKIR
-flag, gulls, a slow swell. Nothing moves until the visitor chooses to.
+The home page is the tour. It opens in the first project's place — painted
+in 3D — with Wilson's camera (an A7 III with a 24-70 f/2.8, built in code, no
+logos) floating in it, lens toward the visitor.
 
-1. **Begin the journey** — the view rises into the clouds and comes down in the
-   first project's place (Paris, the Amsterdam canals, the dunes…). A title card
-   names the chapter.
-2. **Browse like on the back of a camera** — a playback screen shows the
-   project's photos (arrows, swipe, ← →, filmstrip) with the real shutter,
-   aperture, ISO and focal length from each file. The 3D place stays put; the
-   view eases to a new spot in it for each photo.
-3. **Step inside** — the view pulls back so the visitor can drag to look around
-   the place. **Take the shot** flies back to the moment with a shutter flash
-   (and a click, if sound is on).
-4. **Next place** (the arrows at the bottom, or `[` `]`) — up through the clouds
-   and down into the next project. **Open the gallery** goes to the full page.
+1. **Start the tour** — the camera turns round and comes close. Its screen
+   shows the project's photos, big and crisp (they are real images laid over
+   the 3D, not part of the render). Arrows, swipe or ← → flick through them;
+   tap a photo to see it full screen.
+2. **The place stays still** while browsing — only the camera floats.
+3. **Step inside** — the camera drops away so the visitor can drag to look
+   around; **Take the shot** brings it back with a shutter flash.
+4. **Next gallery** (the arrows at the bottom, or `[` `]`) travels up through
+   the clouds and down into the next place. On the last one the button becomes
+   **Work together →**, which leads to the packages, pricing and enquiry right
+   below the tour.
+5. **Skip the tour** is always on screen and goes to the regular site at
+   `/work` (hero, recent galleries, packages, pricing, enquiry).
 
-The page never scroll-jacks: scrolling past the journey goes straight on to the
-rest of the site. Every gallery page opens with the same viewer, for its own
-place.
+The only text in the tour is each gallery's title. Gallery pages open with the
+same camera for their own place; "View as a regular gallery" jumps to the grid.
 
-**The look.** The 3D is painted rather than photo-real: toon shading, a hand-
-painted sky and water with brush-stroke waves, soft ink outlines and a
-painterly filter, film grain and a vignette (`post.js`, `style.js`).
+**The look.** Painted rather than photo-real: toon shading, a hand-painted sky
+and water, soft ink outlines, a painterly filter and film grain (`post.js`,
+`style.js`). The packages / pricing / enquiry after the tour are painted in
+the same dusk light (`styles/after-tour.css`).
 
-**The sky matches the photo.** When a place loads, its sky colours are read
-from the moment photo — the band of open sky in it, even below a bridge — so a
-sunset shoot gets a sunset sky and a grey beach day a grey one. If the moment
-has no sky, the nearest photos in the project with a clear blue sky are used.
-Night and indoor places keep their own lighting.
+**The sky matches the photo.** Each place's sky colours are read from its
+moment photo (`palette.js`); night and indoor places keep their own light.
 
 ### Editing it in the CMS (`/admin` → Galleries)
 
 | Field | What it does |
 |---|---|
-| **Place** | The 3D world: Paris, Amsterdam canals, Dunes and beach, University campus, City waterfront at sunset / at night, On the water at night, Light-filled interior, Studio, or None. |
+| **Place** | The 3D world: Paris, Amsterdam canals, Leidseplein, Dunes and beach, University campus, City waterfront at sunset / at night, On the water at night, Light-filled interior, Studio, or None. |
 | **Where it was shot** | The line under the title, e.g. "Trocadéro, Paris". |
-| **The moment** | The photo the journey lands on, and where its sky is read from. A project needs both a Place and a Moment to appear in the journey. |
+| **The moment** | The first photo on the camera's screen, and where the sky is read from. A project needs both a Place and a Moment to appear in the tour. |
 | **Describe the moment photo** | Alt text for screen readers and Google. |
-| **Home-page position** | 1, 2, 3… puts the project first in the journey in that order. Other projects with a place and moment follow. |
+| **Home-page position** | 1, 2, 3… sets the order in the tour. Other projects with a place and moment follow. |
 
-A new project just needs a Place and a Moment — no 3D work. The playback screen
-reads ISO, shutter, aperture and focal length straight from the photo, so export
-with metadata kept.
+A new project just needs a Place and a Moment — no 3D work.
 
 ### Who sees what
 
@@ -240,15 +237,17 @@ in memory).
 
 ```
 src/immersive/
-  Journey.jsx        the screens: intro, playback screen, step inside, places nav
-  viewer.js          three.js renderer, camera moves, cloud transitions
+  Journey.jsx        the tour's screens: start, the photos on the camera, step
+                     inside, full screen, galleries nav, skip
+  viewer.js          three.js renderer, the floating camera, cloud transitions
+  camera-model.js    the camera body and lens
+  quad.js            pins the photo onto the camera's screen
   post.js            the painted look: outlines, brush filter, grade, grain
   style.js           toon shading for every scene
   palette.js         reads the sky colours out of a photo
   world.js           painted sky, light presets, water, trees, night lights
-  scenes/            one file per place (sea, paris, amsterdam, coast, campus,
-                     waterfront, interior) + index.js to register new ones
-  exif.js            reads camera settings from a JPEG
+  scenes/            one file per place (paris, amsterdam, leidseplein, coast,
+                     campus, waterfront, interior) + index.js to register new ones
   shutter-sound.js   the shutter click, synthesised (no audio file)
 src/styles/journey.css
 ```

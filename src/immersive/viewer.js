@@ -1,7 +1,10 @@
 /**
  * The 3D viewer behind the journey.
  *
- * One place at a time, rendered as an illustration (style.js + post.js), with
+ * One place at a time, rendered as realistically as a browser allows —
+ * physically based materials lit by the sun, soft shadows and the sky's own
+ * light (an environment map made from the painted sky), finished in post.js
+ * with occlusion, bloom, sun rays and a filmic curve — with
  * Wilson's camera floating in front of it. The view of the place never wanders:
  * it settles on the spot where the moment was shot and stays there while the
  * visitor flicks through the photos on the camera's screen. It only moves to
@@ -19,7 +22,6 @@
  */
 import * as THREE from 'three'
 import { loadScene } from './scenes/index.js'
-import { stylize } from './style.js'
 import { createPost, NO_INK_LAYER } from './post.js'
 import { skyFromProject } from './palette.js'
 import { buildCameraModel } from './camera-model.js'
@@ -89,6 +91,22 @@ export async function createViewer({ canvas, quality = 'high', onError, onPhase,
 
   const post = createPost(THREE, renderer, { quality })
   const ctx = { quality }
+  const pmrem = new THREE.PMREMGenerator(renderer)
+
+  /** Light the place with its own sky: reflections and soft ambient light. */
+  function environment(place) {
+    const sky = place.world?.sky
+    if (!sky) return
+    const envScene = new THREE.Scene()
+    envScene.add(new THREE.Mesh(sky.geometry, sky.material))
+    const rt = pmrem.fromScene(envScene, 0.02, 0.1, 20000)
+    place.scene.environment = rt.texture
+    place.envTarget = rt
+    // the sky now lights everything, so the flat ambient fill steps back
+    if (place.world.hemi) place.world.hemi.intensity *= 0.35
+    // the sky dome itself has no surface to shade or occlude
+    sky.layers.set(NO_INK_LAYER)
+  }
 
   /* --- the floating camera ------------------------------------------------ */
 
@@ -98,7 +116,6 @@ export async function createViewer({ canvas, quality = 'high', onError, onPhase,
   const rigCam = new THREE.PerspectiveCamera(46, 1, 0.05, 60)
   rigCam.layers.enable(NO_INK_LAYER)
   const rig = buildCameraModel(THREE)
-  stylize(THREE, rig.group)
   rigScene.add(rig.group)
   const rigHemi = new THREE.HemisphereLight(0xeef1f5, 0x5a5550, 1.1)
   const rigKey = new THREE.DirectionalLight(0xffffff, 1.6) // from over the visitor's shoulder
@@ -145,6 +162,7 @@ export async function createViewer({ canvas, quality = 'high', onError, onPhase,
       }
     })
     place.world?.dispose?.()
+    place.envTarget?.dispose()
   }
 
   const size = new THREE.Vector2() // drawing buffer, px
@@ -171,8 +189,8 @@ export async function createViewer({ canvas, quality = 'high', onError, onPhase,
       ctx.sky = NIGHT_OR_INDOOR.has(p.scene) ? null : await skyFromProject(p)
       const place = await loadScene(p.scene, THREE, ctx)
       ctx.sky = null
-      stylize(THREE, place.scene)
-      // sprites and anything transparent never get ink lines
+      environment(place)
+      // sprites and anything transparent stay out of the normal pass
       place.scene.traverse((o) => {
         const m = o.material
         if (o.isSprite || (m && !Array.isArray(m) && m.transparent)) o.layers.set(NO_INK_LAYER)
@@ -253,7 +271,7 @@ export async function createViewer({ canvas, quality = 'high', onError, onPhase,
     // to the left on wide screens, above it on phones (none when inside)
     const k = 1 - away.value
     const wide = css.x / css.y >= 1
-    c.setViewOffset(css.x, css.y, wide ? css.x * 0.17 * k : 0, wide ? 0 : css.y * 0.26 * k, css.x, css.y)
+    c.setViewOffset(css.x, css.y, wide ? css.x * 0.26 * k : 0, wide ? 0 : css.y * 0.26 * k, css.x, css.y)
   }
 
   /* --- where the floating camera sits on the page ------------------------ */
@@ -270,10 +288,10 @@ export async function createViewer({ canvas, quality = 'high', onError, onPhase,
     const wide = W / H >= 1
     if (which === 'review') {
       if (wide) {
-        const lcdH = Math.min(0.4 * H, (0.46 * W) / 1.5)
+        const lcdH = Math.min(0.35 * H, (0.4 * W) / 1.5)
         const ppu = lcdH / (S.halfH * 2)
-        const cy = Math.min(Math.max(0.5 * H, 0.09 * H + hump * ppu), H - below * ppu - 0.04 * H)
-        return { cx: W * (W > 1100 ? 0.56 : 0.5), cy, ppu, d: 2.2, yaw: Math.PI, pitch: 0 }
+        const cy = Math.min(Math.max(0.5 * H, 0.1 * H + hump * ppu), H - below * ppu - 0.05 * H)
+        return { cx: W * (W > 1100 ? 0.62 : 0.56), cy, ppu, d: 2.2, yaw: Math.PI, pitch: 0 }
       }
       const lcdW = Math.min(0.84 * W, 0.3 * H * 1.5)
       const ppu = lcdW / (S.halfW * 2)
@@ -282,8 +300,8 @@ export async function createViewer({ canvas, quality = 'high', onError, onPhase,
     // intro: further out in the place, three-quarters on, lens toward you
     const ref = layout('review')
     return wide
-      ? { cx: W * 0.64, cy: H * 0.44, ppu: ref.ppu * 0.5, d: 5, yaw: 0.6, pitch: 0.16 }
-      : { cx: W * 0.5, cy: H * 0.52, ppu: ref.ppu * 0.6, d: 5, yaw: 0.6, pitch: 0.16 }
+      ? { cx: W * 0.7, cy: H * 0.42, ppu: ref.ppu * 0.36, d: 16, yaw: 0.8, pitch: 0.14 }
+      : { cx: W * 0.56, cy: H * 0.5, ppu: ref.ppu * 0.5, d: 16, yaw: 0.8, pitch: 0.14 }
   }
 
   const rot = new THREE.Euler(0, 0, 0, 'YXZ')
@@ -353,6 +371,30 @@ export async function createViewer({ canvas, quality = 'high', onError, onPhase,
     onScreen({ quad, facing, cloud: Math.max(cloud.value, fade.value), away: away.value })
   }
 
+  /* --- the sun on screen, for its rays ---------------------------------- */
+
+  const sunPoint = new THREE.Vector3()
+  const forward = new THREE.Vector3()
+  const sunInfo = { uv: new THREE.Vector2(), strength: 0, color: new THREE.Color() }
+  function sunOnScreen(place) {
+    const w = place.world
+    if (!w?.sunDir) {
+      sunInfo.strength = 0
+      return sunInfo
+    }
+    const c = place.camera
+    c.getWorldDirection(forward)
+    const facing = forward.dot(w.sunDir)
+    sunPoint.copy(w.sunDir).multiplyScalar(5000).add(c.position).project(c)
+    sunInfo.uv.set(sunPoint.x * 0.5 + 0.5, sunPoint.y * 0.5 + 0.5)
+    // strongest looking toward the sun; gone once it's well off screen
+    const off = Math.max(Math.abs(sunPoint.x), Math.abs(sunPoint.y))
+    const k = clamp01((facing - 0.05) / 0.45) * clamp01((2.2 - off) / 1.2) * (w.sunDir.y > 0 ? 1 : 0)
+    sunInfo.strength = k * (w.light?.night ? 0.12 : 1) * (1 - cloud.value)
+    sunInfo.color.setHex(w.light?.sunColor ?? 0xffffff)
+    return sunInfo
+  }
+
   /* --- sizing ------------------------------------------------------------ */
 
   function resize() {
@@ -397,6 +439,7 @@ export async function createViewer({ canvas, quality = 'high', onError, onPhase,
         time,
         exposure: current.world?.exposure ?? 1,
         overlay: away.value < 0.999 ? overlay : null,
+        sun: sunOnScreen(current),
       })
     } else {
       post.renderClouds(time)
@@ -440,6 +483,7 @@ export async function createViewer({ canvas, quality = 'high', onError, onPhase,
     const place = await loading
     if (id !== journey) return false
     current = place
+    rigScene.environment = place.scene.environment || null
     rigCam.fov = fovFor(place)
     rigCam.updateProjectionMatrix()
     lightRig(place)
@@ -511,6 +555,7 @@ export async function createViewer({ canvas, quality = 'high', onError, onPhase,
       for (const p of cache.values()) free(p)
       cache.clear()
       free({ scene: rigScene })
+      pmrem.dispose()
       post.dispose()
       renderer.dispose()
     },

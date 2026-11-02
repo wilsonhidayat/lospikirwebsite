@@ -214,7 +214,7 @@ function addPlaneTrees(THREE, scene, spots, { seed = 9, lights = true, low = fal
   if (bulbs.length) {
     const bulbMesh = new THREE.InstancedMesh(
       new THREE.SphereGeometry(0.055, 6, 4),
-      new THREE.MeshBasicMaterial({ color: 0xffc56e }),
+      new THREE.MeshBasicMaterial({ color: new THREE.Color(0xffc56e).multiplyScalar(4) }),
       bulbs.length
     )
     bulbs.forEach((p, i) => bulbMesh.setMatrixAt(i, m4.makeTranslation(p.x, p.y, p.z)))
@@ -299,9 +299,9 @@ export function buildLeidseplein(THREE, ctx, { light = 'day' } = {}) {
     scene.add(m)
   }
   // the jets: arcs and spouts of water, drawn soft (never inked)
-  const jetMat = new THREE.MeshBasicMaterial({ color: 0xf4f7fa, transparent: true, opacity: 0.62, depthWrite: false })
+  const jetMat = new THREE.MeshBasicMaterial({ color: 0xeef3f7, transparent: true, opacity: 0.32, depthWrite: false })
   const jets = []
-  const spout = (x, z, h, r = 0.09) => {
+  const spout = (x, z, h, r = 0.06) => {
     const m = new THREE.Mesh(new THREE.CylinderGeometry(r * 0.4, r, h, 8, 1, true).translate(0, h / 2, 0), jetMat)
     m.position.set(x, 0.42, z)
     m.layers.set(NO_INK_LAYER)
@@ -312,8 +312,8 @@ export function buildLeidseplein(THREE, ctx, { light = 'day' } = {}) {
     const a = (i / 10) * Math.PI * 2
     spout(Math.cos(a) * 6.4, Math.sin(a) * 6.4, range(rand, 0.8, 1.5))
   }
-  spout(5.2, -2.4, 2.6, 0.14)
-  spout(-3.4, 3.2, 1.9, 0.12)
+  spout(5.2, -2.4, 2.6, 0.1)
+  spout(-3.4, 3.2, 1.9, 0.08)
   // arcing jets from the rim toward the middle
   const arcCurve = (a) =>
     new THREE.QuadraticBezierCurve3(
@@ -322,7 +322,7 @@ export function buildLeidseplein(THREE, ctx, { light = 'day' } = {}) {
       new THREE.Vector3(Math.cos(a) * 4.0, 0.42, Math.sin(a) * 4.0)
     )
   for (let i = 0; i < 8; i++) {
-    const tube = new THREE.Mesh(new THREE.TubeGeometry(arcCurve((i / 8) * Math.PI * 2 + 0.2), 16, 0.05, 5), jetMat)
+    const tube = new THREE.Mesh(new THREE.TubeGeometry(arcCurve((i / 8) * Math.PI * 2 + 0.2), 20, 0.028, 5), jetMat)
     tube.layers.set(NO_INK_LAYER)
     scene.add(tube)
   }

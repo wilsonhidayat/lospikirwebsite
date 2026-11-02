@@ -24,22 +24,22 @@ export function buildCameraModel(THREE) {
   leatheretteNormal.repeat.set(3, 3)
 
   const body = new THREE.MeshPhysicalMaterial({
-    color: 0x2a2b30,
+    color: 0x18191c,
     roughness: 0.58,
     metalness: 0.15,
     clearcoat: 0.25,
     clearcoatRoughness: 0.6,
   })
   const rubber = new THREE.MeshStandardMaterial({
-    color: 0x1f2024,
-    roughness: 0.92,
+    color: 0x111114,
+    roughness: 0.88,
     metalness: 0,
     normalMap: leatheretteNormal,
     normalScale: new THREE.Vector2(0.6, 0.6),
   })
-  const metalDark = new THREE.MeshStandardMaterial({ color: 0x3b3c42, roughness: 0.35, metalness: 0.9 })
+  const metalDark = new THREE.MeshStandardMaterial({ color: 0x2a2b2f, roughness: 0.35, metalness: 0.9 })
   const metalBright = new THREE.MeshStandardMaterial({ color: 0xb9bbbf, roughness: 0.22, metalness: 1 })
-  const satin = new THREE.MeshStandardMaterial({ color: 0x2c2d32, roughness: 0.42, metalness: 0.55 })
+  const satin = new THREE.MeshStandardMaterial({ color: 0x1b1c1f, roughness: 0.42, metalness: 0.55 })
 
   // Ribbed rubber for the zoom and focus rings
   const ribs = paintTexture(
@@ -59,7 +59,7 @@ export function buildCameraModel(THREE) {
     { kind: 'data', repeat: [12, 1] }
   )
   const ribbed = new THREE.MeshStandardMaterial({
-    color: 0x222327,
+    color: 0x121214,
     roughness: 0.85,
     metalness: 0.05,
     bumpMap: ribs,
@@ -197,7 +197,13 @@ export function buildCameraModel(THREE) {
   /* --- the back: rear screen, viewfinder eyecup, controls ------------- */
 
   // The intro turns the camera around, so the back is modelled too.
-  const screenMat = new THREE.MeshStandardMaterial({ color: 0x08090b, roughness: 0.1, metalness: 0.1 })
+  const screenMat = new THREE.MeshPhysicalMaterial({
+    color: 0x050607,
+    roughness: 0.08,
+    metalness: 0.1,
+    clearcoat: 1,
+    clearcoatRoughness: 0.03,
+  })
   const lcd = new THREE.Mesh(new RoundedBoxGeometry(0.74, 0.5, 0.04, 3, 0.018), screenMat)
   lcd.position.set(0.14, -0.06, -D / 2 - 0.012)
   group.add(lcd)
@@ -308,7 +314,19 @@ export function buildCameraModel(THREE) {
   glassGeo.translate(0, 0, -capR + capDepth * 0.5)
   const glass = new THREE.Mesh(
     glassGeo,
-    new THREE.MeshStandardMaterial({ color: 0x14202e, roughness: 0.12, metalness: 0.2, emissive: 0x05080c })
+    // coated glass: near black, mirror-smooth, with the green-violet sheen of
+    // multi-coating catching the sky
+    new THREE.MeshPhysicalMaterial({
+      color: 0x030406,
+      roughness: 0.03,
+      metalness: 0,
+      clearcoat: 1,
+      clearcoatRoughness: 0.02,
+      iridescence: 1,
+      iridescenceIOR: 1.7,
+      iridescenceThicknessRange: [200, 460],
+      envMapIntensity: 1.6,
+    })
   )
   glass.position.set(axisX, axisY, frontZ - 0.07)
   glass.name = 'lens-glass'
