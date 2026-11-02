@@ -158,6 +158,7 @@ collections:
           - { label: "None — classic page", value: none }
           - { label: "Paris", value: paris }
           - { label: "Amsterdam canals", value: amsterdam }
+          - { label: "Leidseplein, Amsterdam", value: leidseplein }
           - { label: "Dunes and beach", value: coast }
           - { label: "University campus", value: campus }
           - { label: "City waterfront at sunset", value: waterfront-sunset }

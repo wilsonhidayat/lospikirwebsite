@@ -1,0 +1,149 @@
+/* ---------------------------------------------------------------
+   After the tour (home page only): ways to work together, pricing
+   and the enquiry, painted in the tour's light — a dusk sky that
+   warms toward the bottom, soft glows, film grain, and glassy
+   panels instead of the regular site's paper card.
+   --------------------------------------------------------------- */
+
+.after-tour {
+  --dusk-1: #121319;
+  --dusk-2: #1b1a22;
+  --dusk-3: #2a2027;
+  --dusk-4: #3b2a28;
+  --peach: #f0b48f;
+  --glass: rgba(243, 241, 236, 0.055);
+  --glass-line: rgba(243, 241, 236, 0.12);
+
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+  background: linear-gradient(180deg, #0b0b0c 0%, var(--dusk-1) 8%, var(--dusk-2) 34%, var(--dusk-3) 70%, var(--dusk-4) 100%);
+}
+
+/* painted glows, like light low in the sky */
+.after-tour::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background:
+    radial-gradient(38% 22% at 82% 12%, rgba(240, 180, 143, 0.16), transparent 70%),
+    radial-gradient(46% 26% at 10% 52%, rgba(160, 150, 200, 0.1), transparent 70%),
+    radial-gradient(70% 30% at 50% 100%, rgba(240, 168, 120, 0.22), transparent 70%);
+  filter: blur(8px);
+}
+
+/* film grain over everything, matching the tour */
+.after-tour::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  pointer-events: none;
+  opacity: 0.07;
+  mix-blend-mode: overlay;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+}
+
+/* --- ways to work together --------------------------------------- */
+
+.after-tour .packages {
+  padding-top: clamp(90px, 10vw, 150px);
+}
+
+.after-tour .packages__panel {
+  background: transparent;
+  color: var(--bone);
+  border-radius: 0;
+  margin: 0;
+  padding: 0 var(--pad);
+}
+
+.after-tour .packages__eyebrow {
+  color: var(--peach);
+}
+
+.after-tour .packages__title {
+  font-size: clamp(36px, 6.4vw, 96px);
+}
+
+.after-tour .card {
+  background: var(--glass);
+  border: 1px solid var(--glass-line);
+  box-shadow: 0 30px 80px rgba(0, 0, 0, 0.28);
+  -webkit-backdrop-filter: blur(14px);
+  backdrop-filter: blur(14px);
+  color: var(--bone);
+}
+
+.after-tour .card__shot span {
+  /* a touch of the tour's warm grade on the photos */
+  filter: saturate(0.94) sepia(0.06);
+}
+
+.after-tour .card__index {
+  color: var(--peach);
+}
+
+.after-tour .card__text {
+  color: var(--dim-2);
+}
+
+.after-tour .card__go {
+  color: var(--bone);
+}
+
+.after-tour .card__arrow {
+  border-color: var(--glass-line);
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .after-tour .card:hover .card__arrow {
+    background: var(--bone);
+    color: var(--ink);
+    border-color: var(--bone);
+  }
+}
+
+.after-tour .card--ask {
+  background: transparent;
+  border: 1px dashed rgba(243, 241, 236, 0.28);
+  box-shadow: none;
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+}
+
+/* --- pricing ------------------------------------------------------ */
+
+.after-tour .investment {
+  border-top: 0;
+}
+
+.after-tour .investment__eyebrow,
+.after-tour .enquire__eyebrow {
+  color: var(--peach);
+}
+
+.after-tour .row {
+  background: var(--glass);
+  border-color: var(--glass-line);
+  -webkit-backdrop-filter: blur(10px);
+  backdrop-filter: blur(10px);
+}
+
+.after-tour .row__index {
+  color: var(--peach);
+}
+
+/* --- enquiry ------------------------------------------------------- */
+
+.after-tour .enquire {
+  border-top: 1px solid var(--glass-line);
+}
+
+.after-tour .enquire input,
+.after-tour .enquire textarea,
+.after-tour .enquire select {
+  border-bottom-color: rgba(243, 241, 236, 0.22);
+}

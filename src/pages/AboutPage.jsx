@@ -73,7 +73,7 @@ export default function AboutPage() {
             <Link className="btn" to="/#enquire">
               {site.ctaLabel}
             </Link>
-            <Link className="btn btn--ghost" to="/#work">
+            <Link className="btn btn--ghost" to="/work#work">
               See the work
             </Link>
           </Reveal>

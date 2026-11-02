@@ -1,26 +1,29 @@
 /**
  * The 3D viewer behind the journey.
  *
- * It shows one place at a time, rendered as an illustration (style.js +
- * post.js), and moves the camera through it at a slow, cinematic pace —
- * nothing is tied to the page's scroll:
+ * One place at a time, rendered as an illustration (style.js + post.js), with
+ * Wilson's camera floating in front of it. The view of the place never wanders:
+ * it settles on the spot where the moment was shot and stays there while the
+ * visitor flicks through the photos on the camera's screen. It only moves to
+ * travel to another place, through the clouds.
  *
- *   open(place)        travel there: rise into the clouds, cross over, and
- *                      come down into the new place (or fade up, the first time)
- *   viewpoint(i, n)    within a place, glide to the spot for photo i of n —
- *                      browsing a project's photos keeps you in its world
- *   setMode('inside')  step inside: pull back to reveal the place, and let
- *                      the visitor drag to look around
+ *   open(place)          travel there (or fade up, the first time)
+ *   pose('intro'|'review')  the camera floating out in the place, lens toward
+ *                        you — or turned round and brought close, its screen
+ *                        showing the photos
+ *   setMode('inside')    the camera drops away; drag to look around the place
  *
- * Every move is a time-based tween that starts from wherever the camera is,
- * so it can be interrupted and redirected at any moment.
+ * The photo itself is not drawn here: every frame, onScreen() reports where the
+ * camera's screen is on the page (four corners) and how squarely it faces the
+ * visitor, and the journey lays a crisp, accessible <img> over exactly that.
  */
 import * as THREE from 'three'
 import { loadScene } from './scenes/index.js'
 import { stylize } from './style.js'
 import { createPost, NO_INK_LAYER } from './post.js'
 import { skyFromProject } from './palette.js'
-import { easeInOutCubic, easeInOutSine, easeInCubic, clamp01 } from './utils.js'
+import { buildCameraModel } from './camera-model.js'
+import { easeInOutCubic, easeInOutSine, easeInCubic, clamp01, lerp } from './utils.js'
 
 /** A value that eases toward targets over time, interruptible. */
 function tween(initial) {
@@ -66,9 +69,9 @@ function tween(initial) {
 }
 
 const wait = (s) => new Promise((r) => setTimeout(r, s * 1000))
-const NIGHT_OR_INDOOR = new Set(['sea', 'waterfront-night', 'party-boat', 'studio', 'interior'])
+const NIGHT_OR_INDOOR = new Set(['waterfront-night', 'party-boat', 'studio', 'interior'])
 
-export async function createViewer({ canvas, quality = 'high', onError, onPhase }) {
+export async function createViewer({ canvas, quality = 'high', onError, onPhase, onScreen }) {
   const renderer = new THREE.WebGLRenderer({ canvas, antialias: false, powerPreference: 'high-performance', alpha: false })
   renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, quality === 'low' ? 1 : 1.5))
   renderer.outputColorSpace = THREE.LinearSRGBColorSpace // post.js does the display conversion
@@ -86,6 +89,36 @@ export async function createViewer({ canvas, quality = 'high', onError, onPhase 
 
   const post = createPost(THREE, renderer, { quality })
   const ctx = { quality }
+
+  /* --- the floating camera ------------------------------------------------ */
+
+  // It has its own little scene, drawn over the place with its own depth, so
+  // it can sit close to the view without ever cutting into the scenery.
+  const rigScene = new THREE.Scene()
+  const rigCam = new THREE.PerspectiveCamera(46, 1, 0.05, 60)
+  rigCam.layers.enable(NO_INK_LAYER)
+  const rig = buildCameraModel(THREE)
+  stylize(THREE, rig.group)
+  rigScene.add(rig.group)
+  const rigHemi = new THREE.HemisphereLight(0xeef1f5, 0x5a5550, 1.1)
+  const rigKey = new THREE.DirectionalLight(0xffffff, 1.6) // from over the visitor's shoulder
+  rigKey.position.set(-1.2, 1.6, 2.2)
+  const rigRim = new THREE.DirectionalLight(0xffffff, 1.4) // the place's sun, from behind
+  rigRim.position.set(1.4, 1.1, -2)
+  rigScene.add(rigHemi, rigKey, rigRim)
+  const overlay = { scene: rigScene, camera: rigCam }
+
+  function lightRig(place) {
+    const L = place?.world?.light
+    if (!L) return
+    rigHemi.color.setHex(L.hemi[0])
+    rigHemi.groundColor.setHex(L.hemi[1])
+    rigHemi.intensity = 0.6 + L.hemi[2] * 0.5
+    rigKey.color.setHex(L.sky.horizon).lerp(new THREE.Color(0xffffff), 0.5)
+    rigKey.intensity = L.night ? 0.7 : 1.5
+    rigRim.color.setHex(L.sunColor)
+    rigRim.intensity = L.night ? 0.8 : 1.3 + L.sunIntensity * 0.25
+  }
 
   /* --- places --------------------------------------------------------- */
 
@@ -114,10 +147,17 @@ export async function createViewer({ canvas, quality = 'high', onError, onPhase 
     place.world?.dispose?.()
   }
 
+  const size = new THREE.Vector2() // drawing buffer, px
+  const css = new THREE.Vector2(1, 1) // canvas, CSS px
+
+  function fovFor(place) {
+    const a = css.x / css.y
+    return (place?.path?.fov || 48) * (a < 0.8 ? 1.35 : 1)
+  }
+
   function fit(place) {
-    const a = size.y ? size.x / size.y : window.innerWidth / window.innerHeight
-    place.camera.aspect = a
-    place.camera.fov = (place.path.fov || 48) * (a < 0.8 ? 1.35 : 1)
+    place.camera.aspect = css.x / css.y
+    place.camera.fov = fovFor(place)
     place.camera.updateProjectionMatrix()
   }
 
@@ -127,7 +167,7 @@ export async function createViewer({ canvas, quality = 'high', onError, onPhase 
     if (pending.has(key)) return pending.get(key)
     const job = (async () => {
       await wait(0.016) // let the page paint before a heavy build
-      // night and studio places keep their own sky; the rest follow the photos
+      // night and indoor places keep their own sky; the rest follow the photos
       ctx.sky = NIGHT_OR_INDOOR.has(p.scene) ? null : await skyFromProject(p)
       const place = await loadScene(p.scene, THREE, ctx)
       ctx.sky = null
@@ -149,7 +189,7 @@ export async function createViewer({ canvas, quality = 'high', onError, onPhase 
       order.push(key)
       while (order.length > keepMax) {
         const old = order.shift()
-        if (old !== keyOf(target || {}) && cache.has(old)) {
+        if (old !== keyOf(target || {}) && cache.has(old) && cache.get(old) !== current) {
           free(cache.get(old))
           cache.delete(old)
         }
@@ -164,15 +204,16 @@ export async function createViewer({ canvas, quality = 'high', onError, onPhase 
     return job
   }
 
-  /* --- camera state ------------------------------------------------------ */
+  /* --- state ------------------------------------------------------------- */
 
   let current = null // the place on screen
   let target = null // the place being travelled to
-  const u = tween(1) // position along the current place's path
-  const orbit = tween(0) // sideways swing around the subject, per photo
+  const u = tween(1) // position along the current place's arrival path
   const rise = tween(0) // lift into the sky when leaving
   const cloud = tween(0)
   const fade = tween(1)
+  const pose = tween(0) // 0: floating out in the place, lens to you; 1: close, screen to you
+  const away = tween(0) // 1: dropped out of view (stepped inside)
   let mode = 'pick'
   const lookTarget = new THREE.Vector2()
   const lookNow = new THREE.Vector2()
@@ -182,19 +223,14 @@ export async function createViewer({ canvas, quality = 'high', onError, onPhase 
 
   const pos = new THREE.Vector3()
   const look = new THREE.Vector3()
-  const tmp = new THREE.Vector3()
   const yAxis = new THREE.Vector3(0, 1, 0)
 
-  function placeCamera(place, time) {
+  /** The view of the place: still, once arrived. */
+  function placeCamera(place) {
     const c = place.camera
     const f = clamp01(u.value)
     place.posCurve.getPointAt(f, pos)
     place.lookCurve.getPointAt(f, look)
-    // swing around the subject for this photo's viewpoint
-    if (Math.abs(orbit.value) > 1e-4) {
-      tmp.subVectors(pos, look).applyAxisAngle(yAxis, orbit.value)
-      pos.copy(look).add(tmp)
-    }
     if (place.anchor) {
       pos.add(place.anchor.position)
       look.add(place.anchor.position)
@@ -204,32 +240,132 @@ export async function createViewer({ canvas, quality = 'high', onError, onPhase 
       pos.y += rise.value * 60
       look.y += rise.value * 140
     }
-    // a breath of handheld movement
-    pos.x += Math.sin(time * 0.37) * 0.04
-    pos.y += Math.sin(time * 0.53) * 0.03
     if (place.groundAt) {
       const floor = place.groundAt(pos.x, pos.z) + (place.clearance ?? 1.2)
       if (pos.y < floor) pos.y = floor
     }
     c.position.copy(pos)
     c.lookAt(look)
-    // look around: drag when inside, a little pointer parallax otherwise
-    const yaw = lookNow.x + pointerNow.x * 0.05
-    const pitch = lookNow.y + pointerNow.y * 0.03
-    c.rotateOnWorldAxis(yAxis, -yaw)
-    c.rotateX(pitch)
+    // look around — only ever by the visitor's own drag, when inside
+    c.rotateOnWorldAxis(yAxis, -lookNow.x)
+    c.rotateX(lookNow.y)
+    // frame the place's subject beside the floating camera, not behind it:
+    // to the left on wide screens, above it on phones (none when inside)
+    const k = 1 - away.value
+    const wide = css.x / css.y >= 1
+    c.setViewOffset(css.x, css.y, wide ? css.x * 0.17 * k : 0, wide ? 0 : css.y * 0.26 * k, css.x, css.y)
+  }
+
+  /* --- where the floating camera sits on the page ------------------------ */
+
+  // The camera model's screen, in its own space (see camera-model.js)
+  const S = rig.screen
+  const hump = 0.7 // from the screen's centre up to the top of the viewfinder
+  const below = 0.31 // from the screen's centre down to the base
+
+  /** Screen centre (px), size (px per model unit), distance and angles for a pose. */
+  function layout(which) {
+    const W = css.x
+    const H = css.y
+    const wide = W / H >= 1
+    if (which === 'review') {
+      if (wide) {
+        const lcdH = Math.min(0.4 * H, (0.46 * W) / 1.5)
+        const ppu = lcdH / (S.halfH * 2)
+        const cy = Math.min(Math.max(0.5 * H, 0.09 * H + hump * ppu), H - below * ppu - 0.04 * H)
+        return { cx: W * (W > 1100 ? 0.56 : 0.5), cy, ppu, d: 2.2, yaw: Math.PI, pitch: 0 }
+      }
+      const lcdW = Math.min(0.84 * W, 0.3 * H * 1.5)
+      const ppu = lcdW / (S.halfW * 2)
+      return { cx: W / 2, cy: Math.min(0.6 * H, H - 0.27 * H - below * ppu), ppu, d: 2.2, yaw: Math.PI, pitch: 0 }
+    }
+    // intro: further out in the place, three-quarters on, lens toward you
+    const ref = layout('review')
+    return wide
+      ? { cx: W * 0.64, cy: H * 0.44, ppu: ref.ppu * 0.5, d: 5, yaw: 0.6, pitch: 0.16 }
+      : { cx: W * 0.5, cy: H * 0.52, ppu: ref.ppu * 0.6, d: 5, yaw: 0.6, pitch: 0.16 }
+  }
+
+  const rot = new THREE.Euler(0, 0, 0, 'YXZ')
+  const q = new THREE.Quaternion()
+  const anchor = new THREE.Vector3()
+  const spot = new THREE.Vector3()
+  const corner = new THREE.Vector3()
+  const normal = new THREE.Vector3()
+  const toEye = new THREE.Vector3()
+  const quad = [
+    [0, 0],
+    [0, 0],
+    [0, 0],
+    [0, 0],
+  ]
+  // the screen's corners as the visitor sees them (from behind the camera,
+  // so the model's +X is on the left): TL, TR, BR, BL
+  const corners = [
+    [1, 1],
+    [-1, 1],
+    [-1, -1],
+    [1, -1],
+  ]
+
+  function placeRig(time) {
+    const A = layout('intro')
+    const B = layout('review')
+    const k = easeInOutCubic(clamp01(pose.value))
+    const d = lerp(A.d, B.d, k)
+    let cx = lerp(A.cx, B.cx, k)
+    let cy = lerp(A.cy, B.cy, k)
+    const ppu = lerp(A.ppu, B.ppu, k)
+    // floating: a slow drift, and a lean toward the pointer
+    cy += Math.sin(time * 0.9) * css.y * 0.004 + away.value * css.y * 1.05
+    cx += Math.sin(time * 0.37) * css.x * 0.002
+    const yaw = lerp(A.yaw, B.yaw, k) + Math.sin(time * 0.45) * 0.02 + pointerNow.x * 0.06
+    const pitch = lerp(A.pitch, B.pitch, k) + Math.sin(time * 0.6) * 0.012 - pointerNow.y * 0.045 - away.value * 0.3
+    const roll = Math.sin(time * 0.31) * 0.008
+
+    const tanY = Math.tan(THREE.MathUtils.degToRad(rigCam.fov / 2))
+    const hh = d * tanY
+    const hw = hh * rigCam.aspect
+    const s = (ppu * 2 * hh) / css.y // model units → world units at distance d
+
+    rot.set(pitch, yaw, roll)
+    q.setFromEuler(rot)
+    rig.group.quaternion.copy(q)
+    rig.group.scale.setScalar(s)
+    // put the screen's centre exactly at (cx, cy), at distance d
+    anchor.set((cx / css.x) * 2 - 1, -((cy / css.y) * 2 - 1), 0)
+    spot.set(anchor.x * hw, anchor.y * hh, -d)
+    corner.copy(S.center).multiplyScalar(s).applyQuaternion(q)
+    rig.group.position.copy(spot).sub(corner)
+
+    if (!onScreen) return
+    rig.group.updateMatrixWorld()
+    for (let i = 0; i < 4; i++) {
+      corner.set(S.center.x + corners[i][0] * S.halfW, S.center.y + corners[i][1] * S.halfH, S.center.z)
+      rig.group.localToWorld(corner)
+      corner.project(rigCam)
+      quad[i][0] = (corner.x * 0.5 + 0.5) * css.x
+      quad[i][1] = (-corner.y * 0.5 + 0.5) * css.y
+    }
+    normal.set(0, 0, -1).applyQuaternion(q)
+    toEye.copy(spot).negate().normalize()
+    const facing = normal.dot(toEye)
+    onScreen({ quad, facing, cloud: Math.max(cloud.value, fade.value), away: away.value })
   }
 
   /* --- sizing ------------------------------------------------------------ */
 
-  const size = new THREE.Vector2()
   function resize() {
     const w = canvas.clientWidth || window.innerWidth
     const h = canvas.clientHeight || window.innerHeight
+    css.set(w, h)
     renderer.setSize(w, h, false)
     renderer.getDrawingBufferSize(size)
     post.setSize(size.x, size.y)
     for (const p of cache.values()) fit(p)
+    rigCam.aspect = w / h
+    rigCam.fov = fovFor(current)
+    rigCam.updateProjectionMatrix()
   }
   resize()
 
@@ -242,20 +378,26 @@ export async function createViewer({ canvas, quality = 'high', onError, onPhase 
     if (lost) return
     const time = performance.now() / 1000
     u.update(time)
-    orbit.update(time)
     rise.update(time)
     cloud.update(time)
     fade.update(time)
+    pose.update(time)
+    away.update(time)
     lookNow.lerp(lookTarget, 0.08)
     pointerNow.lerp(pointer, 0.05)
     post.uniforms.uCloud.value = cloud.value
     post.uniforms.uFade.value = fade.value
 
+    placeRig(time)
     if (current) {
       current.update?.(time)
       current.world?.tick?.(time)
-      placeCamera(current, time)
-      post.render(current.scene, current.camera, { time, exposure: current.world?.exposure ?? 1 })
+      placeCamera(current)
+      post.render(current.scene, current.camera, {
+        time,
+        exposure: current.world?.exposure ?? 1,
+        overlay: away.value < 0.999 ? overlay : null,
+      })
     } else {
       post.renderClouds(time)
     }
@@ -270,20 +412,14 @@ export async function createViewer({ canvas, quality = 'high', onError, onPhase 
     post.uniforms.uCloudShade.value.setHex(s.cloudShade)
   }
 
-  /** Where photo i of n is seen from, along the path and around the subject. */
-  function spot(i, n) {
-    if (n <= 1) return { u: 1, a: 0 }
-    const k = i / (n - 1)
-    return { u: 1 - 0.34 * k, a: (i % 2 ? 1 : -1) * Math.min(0.22, 0.05 + 0.17 * k) * (i > 0 ? 1 : 0) }
-  }
-
   let journey = 0 // cancels an older open() if a newer one starts
 
   /**
-   * Travel to a place. Slow on purpose: about six seconds, so each place
-   * arrives like a new chapter. Resolves when the camera has settled.
+   * Travel to a place: up into the clouds, across, and down to the spot the
+   * moment was shot from. Slow on purpose, so each place arrives like a new
+   * chapter. Resolves when the view has settled.
    */
-  async function open(p, { photo = 0, photos = 1 } = {}) {
+  async function open(p) {
     const id = ++journey
     target = p
     travelling = true
@@ -304,55 +440,44 @@ export async function createViewer({ canvas, quality = 'high', onError, onPhase 
     const place = await loading
     if (id !== journey) return false
     current = place
+    rigCam.fov = fovFor(place)
+    rigCam.updateProjectionMatrix()
+    lightRig(place)
     setCloudColours(place)
     rise.set(0)
-    orbit.set(0)
     u.set(0)
     onPhase?.('arriving')
-    const s = spot(photo, photos)
     cloud.to(0, 2.2, easeInOutSine)
-    orbit.to(s.a, 5.2, easeInOutCubic)
-    await u.to(s.u, 5.2, easeInOutCubic)
+    await u.to(1, 5.2, easeInOutCubic)
     if (id !== journey) return false
     travelling = false
     onPhase?.('arrived')
     return true
   }
 
-  /** Glide to photo i's viewpoint within the current place. */
-  function viewpoint(i, n) {
-    if (!current || travelling) return Promise.resolve()
-    const s = spot(i, n)
-    orbit.to(s.a, 2.2, easeInOutCubic)
-    return u.to(s.u, 2.2, easeInOutCubic)
-  }
-
-  /** 'pick' — browsing photos; 'inside' — stepped into the place. */
-  async function setMode(next, { photo = 0, photos = 1 } = {}) {
-    mode = next
-    lookTarget.set(0, 0)
-    if (!current) return
-    if (next === 'inside') {
-      // pull back from the photo's exact spot to reveal where it was taken
-      const s = spot(photo, photos)
-      await u.to(Math.max(0.42, s.u - 0.4), 6.5, easeInOutSine)
-    } else {
-      const s = spot(photo, photos)
-      orbit.to(s.a, 2.6, easeInOutCubic)
-      await u.to(s.u, 2.6, easeInOutCubic)
-    }
-  }
-
   return {
     open,
-    viewpoint,
-    setMode,
-    /** Fly back to the exact spot the photo was taken from. */
-    async returnToMoment(photo, photos) {
+    /** Float the camera out in the place ('intro') or bring it close, screen first ('review'). */
+    pose(which, seconds = 2.6) {
+      const v = which === 'review' ? 1 : 0
+      if (seconds <= 0) {
+        pose.set(v)
+        return Promise.resolve()
+      }
+      return pose.to(v, seconds, easeInOutSine)
+    },
+    /** 'pick' — browsing on the camera; 'inside' — the camera drops away, look around. */
+    async setMode(next) {
+      mode = next
       lookTarget.set(0, 0)
-      const s = spot(photo, photos)
-      orbit.to(s.a, 3.2, easeInOutCubic)
-      await u.to(s.u, 3.2, easeInOutCubic)
+      if (next === 'inside') await away.to(1, 1.4, easeInCubic)
+      else await away.to(0, 1.6, easeInOutCubic)
+    },
+    /** Turn back to the moment and raise the camera again. */
+    async returnToMoment() {
+      lookTarget.set(0, 0)
+      await wait(0.9)
+      await away.to(0, 1.4, easeInOutCubic)
     },
     /** Drag to look around (inside), in pixels moved. */
     drag(dx, dy) {
@@ -365,6 +490,9 @@ export async function createViewer({ canvas, quality = 'high', onError, onPhase 
     },
     preload(p) {
       return ensure(p).catch(() => {})
+    },
+    get travelling() {
+      return travelling
     },
     resize,
     start() {
@@ -382,9 +510,9 @@ export async function createViewer({ canvas, quality = 'high', onError, onPhase 
       cancelAnimationFrame(raf)
       for (const p of cache.values()) free(p)
       cache.clear()
+      free({ scene: rigScene })
       post.dispose()
       renderer.dispose()
     },
   }
 }
-

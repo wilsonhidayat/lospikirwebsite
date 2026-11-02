@@ -27,29 +27,81 @@ function towerLevels() {
   return hs
 }
 
-function buildEiffel(THREE) {
+/** The frieze of small arches around each platform, repeating. */
+function friezeTexture(THREE) {
+  return paintTexture(
+    THREE,
+    512,
+    128,
+    (g, w, h) => {
+      g.fillStyle = '#7a6250'
+      g.fillRect(0, 0, w, h)
+      // a balustrade line along the top, a moulding along the bottom
+      g.fillStyle = '#8c735f'
+      g.fillRect(0, 0, w, 14)
+      g.fillStyle = '#4c3b2f'
+      g.fillRect(0, 14, w, 4)
+      g.fillRect(0, h - 10, w, 10)
+      // eight round-headed openings, dark inside
+      const n = 8
+      for (let i = 0; i < n; i++) {
+        const cx = (i + 0.5) * (w / n)
+        const r = w / n / 2 - 7
+        g.fillStyle = '#2b211b'
+        g.beginPath()
+        g.moveTo(cx - r, h - 14)
+        g.lineTo(cx - r, 52)
+        g.arc(cx, 52, r, Math.PI, 0)
+        g.lineTo(cx + r, h - 14)
+        g.closePath()
+        g.fill()
+        // a little lattice seen through each opening
+        g.strokeStyle = 'rgba(140,115,95,0.55)'
+        g.lineWidth = 2
+        g.beginPath()
+        g.moveTo(cx - r, h - 14)
+        g.lineTo(cx + r, 52)
+        g.moveTo(cx + r, h - 14)
+        g.lineTo(cx - r, 52)
+        g.stroke()
+      }
+    },
+    { kind: 'color', repeat: [1, 1] }
+  )
+}
+
+function buildEiffel(THREE, { low = false } = {}) {
   const group = new THREE.Group()
-  const iron = new THREE.MeshStandardMaterial({ color: 0x5c4a3a, roughness: 0.62, metalness: 0.45 })
+  const iron = new THREE.MeshStandardMaterial({ color: 0x6b5443, roughness: 0.62, metalness: 0.35 })
   const beams = beamBatch(THREE)
   const V = (x, y, z) => new THREE.Vector3(x, y, z)
   const levels = towerLevels()
+  const panel = low ? 7 : 4.2 // metres per lattice bay
 
-  // A lattice side between two corner rails (a: [x,z] at h0 → at h1; b likewise)
+  // A lattice side between two corner rails (a: [x,z] at h0 → at h1; b likewise):
+  // X-bracing in every bay, verticals between bays, a light mid-height strut,
+  // and a girder along the top — the dense iron lace that makes the tower.
   function side(a0, b0, a1, b1, h0, h1, heavy) {
     const w = (Math.hypot(b0[0] - a0[0], b0[1] - a0[1]) + Math.hypot(b1[0] - a1[0], b1[1] - a1[1])) / 2
-    const n = Math.max(1, Math.min(6, Math.round(w / 7)))
+    const n = Math.max(1, Math.min(10, Math.round(w / panel)))
     const at = (p, q, t) => [p[0] + (q[0] - p[0]) * t, p[1] + (q[1] - p[1]) * t]
+    const hm = (h0 + h1) / 2
     for (let i = 0; i < n; i++) {
       const l0 = at(a0, b0, i / n)
       const r0 = at(a0, b0, (i + 1) / n)
       const l1 = at(a1, b1, i / n)
       const r1 = at(a1, b1, (i + 1) / n)
-      beams.add(V(l0[0], h0, l0[1]), V(r1[0], h1, r1[1]), heavy ? 0.42 : 0.3)
-      beams.add(V(r0[0], h0, r0[1]), V(l1[0], h1, l1[1]), heavy ? 0.42 : 0.3)
-      if (i > 0) beams.add(V(l0[0], h0, l0[1]), V(l1[0], h1, l1[1]), 0.32)
+      const d = heavy ? 0.34 : 0.26
+      beams.add(V(l0[0], h0, l0[1]), V(r1[0], h1, r1[1]), d)
+      beams.add(V(r0[0], h0, r0[1]), V(l1[0], h1, l1[1]), d)
+      if (i > 0) beams.add(V(l0[0], h0, l0[1]), V(l1[0], h1, l1[1]), heavy ? 0.36 : 0.28)
     }
-    // horizontal girder along the top of this panel row
-    beams.add(V(a1[0], h1, a1[1]), V(b1[0], h1, b1[1]), heavy ? 0.7 : 0.45, heavy ? 1.1 : 0.6)
+    if (!low && h1 - h0 > 5) {
+      const m0 = at(a0, a1, 0.5)
+      const m1 = at(b0, b1, 0.5)
+      beams.add(V(m0[0], hm, m0[1]), V(m1[0], hm, m1[1]), 0.2)
+    }
+    beams.add(V(a1[0], h1, a1[1]), V(b1[0], h1, b1[1]), heavy ? 0.6 : 0.42, heavy ? 1.0 : 0.6)
   }
 
   // A square lattice tube whose four corners are given as a function of height
@@ -63,13 +115,13 @@ function buildEiffel(THREE) {
       for (let s = 0; s < 4; s++) {
         const n = (s + 1) % 4
         side(c0[s], c0[n], c1[s], c1[n], h0, h1, heavy)
-        // corner rails — the strongest members
-        beams.add(V(c0[s][0], h0, c0[s][1]), V(c1[s][0], h1, c1[s][1]), heavy ? 1.3 : 0.75)
+        // corner rails — the strongest members, curving up with the profile
+        beams.add(V(c0[s][0], h0, c0[s][1]), V(c1[s][0], h1, c1[s][1]), heavy ? 1.4 : 0.8)
       }
     }
   }
 
-  // Four legs, each a square tube from the ground to the second platform
+  // Four legs, each a square lattice tube from its pier up to the second floor
   for (const sx of [-1, 1]) {
     for (const sz of [-1, 1]) {
       tube(
@@ -84,12 +136,12 @@ function buildEiffel(THREE) {
           ]
         },
         0,
-        115,
+        115.7,
         true
       )
     }
   }
-  // One shaft from the second platform to the top
+  // One shaft from the second floor to the top
   tube(
     (h) => {
       const o = outer(h)
@@ -100,53 +152,122 @@ function buildEiffel(THREE) {
         [-o, -o],
       ]
     },
-    115,
+    115.7,
     310,
     false
   )
 
-  // The decorative arches between the legs, on each face
+  // The great arches between the legs on each face: a double rail with radial
+  // struts, and the iron lace filling the spandrels up to the first floor.
+  const faceAt = (rot, x, y, inset) => {
+    const z = outer(y) - inset
+    return V(x * Math.cos(rot) + z * Math.sin(rot), y, -x * Math.sin(rot) + z * Math.cos(rot))
+  }
   for (let f = 0; f < 4; f++) {
     const rot = (f * Math.PI) / 2
-    const pts = []
-    for (let i = 0; i <= 24; i++) {
-      const t = i / 24
-      const ang = Math.PI * t
-      const x = -Math.cos(ang) * 37
-      const y = 4 + Math.sin(ang) * 35
-      const z = outer(y) - 1.5
-      pts.push(new THREE.Vector3(x * Math.cos(rot) + z * Math.sin(rot), y, -x * Math.sin(rot) + z * Math.cos(rot)))
+    const seg = 28
+    const span = (y) => inner(Math.max(y, 0)) + 2
+    const outerArc = []
+    const innerArc = []
+    for (let i = 0; i <= seg; i++) {
+      const a = Math.PI * (i / seg)
+      const half = 37
+      outerArc.push(faceAt(rot, -Math.cos(a) * half, 5 + Math.sin(a) * 36, 1.2))
+      innerArc.push(faceAt(rot, -Math.cos(a) * (half - 2.6), 5 + Math.sin(a) * 33.4, 1.2))
     }
-    for (let i = 0; i < pts.length - 1; i++) beams.add(pts[i], pts[i + 1], 1.1, 1.6)
+    for (let i = 0; i < seg; i++) {
+      beams.add(outerArc[i], outerArc[i + 1], 1.0, 1.4)
+      beams.add(innerArc[i], innerArc[i + 1], 0.7, 1.0)
+      if (i % 2 === 0) beams.add(outerArc[i], innerArc[i + 1], 0.25)
+    }
+    // spandrel verticals and a cross-lace, from the arch up to the platform
+    for (let i = 1; i < seg; i++) {
+      const p = outerArc[i]
+      if (p.y > 52) continue
+      const x = -Math.cos(Math.PI * (i / seg)) * 37
+      if (Math.abs(x) > span(p.y) + 6) continue
+      const top = faceAt(rot, x, 54.5, 1.2)
+      beams.add(p, top, 0.28)
+      const q = outerArc[i + 1]
+      if (q && q.y <= 52) beams.add(p, faceAt(rot, -Math.cos(Math.PI * ((i + 1) / seg)) * 37, 54.5, 1.2), 0.18)
+    }
   }
 
   group.add(beams.build(iron))
 
-  // Platforms: a deep girder band with a lighter deck
-  const deck = new THREE.MeshStandardMaterial({ color: 0x4d3e31, roughness: 0.7, metalness: 0.4 })
-  const platform = (h, half, thick) => {
-    const m = new THREE.Mesh(new THREE.BoxGeometry(half * 2, thick, half * 2), deck)
-    m.position.y = h
-    m.castShadow = true
+  // Platforms: a deck, and the frieze of little arches running round its edge
+  const deck = new THREE.MeshStandardMaterial({ color: 0x5a4636, roughness: 0.7, metalness: 0.3 })
+  const frieze = friezeTexture(THREE)
+  const ring = (h, half, band, deckThick) => {
+    const slab = new THREE.Mesh(new THREE.BoxGeometry(half * 2 - 1, deckThick, half * 2 - 1), deck)
+    slab.position.y = h - band / 2
+    slab.castShadow = true
+    group.add(slab)
+    for (let s = 0; s < 4; s++) {
+      const tex = frieze.clone()
+      tex.needsUpdate = true
+      tex.repeat.set(Math.max(2, Math.round((half * 2) / 9)), 1)
+      const side = new THREE.Mesh(
+        new THREE.BoxGeometry(half * 2, band, 1.4),
+        new THREE.MeshStandardMaterial({ map: tex, roughness: 0.75, metalness: 0.25 })
+      )
+      const r = (s * Math.PI) / 2
+      side.position.set(Math.sin(r) * half, h, Math.cos(r) * half)
+      side.rotation.y = r
+      side.castShadow = true
+      group.add(side)
+    }
+  }
+  ring(57.6, outer(57.6) + 3.2, 6.5, 2.2)
+  ring(115.7, outer(115.7) + 2.2, 4.6, 1.8)
+  // the first floor's glass pavilions and the second floor's small houses
+  const pav = new THREE.MeshStandardMaterial({ color: 0x8b7766, roughness: 0.4, metalness: 0.2 })
+  for (const [x, z, w, d] of [
+    [0, 26, 34, 6],
+    [0, -26, 34, 6],
+  ]) {
+    const m = new THREE.Mesh(new THREE.BoxGeometry(w, 5, d), pav)
+    m.position.set(x, 61, z)
     group.add(m)
   }
-  platform(57.6, outer(57) + 3.5, 4.2)
-  platform(115.7, outer(115) + 2.5, 3.6)
-  platform(276, 8, 4.5)
-  // Top: the lantern and the antenna
-  const lantern = new THREE.Mesh(new THREE.CylinderGeometry(3.2, 4.2, 14, 12), deck)
-  lantern.position.y = 286
-  group.add(lantern)
-  const antenna = new THREE.Mesh(new THREE.CylinderGeometry(0.35, 0.9, 32, 8), deck)
-  antenna.position.y = 309
-  group.add(antenna)
+  const house = new THREE.Mesh(new THREE.BoxGeometry(14, 6, 14), pav)
+  house.position.y = 119.5
+  group.add(house)
 
-  // Four stone footings
+  // The top: the enclosed observation deck, Eiffel's lantern and the antennas
+  const top = new THREE.Mesh(new THREE.BoxGeometry(17, 7, 17), deck)
+  top.position.y = 279
+  group.add(top)
+  const glassBand = new THREE.Mesh(
+    new THREE.BoxGeometry(16.2, 3, 16.2),
+    new THREE.MeshStandardMaterial({ color: 0x3c4650, roughness: 0.2, metalness: 0.3 })
+  )
+  glassBand.position.y = 280
+  group.add(glassBand)
+  const lantern = new THREE.Mesh(new THREE.CylinderGeometry(2.6, 4.4, 12, 16), deck)
+  lantern.position.y = 288.5
+  group.add(lantern)
+  const cap = new THREE.Mesh(new THREE.SphereGeometry(2.8, 16, 8, 0, Math.PI * 2, 0, Math.PI / 2), deck)
+  cap.position.y = 294.5
+  group.add(cap)
+  const antenna = new THREE.Mesh(new THREE.CylinderGeometry(0.3, 0.9, 30, 8), deck)
+  antenna.position.y = 310
+  group.add(antenna)
+  for (const [x, z, h] of [
+    [1.6, 0.8, 9],
+    [-1.4, -1.1, 7],
+  ]) {
+    const a = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.2, h, 6), deck)
+    a.position.set(x, 297 + h / 2, z)
+    group.add(a)
+  }
+
+  // Four stone piers under the legs
   const stone = new THREE.MeshStandardMaterial({ color: 0xb8ab94, roughness: 0.9 })
   for (const sx of [-1, 1]) {
     for (const sz of [-1, 1]) {
-      const m = new THREE.Mesh(new THREE.BoxGeometry(26, 3, 26), stone)
-      m.position.set(sx * 50, 1.5, sz * 50)
+      const m = new THREE.Mesh(new THREE.BoxGeometry(30, 3, 30), stone)
+      m.position.set(sx * 51, 1.5, sz * 51)
       m.receiveShadow = true
       group.add(m)
     }
@@ -287,7 +408,7 @@ export function buildParis(THREE, ctx, { light = 'overcast' } = {}) {
   scene.add(ground)
 
   // The tower
-  const tower = buildEiffel(THREE)
+  const tower = buildEiffel(THREE, { low })
   scene.add(tower)
 
   // Champ de Mars lawn behind the tower

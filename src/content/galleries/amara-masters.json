@@ -5,8 +5,11 @@
   "tone": "warm",
   "cover": "/photos/amara-masters-05.jpg",
   "intro": "",
-  "scene": "amsterdam",
+  "scene": "leidseplein",
   "place": "Leidseplein, Amsterdam",
+  "hero": "/photos/amara-masters-05.jpg",
+  "heroAlt": "A graduate in a red top throwing her cap into the air beside the fountain on a winter day",
+  "featured": 7,
   "photos": [
     {
       "src": "/photos/amara-masters-01.jpg",

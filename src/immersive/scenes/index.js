@@ -7,9 +7,9 @@
  * here and in public/admin/config.yml.
  */
 export const SCENE_LABELS = {
-  sea: 'Open sea (the opening)',
   paris: 'Paris',
   amsterdam: 'Amsterdam canals',
+  leidseplein: 'Leidseplein, Amsterdam',
   coast: 'Dunes and beach',
   campus: 'University campus',
   'waterfront-sunset': 'City waterfront at sunset',
@@ -20,9 +20,9 @@ export const SCENE_LABELS = {
 }
 
 const LOADERS = {
-  sea: (T, ctx) => import('./sea.js').then((m) => m.buildSea(T, ctx)),
   paris: (T, ctx) => import('./paris.js').then((m) => m.buildParis(T, ctx, { light: 'overcast' })),
   amsterdam: (T, ctx) => import('./amsterdam.js').then((m) => m.buildAmsterdam(T, ctx, { light: 'golden' })),
+  leidseplein: (T, ctx) => import('./leidseplein.js').then((m) => m.buildLeidseplein(T, ctx, { light: 'day' })),
   coast: (T, ctx) => import('./coast.js').then((m) => m.buildCoast(T, ctx, { light: 'sunset' })),
   campus: (T, ctx) => import('./campus.js').then((m) => m.buildCampus(T, ctx, { light: 'overcast' })),
   'waterfront-sunset': (T, ctx) =>

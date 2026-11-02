@@ -12,8 +12,8 @@ import '../styles/nav.css'
  */
 function NavLink({ href, className, children }) {
   const isHash = href.startsWith('#')
-  // an in-app route: "/about", "/#work" — but not a file like "/brochure/x.pdf"
-  const isRoute = isHash || (href.startsWith('/') && !/\.[a-z0-9]+$/i.test(href))
+  // an in-app route: "/about", "/work#work" — but not a file like "/brochure/x.pdf"
+  const isRoute = isHash || (href.startsWith('/') && !/\.[a-z0-9]+$/i.test(href.split('#')[0]))
   if (isRoute) {
     return (
       <Link to={isHash ? `/${href}` : href} className={className}>

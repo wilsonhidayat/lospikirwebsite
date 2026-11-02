@@ -46,7 +46,9 @@ export function createPost(THREE, renderer, { quality = 'high' } = {}) {
     uGrain: { value: high ? 0.045 : 0.03 },
     uVignette: { value: 0.32 },
     uSaturation: { value: 1.06 },
-    uWarmth: { value: new THREE.Color(0xfff0e0) },
+    // display-space multipliers (applied after the sRGB conversion), so set
+    // as plain numbers rather than converted from a hex colour
+    uWarmth: { value: new THREE.Vector3(1.0, 0.98, 0.95) },
     uCloud: { value: 0 },
     uCloudLit: { value: new THREE.Color(0xfff4ea) },
     uCloudShade: { value: new THREE.Color(0xe2c7b8) },
@@ -155,7 +157,7 @@ export function createPost(THREE, renderer, { quality = 'high' } = {}) {
           float field = fbm(p + vec2(t, -t * 0.4)) * 0.7 + fbm(p * 2.1 - t) * 0.3;
           float cover = smoothstep(1.0 - uCloud * 1.25, 1.18 - uCloud * 1.25, field + uCloud * 0.35);
           float lit = smoothstep(0.35, 0.75, fbm(p * 1.3 + vec2(0.3, 0.6) + t));
-          vec3 cc = mix(uCloudShade, uCloudLit, lit);
+          vec3 cc = toSRGB(mix(uCloudShade, uCloudLit, lit));
           c = mix(c, cc, clamp(cover, 0.0, 1.0));
         }
 
@@ -181,7 +183,29 @@ export function createPost(THREE, renderer, { quality = 'high' } = {}) {
     uniforms.uTexel.value.set(1 / nw, 1 / nh)
   }
 
-  function render(scene, camera, { time = 0, exposure = 1 } = {}) {
+  /** Draw `overlay` ({ scene, camera }) on top of what's already in the target. */
+  function drawOver(overlay, normalsPass) {
+    if (!overlay) return
+    const auto = renderer.autoClear
+    renderer.autoClear = false
+    renderer.clearDepth()
+    if (normalsPass) {
+      overlay.camera.layers.disable(NO_INK_LAYER)
+      overlay.scene.overrideMaterial = normalMaterial
+    } else {
+      overlay.camera.layers.enable(NO_INK_LAYER)
+    }
+    renderer.render(overlay.scene, overlay.camera)
+    overlay.scene.overrideMaterial = null
+    overlay.camera.layers.enable(NO_INK_LAYER)
+    renderer.autoClear = auto
+  }
+
+  /**
+   * overlay: an optional { scene, camera } drawn over the place with its own
+   * depth — the floating camera, which must never cut into the scenery.
+   */
+  function render(scene, camera, { time = 0, exposure = 1, overlay = null } = {}) {
     uniforms.uTime.value = time
     uniforms.uExposure.value = exposure
     uniforms.uNear.value = camera.near
@@ -191,6 +215,7 @@ export function createPost(THREE, renderer, { quality = 'high' } = {}) {
     camera.layers.enable(NO_INK_LAYER)
     renderer.setRenderTarget(color)
     renderer.render(scene, camera)
+    drawOver(overlay, false)
 
     // 2. normals and depth, without that layer
     camera.layers.disable(NO_INK_LAYER)
@@ -202,6 +227,7 @@ export function createPost(THREE, renderer, { quality = 'high' } = {}) {
     scene.overrideMaterial = null
     scene.fog = fog
     camera.layers.enable(NO_INK_LAYER)
+    drawOver(overlay, true)
 
     // 3. composite to the screen
     renderer.setRenderTarget(null)

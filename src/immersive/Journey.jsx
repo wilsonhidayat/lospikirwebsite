@@ -1,47 +1,57 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { AnimatePresence, motion, useReducedMotion } from 'framer-motion'
-import { loadExif } from './exif.js'
 import { playShutter, unlockAudio } from './shutter-sound.js'
 import { immersiveSupported, qualityLevel } from './support.js'
+import { quadTransform } from './quad.js'
 import { SPRING, project } from '../motion.js'
 import '../styles/journey.css'
 
+// the photo layer's own size; it is corner-pinned onto the camera's screen
+const LCD_W = 600
+const LCD_H = 400
+
 /**
- * The journey: a full-screen, illustrated 3D world you move through at your
- * own pace — nothing is tied to scrolling, and the page scrolls on normally
- * underneath.
+ * The tour: each project's place in 3D, with Wilson's camera floating in it.
  *
- *  - It opens on the sea at sunset (home page only). "Begin the journey".
- *  - Each project is a chapter set in its place. You browse its photos like
- *    reviewing shots on a camera; the world stays, the camera moves to a new
- *    viewpoint for each photo.
- *  - "Next place" travels through the clouds to the next chapter.
- *  - "Step inside" dissolves the photo into its place: drag to look around,
- *    then "Take the shot" flies back to the exact spot and fires the shutter.
+ *  - Home opens in the first place, the camera out in the scene, lens toward
+ *    you. "Start the tour" turns it round and brings it close: its screen
+ *    shows the project's photos — big, crisp, the centre of everything.
+ *    Flick through them (arrows, swipe, ← →); tap one to see it full screen.
+ *  - The view of the place stays still while browsing. It only moves to
+ *    travel to the next place, through the clouds.
+ *  - "Step inside": the camera drops away so you can look around the place;
+ *    "Take the shot" brings it back with the shutter.
+ *  - "Skip the tour" is always there, for the regular site.
  *
- * Without WebGL (or with reduced motion) the same browsing works over a soft,
- * blurred copy of the photo instead of the 3D world.
+ * Without WebGL (or with reduced motion) the same screen sits over a soft,
+ * blurred copy of the photo.
  *
- * items: galleries — { slug, title, caption, place, scene, hero, alt, photos }
+ * items: galleries — { slug, title, caption, scene, hero, alt, photos }
+ * skip: where "Skip the tour" goes — a route ('/work') or an anchor ('#photos')
+ * after: where the end of the tour leads ('#packages')
  */
-export default function Journey({ items, intro = true, variant = 'home', after = '#about' }) {
+export default function Journey({ items, intro = true, variant = 'home', skip = '/work', skipLabel = 'Skip the tour', after = '#packages' }) {
   const reduced = useReducedMotion()
   const sectionRef = useRef(null)
   const glRef = useRef(null)
+  const lcdRef = useRef(null)
   const flashRef = useRef(null)
   const viewerRef = useRef(null)
   const soundRef = useRef(false)
+  const lcdLive = useRef(false)
+  const startedRef = useRef(!intro) // the visitor has started the tour
 
   const [use3D, setUse3D] = useState(() => immersiveSupported())
-  const [stage, setStage] = useState(intro ? 'intro' : 'pick') // intro | pick | inside
+  const [stage, setStage] = useState(intro ? 'intro' : 'pick') // intro | pick | inside | returning
   const [phase, setPhase] = useState('loading') // loading | leaving | arriving | arrived
+  const [turned, setTurned] = useState(!intro) // the camera's screen is facing the visitor
   const [chapter, setChapter] = useState(0)
   const [photo, setPhoto] = useState(0)
   const [dir, setDir] = useState(1)
-  const [exif, setExif] = useState(null)
   const [sound, setSound] = useState(false)
   const [visible, setVisible] = useState(true)
+  const [full, setFull] = useState(false) // the photo full screen
 
   const item = items[chapter]
   const photos = useMemo(() => {
@@ -52,6 +62,8 @@ export default function Journey({ items, intro = true, variant = 'home', after =
   }, [item])
   const current = photos[Math.min(photo, photos.length - 1)]
   const name = item.title || item.caption
+  const last = chapter === items.length - 1
+  const altFor = (p, i) => p?.alt || `${name} — photo ${i + 1} of ${photos.length}`
 
   /* --- the 3D viewer ----------------------------------------------------- */
 
@@ -64,11 +76,28 @@ export default function Journey({ items, intro = true, variant = 'home', after =
     host.appendChild(canvas)
     let alive = true
     let viewer = null
+
+    // lay the photo over the camera's screen, every frame
+    const onScreen = ({ quad, facing, cloud, away }) => {
+      const el = lcdRef.current
+      if (!el) return
+      const show = Math.max(0, Math.min(1, (facing - 0.8) / 0.14)) * (1 - cloud) * Math.max(0, 1 - away * 3)
+      el.style.transform = quadTransform(LCD_W, LCD_H, quad)
+      el.style.opacity = show.toFixed(3)
+      const live = show > 0.6
+      if (live !== lcdLive.current) {
+        lcdLive.current = live
+        el.style.pointerEvents = live ? 'auto' : 'none'
+        el.toggleAttribute('inert', !live)
+      }
+    }
+
     import('./viewer.js')
       .then(({ createViewer }) =>
         createViewer({
           canvas,
           quality: qualityLevel(),
+          onScreen,
           onPhase: (p) => alive && setPhase(p),
           onError: (err) => {
             console.error(err)
@@ -83,9 +112,9 @@ export default function Journey({ items, intro = true, variant = 'home', after =
         }
         viewer = v
         viewerRef.current = v
+        if (startedRef.current) v.pose('review', intro ? 2.8 : 0).then(() => alive && setTurned(true))
         v.start()
-        const first = intro ? { scene: 'sea', hero: null } : items[0]
-        v.open(first, { photo: 0, photos: items[0].photos.length || 1 })
+        v.open(items[0])
       })
       .catch((err) => {
         console.error(err)
@@ -101,7 +130,7 @@ export default function Journey({ items, intro = true, variant = 'home', after =
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [use3D])
 
-  // pause rendering off screen; resize with the window; pointer parallax
+  // pause rendering off screen; resize with the window; the camera leans to the pointer
   useEffect(() => {
     const io = new IntersectionObserver(([e]) => setVisible(e.intersectionRatio > 0.35), { threshold: [0, 0.35, 0.6] })
     io.observe(sectionRef.current)
@@ -123,15 +152,12 @@ export default function Journey({ items, intro = true, variant = 'home', after =
     else v.stop()
   }, [visible, stage, phase])
 
-  // the camera settings of the photo on show
+  // get the next place ready while this one is browsed
   useEffect(() => {
-    let alive = true
-    setExif(null)
-    loadExif(current?.src).then((e) => alive && setExif(e))
-    return () => {
-      alive = false
-    }
-  }, [current?.src])
+    if (phase !== 'arrived' || items.length < 2) return
+    const t = setTimeout(() => viewerRef.current?.preload(items[(chapter + 1) % items.length]), 1500)
+    return () => clearTimeout(t)
+  }, [phase, chapter, items])
 
   /* --- navigation -------------------------------------------------------- */
 
@@ -141,7 +167,6 @@ export default function Journey({ items, intro = true, variant = 'home', after =
       const i = ((next % n) + n) % n
       setDir(next > photo ? 1 : -1)
       setPhoto(i)
-      viewerRef.current?.viewpoint(i, n)
     },
     [photo, photos.length]
   )
@@ -153,9 +178,10 @@ export default function Journey({ items, intro = true, variant = 'home', after =
       setChapter(i)
       setPhoto(0)
       setStage('pick')
+      setFull(false)
       if (viewerRef.current) {
         setPhase('leaving')
-        viewerRef.current.open(items[i], { photo: 0, photos: items[i].photos.length || 1 })
+        viewerRef.current.open(items[i])
       } else {
         setPhase('arrived')
       }
@@ -163,28 +189,31 @@ export default function Journey({ items, intro = true, variant = 'home', after =
     [chapter, items]
   )
 
-  function begin() {
+  async function begin() {
+    startedRef.current = true
     setStage('pick')
-    if (viewerRef.current) {
-      setPhase('leaving')
-      viewerRef.current.open(items[0], { photo: 0, photos: items[0].photos.length || 1 })
-    } else {
-      setPhase('arrived')
+    const v = viewerRef.current
+    if (!v) {
+      // no 3D, or it's still loading (it turns the camera itself once ready)
+      if (!use3D) setTurned(true)
+      return
     }
+    await v.pose('review', reduced ? 0.01 : 2.8)
+    setTurned(true)
   }
 
   function stepInside() {
-    // bring the whole world into view, then hold the page still while inside
+    // bring the whole place into view, then hold the page still while inside
     sectionRef.current?.scrollIntoView({ behavior: reduced ? 'auto' : 'smooth', block: 'start' })
     setStage('inside')
     document.documentElement.classList.add('jr-locked')
-    viewerRef.current?.setMode('inside', { photo, photos: photos.length })
+    viewerRef.current?.setMode('inside')
   }
 
   function leaveInside() {
     setStage('pick')
     document.documentElement.classList.remove('jr-locked')
-    viewerRef.current?.setMode('pick', { photo, photos: photos.length })
+    viewerRef.current?.setMode('pick')
   }
 
   function fire() {
@@ -194,31 +223,45 @@ export default function Journey({ items, intro = true, variant = 'home', after =
       void el.offsetWidth
       el.classList.add('is-firing')
     }
-    if (soundRef.current) {
-      const s = exif?.shutter
-      playShutter(s ? (s.startsWith('1/') ? 1 / Number(s.slice(2)) : parseFloat(s)) : 1 / 250)
-    }
+    if (soundRef.current) playShutter(1 / 250)
   }
 
   async function takeTheShot() {
     const v = viewerRef.current
     setStage('returning')
-    if (v) await v.returnToMoment(photo, photos.length)
     fire()
+    if (v) await v.returnToMoment()
     document.documentElement.classList.remove('jr-locked')
     setStage('pick')
-    v?.setMode('pick', { photo, photos: photos.length })
+    v?.setMode('pick')
+  }
+
+  function openFull() {
+    setFull(true)
+    document.documentElement.classList.add('jr-locked')
+  }
+  function closeFull() {
+    setFull(false)
+    if (stage !== 'inside') document.documentElement.classList.remove('jr-locked')
   }
 
   useEffect(() => () => document.documentElement.classList.remove('jr-locked'), [])
 
-  // keyboard: ← → photos, [ ] or PageUp/PageDown places, Enter step inside, Esc back
+  // keyboard: ← → photos, [ ] or PageUp/PageDown places, Esc back
   useEffect(() => {
-    if (!visible && stage !== 'inside') return
+    if (!visible && stage !== 'inside' && !full) return
     const onKey = (e) => {
       if (e.target.closest?.('input, textarea, select')) return
+      if (full) {
+        if (e.key === 'Escape') closeFull()
+        else if (e.key === 'ArrowRight') goPhoto(photo + 1)
+        else if (e.key === 'ArrowLeft') goPhoto(photo - 1)
+        else return
+        e.preventDefault()
+        return
+      }
       if (stage === 'intro') {
-        if (e.key === 'Enter') begin()
+        if (e.key === 'Enter' && document.activeElement === document.body) begin()
         return
       }
       if (stage === 'inside') {
@@ -230,7 +273,6 @@ export default function Journey({ items, intro = true, variant = 'home', after =
       else if (e.key === 'ArrowLeft') goPhoto(photo - 1)
       else if (e.key === ']' || e.key === 'PageDown') goChapter(chapter + 1)
       else if (e.key === '[' || e.key === 'PageUp') goChapter(chapter - 1)
-      else if (e.key === 'Enter' && use3D && document.activeElement === document.body) stepInside()
       else return
       e.preventDefault()
     }
@@ -265,189 +307,147 @@ export default function Journey({ items, intro = true, variant = 'home', after =
   /* --- render ----------------------------------------------------------- */
 
   const arriving = phase === 'leaving' || phase === 'loading' || phase === 'arriving'
-  // the playback screen appears once the camera has settled in the place
-  const showChrome = stage === 'pick' && (!use3D || phase === 'arrived')
-  const settings = exif ? [exif.shutter, exif.aperture, exif.iso && `ISO ${exif.iso}`, exif.focal].filter(Boolean) : []
-  const slide = reduced ? 0 : 60
+  const browsing = stage === 'pick' && (!use3D || (turned && phase === 'arrived'))
+  const slide = reduced ? 0 : 80
+  const dragged = useRef(false)
+
+  const skipLink = skip.startsWith('#') ? (
+    <a className="jr__skip" href={skip}>
+      {skipLabel}
+    </a>
+  ) : (
+    <Link className="jr__skip" to={skip}>
+      {skipLabel}
+    </Link>
+  )
 
   return (
     <section
       ref={sectionRef}
-      className={`jr jr--${stage} jr--${variant}${use3D ? ' jr--3d' : ' jr--flat'}`}
+      className={`jr jr--${stage} jr--${variant}${use3D ? ' jr--3d' : ' jr--flat'}${browsing ? ' is-browsing' : ''}`}
       data-phase={phase}
-      aria-label={variant === 'home' ? 'Selected work' : `${name} — ${item.caption}`}
+      aria-label={variant === 'home' ? 'The tour' : name}
       aria-roledescription="gallery"
     >
-      {/* Background: the 3D world, or a soft copy of the photo */}
+      {/* Background: the 3D place, or a soft copy of the photo */}
       <div className="jr__flat" aria-hidden="true">
         <img src={current?.src || item.hero} alt="" />
       </div>
       <div className="jr__gl" ref={glRef} />
       <div className="jr__scrim" aria-hidden="true" />
 
-      {/* Intro on the sea */}
+      {/* The camera's screen: the photos. Pinned onto the 3D camera, or centred without 3D. */}
+      <div
+        ref={lcdRef}
+        className="jr__lcd"
+        style={use3D ? { width: LCD_W, height: LCD_H, opacity: 0, pointerEvents: 'none' } : undefined}
+        aria-hidden={!browsing}
+      >
+        <AnimatePresence initial={false} custom={dir} mode="popLayout">
+          <motion.img
+            key={current?.src}
+            src={current?.src}
+            alt={altFor(current, photo)}
+            className="jr__photo"
+            custom={dir}
+            initial={{ opacity: 0, x: dir * slide }}
+            animate={{ opacity: 1, x: 0 }}
+            exit={{ opacity: 0, x: -dir * slide }}
+            transition={SPRING}
+            drag={photos.length > 1 ? 'x' : false}
+            dragSnapToOrigin
+            dragElastic={0.25}
+            onDragStart={() => (dragged.current = true)}
+            onDragEnd={(_, { offset, velocity }) => {
+              const x = offset.x + project(velocity.x)
+              if (x < -80) goPhoto(photo + 1)
+              else if (x > 80) goPhoto(photo - 1)
+              setTimeout(() => (dragged.current = false), 0)
+            }}
+            onClick={() => !dragged.current && openFull()}
+            draggable={false}
+          />
+        </AnimatePresence>
+        <div className="jr__osd" aria-hidden="true">
+          <span className="jr__play" />
+          <span>
+            {photo + 1}/{photos.length}
+          </span>
+        </div>
+        {photos.length > 1 && (
+          <>
+            <button type="button" className="jr__step jr__step--prev" aria-label="Previous photo" onClick={() => goPhoto(photo - 1)}>
+              ‹
+            </button>
+            <button type="button" className="jr__step jr__step--next" aria-label="Next photo" onClick={() => goPhoto(photo + 1)}>
+              ›
+            </button>
+          </>
+        )}
+      </div>
+
+      {/* Opening: the camera out in the first place */}
       <AnimatePresence>
         {stage === 'intro' && (
           <motion.div
             className="jr__intro"
             initial={{ opacity: 0 }}
-            animate={{ opacity: 1, transition: { delay: use3D ? 1.2 : 0, duration: 1.2 } }}
-            exit={{ opacity: 0, transition: { duration: 0.6 } }}
+            animate={{ opacity: 1, transition: { delay: use3D ? 1.6 : 0, duration: 1 } }}
+            exit={{ opacity: 0, transition: { duration: 0.5 } }}
           >
-            <p className="label jr__eyebrow">Lospikir · Photography</p>
-            <h1 className="display jr__headline">
-              <motion.span initial={{ opacity: 0, y: 18 }} animate={{ opacity: 1, y: 0, transition: { delay: 1.6, duration: 1.1 } }}>
-                Every photograph
-              </motion.span>
-              <motion.span initial={{ opacity: 0, y: 18 }} animate={{ opacity: 1, y: 0, transition: { delay: 2.3, duration: 1.1 } }}>
-                is a place.
-              </motion.span>
-            </h1>
-            <motion.p className="jr__lede" initial={{ opacity: 0 }} animate={{ opacity: 1, transition: { delay: 3.1, duration: 1 } }}>
-              Come along to where each picture was taken — {items.length} places, from Paris to the Dutch coast.
-            </motion.p>
-            <motion.div className="jr__intro-actions" initial={{ opacity: 0 }} animate={{ opacity: 1, transition: { delay: 3.6, duration: 0.8 } }}>
-              <button type="button" className="btn btn--pill" onClick={begin}>
-                Begin the journey
-              </button>
-              <a className="btn btn--ghost btn--pill" href={after}>
-                Skip to the studio
-              </a>
-            </motion.div>
+            <h1 className="sr-only">Lospikir — photography</h1>
+            <button type="button" className="btn btn--pill" onClick={begin}>
+              Start the tour
+            </button>
+            {skipLink}
           </motion.div>
         )}
       </AnimatePresence>
 
-      {/* Chapter title card, while arriving */}
+      {/* The gallery's title, while arriving */}
       <AnimatePresence>
         {stage === 'pick' && use3D && arriving && phase !== 'leaving' && (
           <motion.div
             key={`card-${chapter}`}
             className="jr__titlecard"
             initial={{ opacity: 0, y: 14 }}
-            animate={{ opacity: 1, y: 0, transition: { duration: 1.2, delay: 0.4 } }}
-            exit={{ opacity: 0, transition: { duration: 0.8 } }}
+            animate={{ opacity: 1, y: 0, transition: { duration: 1.1, delay: 0.3 } }}
+            exit={{ opacity: 0, transition: { duration: 0.7 } }}
             aria-hidden="true"
           >
-            <p className="label">
-              {variant === 'home' ? `Chapter ${String(chapter + 1).padStart(2, '0')}` : item.caption}
-            </p>
-            <p className="display jr__titlecard-place">{item.place || item.caption}</p>
-            <p className="jr__titlecard-name">{name}</p>
+            <p className="display jr__titlecard-name">{name}</p>
           </motion.div>
         )}
       </AnimatePresence>
 
-      {/* Browsing: the camera's playback screen */}
+      {/* Browsing */}
       <AnimatePresence>
-        {showChrome && (
+        {browsing && (
           <motion.div
             key="chrome"
             className="jr__chrome"
             initial={{ opacity: 0 }}
-            animate={{ opacity: 1, transition: { duration: 0.9 } }}
-            exit={{ opacity: 0, transition: { duration: 0.4 } }}
+            animate={{ opacity: 1, transition: { duration: 0.8 } }}
+            exit={{ opacity: 0, transition: { duration: 0.3 } }}
           >
             <div className="jr__info">
-              {variant === 'home' && (
-                <p className="label jr__chapter">
-                  Chapter {String(chapter + 1).padStart(2, '0')} / {String(items.length).padStart(2, '0')}
-                </p>
-              )}
               <h2 className="display jr__name">{name}</h2>
-              <p className="jr__where">
-                {item.caption}
-                {item.place ? ` · ${item.place}` : ''}
-              </p>
-              <div className="jr__actions">
-                {use3D && (
-                  <button type="button" className="btn btn--pill" onClick={stepInside}>
-                    Step inside
-                  </button>
-                )}
-                {variant === 'home' && (
-                  <Link className="btn btn--ghost btn--pill" to={`/gallery/${item.slug}`}>
-                    Open the gallery
-                  </Link>
-                )}
-              </div>
-            </div>
-
-            <div className="jr__playback">
-              <div className="jr__screen">
-                <div className="jr__screen-top label">
-                  <span className="jr__play" aria-hidden="true" />
-                  <span>
-                    {String(photo + 1).padStart(3, '0')} / {String(photos.length).padStart(3, '0')}
-                  </span>
-                </div>
-                <div className="jr__frame">
-                  <AnimatePresence initial={false} custom={dir} mode="popLayout">
-                    <motion.img
-                      key={current?.src}
-                      src={current?.src}
-                      alt={current?.alt || `${name}, ${item.caption} — photo ${photo + 1} of ${photos.length}`}
-                      className="jr__photo"
-                      custom={dir}
-                      initial={{ opacity: 0, x: dir * slide }}
-                      animate={{ opacity: 1, x: 0 }}
-                      exit={{ opacity: 0, x: -dir * slide }}
-                      transition={SPRING}
-                      drag={photos.length > 1 ? 'x' : false}
-                      dragSnapToOrigin
-                      dragElastic={0.25}
-                      onDragEnd={(_, { offset, velocity }) => {
-                        const x = offset.x + project(velocity.x)
-                        if (x < -80) goPhoto(photo + 1)
-                        else if (x > 80) goPhoto(photo - 1)
-                      }}
-                      draggable={false}
-                    />
-                  </AnimatePresence>
-                  {photos.length > 1 && (
-                    <>
-                      <button type="button" className="jr__step jr__step--prev" aria-label="Previous photo" onClick={() => goPhoto(photo - 1)}>
-                        ‹
-                      </button>
-                      <button type="button" className="jr__step jr__step--next" aria-label="Next photo" onClick={() => goPhoto(photo + 1)}>
-                        ›
-                      </button>
-                    </>
-                  )}
-                </div>
-                <div className="jr__screen-bottom label">
-                  {settings.length ? settings.map((s) => <span key={s}>{s}</span>) : <span>&nbsp;</span>}
-                </div>
-              </div>
-
-              {photos.length > 1 && (
-                <ol className="jr__strip" aria-label="Photos in this project">
-                  {photos.map((p, i) => (
-                    <li key={p.src + i}>
-                      <button
-                        type="button"
-                        className={`jr__thumb${i === photo ? ' is-current' : ''}`}
-                        aria-label={`Photo ${i + 1}`}
-                        aria-current={i === photo}
-                        onClick={() => goPhoto(i)}
-                      >
-                        <img src={p.src} alt="" loading="lazy" />
-                      </button>
-                    </li>
-                  ))}
-                </ol>
+              {use3D && (
+                <button type="button" className="btn btn--ghost btn--pill btn--sm" onClick={stepInside}>
+                  Step inside
+                </button>
               )}
             </div>
 
-            {variant === 'home' && items.length > 1 && (
-              <nav className="jr__places" aria-label="Places">
+            {items.length > 1 && (
+              <nav className="jr__places" aria-label="Galleries">
                 <button
                   type="button"
                   className="jr__place-step"
-                  aria-label={`Previous place: ${items[(chapter - 1 + items.length) % items.length].place || 'previous'}`}
+                  aria-label={`Previous: ${items[(chapter - 1 + items.length) % items.length].title}`}
                   onClick={() => goChapter(chapter - 1)}
                 >
-                  ← <span className="jr__place-name">{items[(chapter - 1 + items.length) % items.length].place?.split(',')[0] || 'Previous'}</span>
+                  ←
                 </button>
                 <span className="label jr__place-count" aria-hidden="true">
                   {String(chapter + 1).padStart(2, '0')} / {String(items.length).padStart(2, '0')}
@@ -458,21 +458,27 @@ export default function Journey({ items, intro = true, variant = 'home', after =
                       <button
                         type="button"
                         className={`jr__dot${i === chapter ? ' is-current' : ''}`}
-                        aria-label={`${it.title || it.caption}${it.place ? `, ${it.place}` : ''}`}
+                        aria-label={it.title || it.caption}
                         aria-current={i === chapter}
                         onClick={() => i !== chapter && goChapter(i)}
                       />
                     </li>
                   ))}
                 </ol>
-                <button
-                  type="button"
-                  className="jr__place-step"
-                  aria-label={`Next place: ${items[(chapter + 1) % items.length].place || 'next'}`}
-                  onClick={() => goChapter(chapter + 1)}
-                >
-                  <span className="jr__place-name">{items[(chapter + 1) % items.length].place?.split(',')[0] || 'Next'}</span> →
-                </button>
+                {last && variant === 'home' ? (
+                  <a className="jr__place-step jr__place-step--end" href={after}>
+                    Work together →
+                  </a>
+                ) : (
+                  <button
+                    type="button"
+                    className="jr__place-step"
+                    aria-label={`Next: ${items[(chapter + 1) % items.length].title}`}
+                    onClick={() => goChapter(chapter + 1)}
+                  >
+                    →
+                  </button>
+                )}
               </nav>
             )}
           </motion.div>
@@ -481,18 +487,11 @@ export default function Journey({ items, intro = true, variant = 'home', after =
 
       {/* Stepped inside */}
       {(stage === 'inside' || stage === 'returning') && (
-        <div
-          className="jr__inside"
-          onPointerDown={onLookDown}
-          onPointerMove={onLookMove}
-          onPointerUp={onLookUp}
-          onPointerCancel={onLookUp}
-        >
+        <div className="jr__inside" onPointerDown={onLookDown} onPointerMove={onLookMove} onPointerUp={onLookUp} onPointerCancel={onLookUp}>
           <div className="jr__inside-top">
             <button type="button" className="btn btn--ghost btn--pill" onClick={leaveInside} disabled={stage === 'returning'}>
               ← Back to the photos
             </button>
-            <p className="label jr__inside-where">{item.place || item.caption}</p>
           </div>
           <p className="label jr__inside-hint">Drag to look around</p>
           <div className="jr__inside-bottom">
@@ -500,9 +499,11 @@ export default function Journey({ items, intro = true, variant = 'home', after =
               Take the shot
             </button>
           </div>
-          {stage === 'returning' && <div className="jr__focus" aria-hidden="true" />}
         </div>
       )}
+
+      {/* Always there: leave the tour for the regular site */}
+      {stage !== 'intro' && stage !== 'inside' && stage !== 'returning' && skipLink}
 
       <div className="jr__flash" ref={flashRef} aria-hidden="true" />
 
@@ -515,8 +516,63 @@ export default function Journey({ items, intro = true, variant = 'home', after =
         {sound ? 'Sound on' : 'Sound off'}
       </button>
 
+      {/* The photo, full screen */}
+      <AnimatePresence>
+        {full && (
+          <motion.div
+            className="jr__full"
+            role="dialog"
+            aria-modal="true"
+            aria-label={altFor(current, photo)}
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.3 }}
+            onClick={(e) => e.target === e.currentTarget && closeFull()}
+          >
+            <AnimatePresence initial={false} custom={dir} mode="popLayout">
+              <motion.img
+                key={current?.src}
+                src={current?.src}
+                alt={altFor(current, photo)}
+                className="jr__full-photo"
+                initial={{ opacity: 0, x: dir * slide, scale: 0.98 }}
+                animate={{ opacity: 1, x: 0, scale: 1 }}
+                exit={{ opacity: 0, x: -dir * slide }}
+                transition={SPRING}
+                drag={photos.length > 1 ? 'x' : false}
+                dragSnapToOrigin
+                dragElastic={0.25}
+                onDragEnd={(_, { offset, velocity }) => {
+                  const x = offset.x + project(velocity.x)
+                  if (x < -80) goPhoto(photo + 1)
+                  else if (x > 80) goPhoto(photo - 1)
+                }}
+                draggable={false}
+              />
+            </AnimatePresence>
+            <button type="button" className="jr__full-close" onClick={closeFull} autoFocus>
+              Close
+            </button>
+            {photos.length > 1 && (
+              <>
+                <button type="button" className="jr__step jr__step--prev jr__full-step" aria-label="Previous photo" onClick={() => goPhoto(photo - 1)}>
+                  ‹
+                </button>
+                <button type="button" className="jr__step jr__step--next jr__full-step" aria-label="Next photo" onClick={() => goPhoto(photo + 1)}>
+                  ›
+                </button>
+                <p className="label jr__full-count" aria-hidden="true">
+                  {photo + 1} / {photos.length}
+                </p>
+              </>
+            )}
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       <p className="sr-only" aria-live="polite">
-        {stage === 'pick' ? `${name}, ${item.place || item.caption}. Photo ${photo + 1} of ${photos.length}.` : ''}
+        {browsing ? `${name}. Photo ${photo + 1} of ${photos.length}.` : ''}
       </p>
     </section>
   )
