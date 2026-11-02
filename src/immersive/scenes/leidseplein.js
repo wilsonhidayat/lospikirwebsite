@@ -597,7 +597,7 @@ export function buildLeidseplein(THREE, ctx, { light = 'day' } = {}) {
     spots: [
       { pos: new THREE.Vector3(1.5, 1.7, 12.5), look: new THREE.Vector3(-2, 7.5, -40) }, // the fountain, the hotel behind
       { pos: new THREE.Vector3(-36, 2, 10), look: new THREE.Vector3(30, 6, -24) }, // across the square to the American
-      { pos: new THREE.Vector3(-14, 3.2, -69), look: new THREE.Vector3(80, 2, -69) }, // on the Leidsebrug, down the canal
+      { pos: new THREE.Vector3(-2, 2.4, -57.6), look: new THREE.Vector3(120, 1.5, -70) }, // on the quay, down the canal
       { pos: new THREE.Vector3(66, 1.8, 21), look: new THREE.Vector3(220, 9, 21) }, // up Leidsestraat
       { pos: new THREE.Vector3(36, 15, -36), look: new THREE.Vector3(-14, 0, 6) }, // over the square from the hotel's corner
       { pos: new THREE.Vector3(-28, 1.8, -22), look: new THREE.Vector3(-62, 11, 0) }, // the theatre's arcade
