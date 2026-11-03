@@ -61,5 +61,21 @@
   "closing": {
     "headline": "Let's find\nyour light",
     "image": "/photos/evan-inez-paris-23.jpg"
+  },
+  "tour": {
+    "eyebrow": "Portrait · Pre-wedding · Graduation — Netherlands",
+    "intro": "I'm Wilson, a photographer based in the Netherlands. This is my portfolio as an experience: step into real shoots, in the places they happened, and see what a session with me feels like.",
+    "start": "Start the experience",
+    "replay": "Watch it again",
+    "memoriesEyebrow": "Step into a shoot",
+    "memoriesIntro": "Pick a memory. You'll walk through the shoot in the place it happened, photo by photo.",
+    "story": [
+      "We meet at {place}. No rush.",
+      "We walk first and talk. The camera can wait.",
+      "About ten minutes in, you stop noticing it.",
+      "Then it's the real laugh, the quiet look between you.",
+      "The light moves, and we move with it.",
+      "And {place} becomes part of your story."
+    ]
   }
 }

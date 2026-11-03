@@ -68,6 +68,28 @@ collections:
               - { name: headline, label: "Headline", widget: text, hint: "Press Enter for each line break." }
               - { name: headlineLight, label: "Final line (thin weight)", widget: string }
               - { name: image, label: "Background photo", widget: image, required: false }
+          - name: tour
+            label: "The experience (home page)"
+            widget: object
+            fields:
+              - { name: eyebrow, label: "Small line above the logo", widget: string }
+              - { name: intro, label: "Short introduction under the logo", widget: text }
+              - { name: start, label: "Start button", widget: string }
+              - { name: replay, label: "Start button after finishing", widget: string }
+              - { name: memoriesEyebrow, label: "Memories: small heading", widget: string }
+              - { name: memoriesIntro, label: "Memories: one line under it", widget: text }
+              - name: story
+                label: "The story told under every place"
+                widget: list
+                field: { name: line, label: "Line", widget: string }
+                hint: "Shown one after another as the photos go by. {place} becomes the gallery's place. A gallery can have its own story instead."
+              - name: music
+                label: "Music file (optional)"
+                widget: file
+                required: false
+                media_folder: "/public/music"
+                public_folder: "/music"
+                hint: "A track you have the rights to (mp3). Leave empty for the generated soundtrack."
           - { name: statement, label: "Home-page 'about' line (the fading paragraph)", widget: text }
           - name: about
             label: "About page (/about)"
@@ -171,6 +193,13 @@ collections:
           - { label: "Graduation hall", value: hall }
         hint: "Pick the one closest to where it was shot."
       - { name: place, label: "Where it was shot (e.g. “Trocadéro, Paris”)", widget: string, required: false }
+      - name: story
+        label: "Story for the experience (optional)"
+        widget: list
+        required: false
+        field: { name: line, label: "Line", widget: string }
+        hint: "A few short lines shown as the photos go by, e.g. “We met at sunrise, before the crowds.” Leave empty to use the general story from Site settings."
+
       - { name: hero, label: "The moment — the photo the 3D flight lands on", widget: image, required: false, hint: "Defaults to the cover photo." }
       - { name: heroAlt, label: "Describe the moment photo (for screen readers and Google)", widget: string, required: false }
       - { name: featured, label: "Home-page position (1 = first, empty = not on the home page)", widget: number, value_type: int, min: 1, required: false }

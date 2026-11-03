@@ -27,6 +27,8 @@ export const galleries = Object.entries(files)
       alt: data.heroAlt || '',
       featured: Number(data.featured) || 0,
       photos: Array.isArray(data.photos) ? data.photos.filter((p) => p && p.src) : [],
+      // optional lines for the experience, told as the photos go by
+      story: Array.isArray(data.story) ? data.story.map((l) => (typeof l === 'string' ? l : l?.line)).filter(Boolean) : [],
     }
   })
   .sort((a, b) => String(b.date).localeCompare(String(a.date)))

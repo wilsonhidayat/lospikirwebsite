@@ -3,12 +3,14 @@ import { Link } from 'react-router-dom'
 import { AnimatePresence, motion, useReducedMotion } from 'framer-motion'
 import { immersiveSupported, qualityLevel } from './support.js'
 import { SPRING, project } from '../motion.js'
+import { site } from '../data/site.js'
+import { createSoundscape } from './soundscape.js'
 import '../styles/journey.css'
 
 /**
  * The tour.
  *
- *  landing   the LOSPIKIR logo, big, with Start exploring / Skip the tour —
+ *  landing   the LOSPIKIR logo, a line on what this is, Start the experience / Skip the tour —
  *            over a soft gradient, or (?landing=photo) over a photograph
  *  memories  every project as an instant print on a long line of twine;
  *            scroll sideways through them, the one in the middle comes
@@ -25,7 +27,7 @@ import '../styles/journey.css'
  *
  * items: galleries — { slug, title, caption, hero, alt, photos, scene }
  */
-export default function Journey({ items, variant = 'home', landing = null, skip = '/work', skipLabel = 'Skip the tour', allPhotos = '#photos' }) {
+export default function Journey({ items, variant = 'home', landing = null, skip = '/work', skipLabel = 'Skip the tour', allPhotos = '#photos', after = '.after-tour' }) {
   const reduced = useReducedMotion()
   const home = variant === 'home'
   const sectionRef = useRef(null)
@@ -42,6 +44,12 @@ export default function Journey({ items, variant = 'home', landing = null, skip 
   const [flight, setFlight] = useState(null) // the photo flying out of its print
   const [visible, setVisible] = useState(true)
   const [photoOn, setPhotoOn] = useState(!home) // the place's photo is showing
+  // home: the page stays put until the visitor finishes or leaves the experience
+  const [done, setDone] = useState(false)
+  // sound: music and the place's ambience, made in the browser
+  const soundRef = useRef(null)
+  const [soundOn, setSoundOn] = useState(home)
+  const sound = () => (soundRef.current ||= createSoundscape({ music: site.tour?.music || null }))
   const landingStyle = useMemo(() => {
     if (typeof window === 'undefined') return 'gradient'
     const photo = new URLSearchParams(window.location.search).get('landing') === 'photo' || window.location.hash === '#landing-photo'
@@ -113,6 +121,8 @@ export default function Journey({ items, variant = 'home', landing = null, skip 
     () => () => {
       viewerRef.current?.dispose()
       viewerRef.current = null
+      soundRef.current?.dispose()
+      soundRef.current = null
     },
     []
   )
@@ -146,19 +156,71 @@ export default function Journey({ items, variant = 'home', landing = null, skip 
     else v.stop()
   }, [visible, stage, phase])
 
-  // no page scrolling while in the memories or a place
+  // like a film: the page doesn't scroll until the experience is finished or
+  // left — scrolling moves the story instead
+  const lock = home && !done
   useEffect(() => {
-    const lock = home && (stage === 'memories' || stage === 'place')
+    if (lock) window.scrollTo({ top: 0, behavior: 'auto' })
     document.documentElement.classList.toggle('jr-tour', lock)
-    return () => document.documentElement.classList.remove('jr-tour')
-  }, [home, stage])
+    // a menu link (Packages, Check your date) jumps down the page: that's
+    // leaving the experience, so let the page go
+    const onScroll = () => {
+      if (lock && window.scrollY > 40) {
+        soundRef.current?.stop()
+        viewerRef.current?.leave()
+        setPhotoOn(false)
+        setStage('landing')
+        setDone(true)
+      }
+    }
+    window.addEventListener('scroll', onScroll, { passive: true })
+    return () => {
+      document.documentElement.classList.remove('jr-tour')
+      window.removeEventListener('scroll', onScroll)
+    }
+  }, [lock])
 
   /* --- moving through the tour ------------------------------------------ */
 
   function startExploring() {
+    setDone(false)
     window.scrollTo({ top: sectionRef.current.offsetTop, behavior: 'auto' })
+    setChapter(0)
     setStage('memories')
     getViewer() // get the 3D ready in the background
+    const snd = sound()
+    if (snd) {
+      snd.setMuted(!soundOn)
+      snd.start()
+      snd.setPlace(null)
+    }
+  }
+
+  function toggleSound() {
+    const snd = sound()
+    if (!snd) return
+    const on = !soundOn
+    setSoundOn(on)
+    snd.setMuted(!on)
+    if (on) {
+      snd.start()
+      snd.setPlace(stage === 'place' ? item.scene : null)
+    }
+  }
+
+  // finished, or left: back to the title, and the page scrolls on to the rest
+  function finish() {
+    soundRef.current?.stop()
+    setPhotoOn(false)
+    viewerRef.current?.leave()
+    setStage('landing')
+    setDone(true)
+    requestAnimationFrame(() =>
+      requestAnimationFrame(() => {
+        const el = document.querySelector(after)
+        if (el) el.scrollIntoView({ behavior: reduced ? 'auto' : 'smooth', block: 'start' })
+      })
+    )
   }
 
   function openMemory(i, imgEl) {
@@ -173,6 +235,7 @@ export default function Journey({ items, variant = 'home', landing = null, skip 
     else setPhotoOn(true)
     setStage('place')
     setPhase('loading')
+    soundRef.current?.setPlace(it.scene)
     getViewer().then((v) => (v ? v.enter(it) : setPhase('arrived')))
   }
 
@@ -186,11 +249,76 @@ export default function Journey({ items, variant = 'home', landing = null, skip 
     [photo, photos]
   )
 
-  function backToMemories() {
+  // back to the line of memories — on the next print when the story moves on
+  function backToMemories(next = chapter) {
     setPhotoOn(false)
     viewerRef.current?.leave()
+    setChapter(Math.max(0, Math.min(items.length - 1, next)))
     setStage('memories')
+    soundRef.current?.setPlace(null)
   }
+
+  // the story's next and previous steps (wheel, swipe up/down)
+  const storyStep = (step) => {
+    if (stage !== 'place' || !photoOn) return
+    const next = photo + step
+    if (next >= 0 && next < photos.length) return goPhoto(next)
+    if (!home) return
+    if (step < 0) return backToMemories(chapter)
+    if (chapter >= items.length - 1) return finish()
+    backToMemories(chapter + 1)
+  }
+  const stepRef = useRef(storyStep)
+  stepRef.current = storyStep
+
+  // the wheel moves the story one step per gesture (trackpads keep sending
+  // momentum for a while, so each step waits for it to settle)
+  useEffect(() => {
+    if (stage !== 'place') return
+    let acc = 0
+    let quietUntil = 0
+    let last = 0
+    const onWheel = (e) => {
+      if (!lock && home) return
+      if (Math.abs(e.deltaY) < Math.abs(e.deltaX)) return
+      e.preventDefault()
+      const now = performance.now()
+      if (now - last > 220) acc = 0
+      last = now
+      if (now < quietUntil) {
+        quietUntil = now + 180 // still the same flick
+        return
+      }
+      acc += e.deltaY
+      if (Math.abs(acc) > 50) {
+        stepRef.current(acc > 0 ? 1 : -1)
+        acc = 0
+        quietUntil = now + 650
+      }
+    }
+    let y0 = null
+    let x0 = null
+    const onStart = (e) => {
+      y0 = e.touches[0].clientY
+      x0 = e.touches[0].clientX
+    }
+    const onEnd = (e) => {
+      if (y0 == null) return
+      const dy = e.changedTouches[0].clientY - y0
+      const dx = e.changedTouches[0].clientX - x0
+      y0 = null
+      if (Math.abs(dy) > 60 && Math.abs(dy) > Math.abs(dx) * 1.3) stepRef.current(dy < 0 ? 1 : -1)
+    }
+    const el = sectionRef.current
+    el.addEventListener('wheel', onWheel, { passive: false })
+    el.addEventListener('touchstart', onStart, { passive: true })
+    el.addEventListener('touchend', onEnd, { passive: true })
+    return () => {
+      el.removeEventListener('wheel', onWheel)
+      el.removeEventListener('touchstart', onStart)
+      el.removeEventListener('touchend', onEnd)
+    }
+  }, [stage, lock, home])
 
   function backToLanding() {
     setStage('landing')
@@ -204,6 +332,8 @@ export default function Journey({ items, variant = 'home', landing = null, skip 
       if (stage !== 'place' || !photoOn) return
       if (e.key === 'ArrowRight') goPhoto(photo + 1)
       else if (e.key === 'ArrowLeft') goPhoto(photo - 1)
+      else if (e.key === 'ArrowDown' || e.key === 'PageDown') storyStep(1)
+      else if (e.key === 'ArrowUp' || e.key === 'PageUp') storyStep(-1)
       else if (e.key === 'Escape' && home) backToMemories()
       else return
       e.preventDefault()
@@ -224,6 +354,12 @@ export default function Journey({ items, variant = 'home', landing = null, skip 
     </Link>
   )
   const noCopy = { onContextMenu: (e) => e.preventDefault(), draggable: false }
+  const exitPill = (
+    <button type="button" className="jr__pill" onClick={finish}>
+      Exit<span className="jr__long"> the experience</span>
+    </button>
+  )
+  const tour = site.tour || {}
 
   return (
     <section
@@ -253,6 +389,9 @@ export default function Journey({ items, variant = 'home', landing = null, skip 
             {landingStyle === 'photo' && <img className="jr__landing-photo" src={landing || items[0]?.hero} alt="" {...noCopy} />}
             <div className="jr__landing-glow" aria-hidden="true" />
             <div className="jr__landing-center">
+              <motion.p className="label jr__eyebrow" initial={{ opacity: 0 }} animate={{ opacity: 1, transition: { delay: 0.2, duration: 0.9 } }}>
+                {tour.eyebrow || site.hero?.eyebrow}
+              </motion.p>
               <h1 className="jr__logo">
                 <motion.img
                   src="/logo-bone.png"
@@ -263,9 +402,12 @@ export default function Journey({ items, variant = 'home', landing = null, skip 
                   {...noCopy}
                 />
               </h1>
+              <motion.p className="jr__intro" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0, transition: { delay: 1.1, duration: 0.9 } }}>
+                {tour.intro}
+              </motion.p>
               <motion.div className="jr__landing-actions" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0, transition: { delay: 1.4, duration: 0.8 } }}>
                 <button type="button" className="btn btn--pill" onClick={startExploring}>
-                  Start exploring
+                  {done ? tour.replay || 'Watch it again' : tour.start || 'Start the experience'}
                 </button>
                 {skipLink}
               </motion.div>
@@ -274,10 +416,16 @@ export default function Journey({ items, variant = 'home', landing = null, skip 
         )}
       </AnimatePresence>
 
+      {stage !== 'landing' && (
+        <button type="button" className="jr__pill jr__sound" onClick={toggleSound} aria-pressed={soundOn}>
+          {soundOn ? 'Sound on' : 'Sound off'}
+        </button>
+      )}
+
       {/* Memories */}
       <AnimatePresence>
         {stage === 'memories' && (
-          <Memories key="memories" items={items} aspects={aspects} start={chapter} onOpen={openMemory} onBack={backToLanding} skipLink={skipLink} noCopy={noCopy} />
+          <Memories key="memories" items={items} aspects={aspects} start={chapter} onOpen={openMemory} onBack={backToLanding} onFinish={finish} skipLink={exitPill} noCopy={noCopy} />
         )}
       </AnimatePresence>
 
@@ -302,7 +450,7 @@ export default function Journey({ items, variant = 'home', landing = null, skip 
         {stage === 'place' && (photoOn || flight) && (
           <motion.div key={`place-${chapter}`} className="pv" initial={{ opacity: 1 }} exit={{ opacity: 0, transition: { duration: 0.6 } }}>
             {home ? (
-              <button type="button" className="jr__pill jr__back" onClick={backToMemories}>
+              <button type="button" className="jr__pill jr__back" onClick={() => backToMemories()}>
                 ← Memories
               </button>
             ) : (
@@ -311,6 +459,8 @@ export default function Journey({ items, variant = 'home', landing = null, skip 
               </a>
             )}
 
+            {home && <div className="mem__skip">{exitPill}</div>}
+            <p className="pv__hint label" aria-hidden="true">Scroll to move through the story</p>
             <div className="pv__stage">
               <motion.div className="pv__frame" layout transition={SPRING} style={{ visibility: photoOn ? 'visible' : 'hidden' }}>
                 <AnimatePresence initial={false} custom={dir} mode="popLayout">
@@ -358,7 +508,7 @@ export default function Journey({ items, variant = 'home', landing = null, skip 
                         key="more"
                         type="button"
                         className="btn btn--pill pv__more"
-                        onClick={backToMemories}
+                        onClick={() => backToMemories()}
                         initial={{ opacity: 0, y: 8 }}
                         animate={{ opacity: 1, y: 0 }}
                         exit={{ opacity: 0 }}
@@ -371,7 +521,22 @@ export default function Journey({ items, variant = 'home', landing = null, skip 
               </motion.div>
             </div>
 
-            <h2 className="display pv__name">{name}</h2>
+            <div className="pv__story">
+              <p className="label pv__kind">{shootLine(item)}</p>
+              <h2 className="display pv__name">{name}</h2>
+              <AnimatePresence mode="wait">
+                <motion.p
+                  key={storyLine(item, photo, photos.length)}
+                  className="pv__line"
+                  initial={{ opacity: 0, y: 8 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -6 }}
+                  transition={{ duration: 0.45 }}
+                >
+                  {storyLine(item, photo, photos.length)}
+                </motion.p>
+              </AnimatePresence>
+            </div>
           </motion.div>
         )}
       </AnimatePresence>
@@ -389,10 +554,10 @@ function photoBox(aspect) {
   const H = window.innerHeight
   const phone = W <= 820
   const maxW = phone ? W * 0.9 : W * 0.56
-  const maxH = phone ? H * 0.56 : H * 0.66
+  const maxH = phone ? H * 0.48 : H * 0.66
   const w = Math.min(maxW, maxH * aspect)
   const h = w / aspect
-  const cy = phone ? H * 0.46 : H * 0.47
+  const cy = phone ? H * 0.4 : H * 0.47
   return { left: (W - w) / 2, top: cy - h / 2, width: w, height: h }
 }
 
@@ -410,7 +575,7 @@ function Chevron({ dir }) {
  * keys); the print in the middle comes forward and its name is written large
  * beneath. Click it to go in.
  */
-function Memories({ items, aspects, start = 0, onOpen, onBack, skipLink, noCopy }) {
+function Memories({ items, aspects, start = 0, onOpen, onBack, onFinish, skipLink, noCopy }) {
   const trackRef = useRef(null)
   const lineRef = useRef(null)
   const wallRef = useRef(null)
@@ -555,6 +720,10 @@ function Memories({ items, aspects, start = 0, onOpen, onBack, skipLink, noCopy 
         ← Home
       </button>
       <div className="mem__skip">{skipLink}</div>
+      <div className="mem__intro">
+        <p className="label mem__eyebrow">{site.tour?.memoriesEyebrow || 'Step into a shoot'}</p>
+        <p className="mem__lede">{site.tour?.memoriesIntro}</p>
+      </div>
 
       <div className="mem__track" ref={trackRef} onPointerDown={onDown} onPointerMove={onMove} onPointerUp={onUp} onPointerLeave={onUp}>
         <svg className="mem__line" ref={lineRef} aria-hidden="true" />
@@ -599,11 +768,19 @@ function Memories({ items, aspects, start = 0, onOpen, onBack, skipLink, noCopy 
             {it.title || it.caption}
           </motion.h2>
         </AnimatePresence>
+        <p className="mem__detail">{shootLine(it)}</p>
         <p className="mem__meta label">
           {String(active + 1).padStart(2, '0')} / {String(items.length).padStart(2, '0')}
           <span aria-hidden="true"> · </span>
           <span className="mem__hint">Click the print to step in</span>
         </p>
+        <AnimatePresence>
+          {active === items.length - 1 && (
+            <motion.button key="fin" type="button" className="btn btn--pill mem__finish" onClick={onFinish} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}>
+              Finish the experience
+            </motion.button>
+          )}
+        </AnimatePresence>
       </div>
     </motion.div>
   )
@@ -659,4 +836,28 @@ function drawLine(track, svg, cards) {
   }
   pools.innerHTML = poolsHtml
   bulbs.innerHTML = bulbsHtml
+}
+
+/** "Pre-wedding · Trocadéro, Paris" — what kind of shoot, and where. */
+export function shootLine(it) {
+  if (!it) return ''
+  const kind = (it.caption || '').split(/\s+[—–-]\s+/)[0].trim()
+  const parts = []
+  if (kind && kind.toLowerCase() !== (it.title || '').toLowerCase()) parts.push(kind)
+  if (it.place) parts.push(it.place)
+  return parts.join(' · ')
+}
+
+/**
+ * The story line under a place, moving on as the photos do: what a session
+ * with Wilson is like. Per gallery from the CMS ("story"), otherwise the
+ * general one from site settings; {place} becomes the gallery's place.
+ */
+function storyLine(it, photo, count) {
+  const lines = (it.story && it.story.length ? it.story : site.tour?.story) || []
+  if (!lines.length) return ''
+  const i = Math.min(lines.length - 1, Math.floor((photo / Math.max(1, count)) * lines.length))
+  // "The dunes and the beach" → "the dunes and the beach" mid-sentence
+  const where = ((it.place || '').split(',')[0] || 'the place').replace(/^(The|A|An) /, (w) => w.toLowerCase())
+  return lines[i].replace('{place}', where)
 }

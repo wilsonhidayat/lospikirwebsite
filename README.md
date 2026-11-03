@@ -184,22 +184,39 @@ lightbox and nav stop moving, and nothing is removed outright.
 
 ## The tour (3D)
 
-The home page is the tour. While it's on screen the page doesn't scroll; a
-back button always leads out.
+The home page is the tour. It works like a film: the page doesn't scroll
+until the visitor finishes the experience or leaves it (Exit), and scrolling
+moves the story instead — the next photo, the previous one, on to the next
+memory.
 
-1. **Landing** — the LOSPIKIR logo, big, in the middle over a dusk gradient,
-   with **Start exploring** and **Skip the tour** (the regular site at
-   `/work`). A second version puts the CMS hero photo behind the logo instead:
-   add `?landing=photo` to the URL to compare.
-2. **Memories** — every project as a large Instax print (Mini for upright
-   photos, Wide for landscape) on a line of fairy lights that scrolls sideways
-   (wheel, drag, swipe or arrow keys). The centred print's gallery name is
-   written large underneath. Click it to step in.
-3. **Into the place** — the print flies to the middle of the screen at its
-   true size (never zoomed, so never soft) and the 3D place where it was taken
-   develops out of the dark around it. Big arrows either side of the photo and
-   a counter ("03 / 09") underneath; each photo moves the view somewhere new.
-4. **After the last photo** — **View other memories** goes back to the line.
+1. **Landing** — the LOSPIKIR logo with a short introduction, **Start the
+   experience** and **Skip the tour** (the regular site at `/work`). The
+   default is the site's black; `?landing=photo` (or `#landing-photo`) puts
+   the CMS hero photo behind it instead.
+2. **Memories** — every project as a large Instax print, pegged to a wire of
+   fairy lights in a dark room; drag, swipe or use the arrow keys along it.
+   The centred print's name is written large, with what kind of shoot and
+   where ("Pre-wedding · Trocadéro, Paris"). Click it to step in. On the last
+   print: **Finish the experience**.
+3. **Into the place** — the print flies to the middle at its true size and
+   the 3D place develops around it. Arrows either side, a counter beneath,
+   and on the left the story of a session moving on as the photos do ("We
+   meet at Trocadéro. No rush." …). Scrolling past the last photo moves on
+   to the next memory.
+4. **Finished or Exit** — the experience fades out and the page scrolls on to
+   ways to work together, pricing and the enquiry, in the regular site's
+   style.
+
+**Sound.** Starts with the experience (there's always a Sound on/off button):
+a soft generated soundtrack plus each place's own ambience — waves and wind on
+the dunes, a city's hum, water at night, the party deck's bass. Made in the
+browser, so nothing to license. To use a real track you have the rights to,
+upload it in the CMS under Site settings → The experience → Music file.
+
+**Words.** The introduction, button labels, the memories line and the story
+lines are in the CMS (Site settings → The experience). A gallery can have its
+own story (Galleries → Story for the experience); otherwise the general one is
+used, with `{place}` replaced by the gallery's place.
 
 The photos are shown as plain full-quality images — no frame, no grain, no
 filter. Right-click saving and dragging are switched off and every photo
@@ -254,11 +271,11 @@ src/immersive/
   scenes/            one file per place (paris, amsterdam, leidseplein, coast,
                      campus, erasmus, eindhoven, waterfront, interior, hall)
                      + index.js to register new ones
+  soundscape.js      the generated soundtrack and each place's ambience
   shutter-sound.js   the shutter click, synthesised (no audio file)
 src/styles/journey.css
 ```
 
-Sound is off until the visitor turns it on. There is no background music yet.
 
 ### Privacy and tracking
 
