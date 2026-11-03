@@ -898,13 +898,6 @@ function Memories({ items, start = 0, onOpen, onBack, onFinish, onActive, skipLi
         </div>
       </div>
 
-      <nav className="rx__names" aria-label="All shoots">
-        {items.map((m, i) => (
-          <button key={m.slug} type="button" className={i === active ? 'is-on' : ''} onClick={() => select(i)}>
-            {String(i + 1).padStart(2, '0')} {m.title || m.caption}
-          </button>
-        ))}
-      </nav>
     </motion.div>
   )
 }

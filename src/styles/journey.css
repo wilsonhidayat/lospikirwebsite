@@ -636,17 +636,14 @@ html.jr-tour .meter { display: none; }
 }
 
 /* sound: off until the visitor wants it */
-/* sound sits in the top bar, beside Exit */
+/* sound: bottom right, out of the way */
 .jr__sound {
   position: absolute;
   z-index: 7;
   right: var(--pad);
-  top: 92px;
+  bottom: clamp(20px, 4vh, 40px);
 }
-.jr--memories .mem__skip,
-.jr--place .mem__skip {
-  right: calc(var(--pad) + 112px);
-}
+.jr--place .pv__hint { bottom: calc(clamp(20px, 4vh, 40px) + 50px); }
 
 @media (max-width: 820px) {
   .jr__intro { font-size: 15px; }
@@ -668,16 +665,8 @@ html.jr-tour .meter { display: none; }
   .pv__hint { display: none; }
   .pv__stage { top: 40%; }
   .jr__long { display: none; }
-  .jr--memories .mem__skip,
-  .jr--place .mem__skip {
-    right: var(--pad);
-  }
-  .jr__sound {
-    top: 76px;
-    right: auto;
-    left: 50%;
-    translate: -50% 0;
-  }
+  .jr__sound { bottom: 16px; }
+  .jr--place .pv__story { bottom: 66px; }
 }
 
 /* next / previous: always in the same place at the screen's sides, glassy
@@ -842,34 +831,6 @@ html.jr-tour .meter { display: none; }
 .rx__info .mx__actions { pointer-events: auto; }
 .rx__eyebrow { margin: 0 0 12px; color: var(--dim-2); font-variant-numeric: tabular-nums; }
 .rx__title { margin: 0; font-size: clamp(40px, 6vw, 104px); line-height: 0.95; }
-.rx__names {
-  position: absolute;
-  z-index: 4;
-  left: 0;
-  right: 0;
-  bottom: clamp(18px, 3.5vh, 34px);
-  display: flex;
-  gap: 18px;
-  padding: 0 var(--pad);
-  overflow-x: auto;
-  scrollbar-width: none;
-  justify-content: safe center;
-}
-.rx__names::-webkit-scrollbar { display: none; }
-.rx__names button {
-  flex: 0 0 auto;
-  border: 0;
-  background: none;
-  padding: 6px 0;
-  cursor: pointer;
-  color: var(--dim);
-  font-size: 11px;
-  letter-spacing: 0.14em;
-  text-transform: uppercase;
-  white-space: nowrap;
-  transition: color 0.2s ease;
-}
-.rx__names button.is-on { color: var(--bone); }
 @media (max-width: 820px) {
   .rx__info { top: 124px; }
   .rx__title { font-size: clamp(32px, 10vw, 52px); }
