@@ -837,24 +837,23 @@ function Memories({ items, start = 0, onOpen, onBack, onFinish, onActive, skipLi
         <p className="label rx__eyebrow">
           {site.tour?.memoriesEyebrow || 'Step into a shoot'} <span aria-hidden="true">·</span> {String(active + 1).padStart(2, '0')} / {String(n).padStart(2, '0')}
         </p>
-        <AnimatePresence mode="wait">
-          <motion.div key={it.slug} exit={{ opacity: 0, y: -8, transition: { duration: 0.2 } }}>
+          {/* keyed by the shoot: the name changes the moment the front photo does */}
+          <motion.div key={it.slug} className="rx__now">
             <h2 className="display rx__title" aria-label={it.title || it.caption}>
               {words.map((w, k) => (
                 <span className="mx__word" key={k} aria-hidden="true">
-                  <motion.span initial={reduced ? false : { y: '105%' }} animate={{ y: '0%' }} transition={{ duration: 0.7, ease: [0.16, 1, 0.3, 1], delay: 0.05 * k }}>
+                  <motion.span initial={reduced ? false : { y: '105%' }} animate={{ y: '0%' }} transition={{ duration: 0.45, ease: [0.16, 1, 0.3, 1], delay: 0.03 * k }}>
                     {w}
                   </motion.span>
                 </span>
               ))}
             </h2>
-            <motion.p className="mx__meta" initial={{ opacity: 0 }} animate={{ opacity: 1, transition: { delay: 0.25, duration: 0.5 } }}>
+            <motion.p className="mx__meta" initial={{ opacity: 0 }} animate={{ opacity: 1, transition: { delay: 0.12, duration: 0.35 } }}>
               {[line, `${count} photos`, year].filter(Boolean).map((m, k) => (
                 <span key={k}>{m}</span>
               ))}
             </motion.p>
           </motion.div>
-        </AnimatePresence>
         <div className="mx__actions">
           <button type="button" className="btn btn--pill mx__play" onClick={open}>
             <svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true">
