@@ -198,6 +198,7 @@ collections:
           - { label: "Graduation hall", value: hall }
         hint: "Pick the one closest to where it was shot."
       - { name: place, label: "Where it was shot (e.g. “Trocadéro, Paris”)", widget: string, required: false }
+      - { name: city, label: "City (shown in the experience, e.g. “Paris”)", widget: string, required: false, hint: "Only the city is shown to visitors — leave empty to show just the type of shoot." }
       - name: story
         label: "Story for the experience (optional)"
         widget: list

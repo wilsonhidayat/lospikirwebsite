@@ -196,12 +196,12 @@ memory.
 2. **Memories** — every project as a large Instax print, pegged to a wire of
    fairy lights in a dark room; drag, swipe or use the arrow keys along it.
    The centred print's name is written large, with what kind of shoot and
-   where ("Pre-wedding · Trocadéro, Paris"). Click it to step in. On the last
+   where ("Pre-wedding · Paris"). Click it to step in. On the last
    print: **Finish the experience**.
 3. **Into the place** — the print flies to the middle at its true size and
    the 3D place develops around it. Arrows either side, a counter beneath,
    and on the left the story of a session moving on as the photos do ("We
-   meet at Trocadéro. No rush." …). Scrolling past the last photo moves on
+   meet in Paris. No rush." …). Scrolling past the last photo moves on
    to the next memory.
 4. **Finished or Exit** — the experience fades out and the page scrolls on to
    ways to work together, pricing and the enquiry, in the regular site's
@@ -242,7 +242,8 @@ the whole place gets a gentle white balance and saturation taken from them
 | Field | What it does |
 |---|---|
 | **Place** | The 3D world: Paris, Amsterdam canals, Leidseplein, Dunes and beach, University campus (TU/e), Erasmus University, Eindhoven (the Blob), City waterfront at sunset / at night, On the water at night (party boat), Light-filled country house, Studio, Graduation hall, or None. |
-| **Where it was shot** | The line under the title, e.g. "Trocadéro, Paris". |
+| **Where it was shot** | Your note of the exact spot, e.g. "Trocadéro, Paris". Not shown to visitors (the story uses it only when City is empty). |
+| **City** | What the experience shows ("Pre-wedding · Paris") — only the city, never the exact spot. Empty shows just the type of shoot. |
 | **The moment** | The photo on the print, and the first one shown; the sky is read from it. A project needs both a Place and a Moment to appear in the tour. |
 | **Describe the moment photo** | Alt text for screen readers and Google. |
 | **Home-page position** | 1, 2, 3… sets the order in the tour. Other projects with a place and moment follow. |

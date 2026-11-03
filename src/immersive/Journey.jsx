@@ -838,13 +838,14 @@ function drawLine(track, svg, cards) {
   bulbs.innerHTML = bulbsHtml
 }
 
-/** "Pre-wedding · Trocadéro, Paris" — what kind of shoot, and where. */
+/** "Pre-wedding · Paris" — what kind of shoot, and the city. */
 export function shootLine(it) {
   if (!it) return ''
   const kind = (it.caption || '').split(/\s+[—–-]\s+/)[0].trim()
   const parts = []
   if (kind && kind.toLowerCase() !== (it.title || '').toLowerCase()) parts.push(kind)
-  if (it.place) parts.push(it.place)
+  // just the city — not the exact spot
+  if (it.city) parts.push(it.city)
   return parts.join(' · ')
 }
 
@@ -860,6 +861,7 @@ function storyLine(it, photo, count) {
   if (!lines.length) return ''
   const i = Math.min(lines.length - 1, Math.floor((photo / Math.max(1, count)) * lines.length))
   // "The dunes and the beach" → "the dunes and the beach" mid-sentence
-  const where = ((it.place || '').split(',')[0] || 'the place').replace(/^(The|A|An) /, (w) => w.toLowerCase())
-  return lines[i].replace('{place}', where)
+  const where = it.city || ((it.place || '').split(',')[0] || 'the place').replace(/^(The|A|An) /, (w) => w.toLowerCase())
+  const line = lines[i].replace('{place}', where)
+  return line.charAt(0).toUpperCase() + line.slice(1)
 }

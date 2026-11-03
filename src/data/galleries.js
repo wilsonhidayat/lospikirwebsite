@@ -23,6 +23,7 @@ export const galleries = Object.entries(files)
       // it resolves into (defaults to the cover)
       scene: data.scene && data.scene !== 'none' ? data.scene : null,
       place: data.place || '',
+      city: data.city || '',
       hero: data.hero || data.cover || null,
       alt: data.heroAlt || '',
       featured: Number(data.featured) || 0,
