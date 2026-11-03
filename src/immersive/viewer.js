@@ -107,6 +107,7 @@ export async function createViewer({ canvas, quality = 'high', onError, onPhase 
     sky.layers.set(NO_INK_LAYER)
   }
 
+  const motes = createMotes(THREE, quality)
   const cache = new Map()
   const pending = new Map()
   const keepMax = quality === 'low' ? 1 : 2
@@ -192,6 +193,7 @@ export async function createViewer({ canvas, quality = 'high', onError, onPhase 
   /* --- the view ------------------------------------------------------------ */
 
   let current = null
+  let focusDist = 12
   const u = tween(1)
   const yaw = tween(0)
   const orbit = tween(0)
@@ -244,11 +246,16 @@ export async function createViewer({ canvas, quality = 'high', onError, onPhase 
       const floor = place.groundAt(pos.x, pos.z) + (place.clearance ?? 1.2)
       if (pos.y < floor) pos.y = floor
     }
+    // held by hand: the slightest, slow breathing of the camera
+    const ht = performance.now() / 1000
+    pos.x += Math.sin(ht * 0.53) * 0.018 + Math.sin(ht * 1.31) * 0.006
+    pos.y += Math.sin(ht * 0.71 + 1.3) * 0.014
     c.position.copy(pos)
     c.lookAt(look)
+    focusDist = c.position.distanceTo(look)
     // a breath of parallax with the pointer
-    c.rotateOnWorldAxis(yAxis, yaw.value - pointerNow.x * 0.025)
-    c.rotateX(pointerNow.y * 0.015)
+    c.rotateOnWorldAxis(yAxis, yaw.value - pointerNow.x * 0.025 + Math.sin(ht * 0.37) * 0.0022)
+    c.rotateX(pointerNow.y * 0.015 + Math.sin(ht * 0.29 + 2.1) * 0.0016)
   }
 
   function derivedSpot(i) {
@@ -327,6 +334,8 @@ export async function createViewer({ canvas, quality = 'high', onError, onPhase 
       current.update?.(time)
       current.world?.tick?.(time)
       placeCamera(current)
+      motes.follow(current, time)
+      post.uniforms.uFocus.value = Math.max(4, Math.min(400, focusDist))
       post.render(current.scene, current.camera, {
         time,
         exposure: current.world?.exposure ?? 1,
@@ -414,6 +423,74 @@ export async function createViewer({ canvas, quality = 'high', onError, onPhase 
       pmrem.dispose()
       post.dispose()
       renderer.dispose()
+    },
+  }
+}
+
+/**
+ * Dust in the air: a few hundred soft motes drifting around the camera,
+ * catching the light — the air between you and the place.
+ */
+function createMotes(THREE, quality) {
+  const N = quality === 'low' ? 160 : 380
+  const BOX = 9
+  const pos = new Float32Array(N * 3)
+  const seed = new Float32Array(N)
+  for (let i = 0; i < N; i++) {
+    pos[i * 3] = (Math.random() - 0.5) * BOX
+    pos[i * 3 + 1] = (Math.random() - 0.5) * BOX * 0.6
+    pos[i * 3 + 2] = (Math.random() - 0.5) * BOX
+    seed[i] = Math.random()
+  }
+  const geo = new THREE.BufferGeometry()
+  geo.setAttribute('position', new THREE.BufferAttribute(pos, 3))
+  geo.setAttribute('seed', new THREE.BufferAttribute(seed, 1))
+  const mat = new THREE.ShaderMaterial({
+    transparent: true,
+    depthWrite: false,
+    blending: THREE.AdditiveBlending,
+    uniforms: { uTime: { value: 0 }, uCam: { value: new THREE.Vector3() }, uColor: { value: new THREE.Color(1, 0.94, 0.84) }, uAmount: { value: 0.5 } },
+    vertexShader: /* glsl */ `
+      attribute float seed;
+      uniform float uTime; uniform vec3 uCam;
+      varying float vA;
+      void main() {
+        vec3 p = position;
+        p += vec3(sin(uTime * 0.13 + seed * 40.0), sin(uTime * 0.09 + seed * 17.0) * 0.6 - uTime * 0.02, cos(uTime * 0.11 + seed * 23.0)) * 0.6;
+        // wrap the box around the camera so the dust is always there
+        p = uCam + mod(p - uCam + ${(BOX / 2).toFixed(1)}, ${BOX.toFixed(1)}) - ${(BOX / 2).toFixed(1)};
+        vec4 mv = modelViewMatrix * vec4(p, 1.0);
+        gl_Position = projectionMatrix * mv;
+        float d = -mv.z;
+        gl_PointSize = clamp(16.0 / d, 1.0, 4.0) * (0.6 + seed);
+        vA = smoothstep(0.4, 1.5, d) * (1.0 - smoothstep(3.0, 4.5, d)) * (0.35 + 0.65 * fract(seed * 7.3 + uTime * 0.05));
+      }`,
+    fragmentShader: /* glsl */ `
+      uniform vec3 uColor; uniform float uAmount;
+      varying float vA;
+      void main() {
+        vec2 q = gl_PointCoord - 0.5;
+        float a = smoothstep(0.5, 0.0, length(q));
+        gl_FragColor = vec4(uColor * a * vA * uAmount, 1.0);
+      }`,
+  })
+  const points = new THREE.Points(geo, mat)
+  points.frustumCulled = false
+  points.renderOrder = 10
+  points.layers.set(2)
+  let owner = null
+  return {
+    follow(place, time) {
+      if (owner !== place) {
+        points.removeFromParent()
+        place.scene.add(points)
+        owner = place
+        const night = !!place.world?.light?.night
+        mat.uniforms.uAmount.value = night ? 0.18 : 0.22
+        mat.uniforms.uColor.value.set(night ? 0xffd9a8 : 0xfff2dd)
+      }
+      mat.uniforms.uTime.value = time
+      mat.uniforms.uCam.value.copy(place.camera.position)
     },
   }
 }

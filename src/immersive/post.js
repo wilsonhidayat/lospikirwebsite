@@ -62,6 +62,9 @@ export function createPost(THREE, renderer, { quality = 'high' } = {}) {
   const bloomA = new THREE.WebGLRenderTarget(2, 2, quarter)
   const bloomB = new THREE.WebGLRenderTarget(2, 2, quarter)
   const rays = new THREE.WebGLRenderTarget(2, 2, quarter)
+  // depth of field: a half-size, blurred copy of the picture
+  const dofA = new THREE.WebGLRenderTarget(2, 2, quarter)
+  const dofB = new THREE.WebGLRenderTarget(2, 2, quarter)
 
   const brightMat = new THREE.ShaderMaterial({
     uniforms: { tColor: { value: color.texture }, uThreshold: { value: 1.0 }, uExposure: { value: 1 } },
@@ -170,6 +173,13 @@ export function createPost(THREE, renderer, { quality = 'high' } = {}) {
     uCloudLit: { value: new THREE.Color(0xfff4ea) },
     uCloudShade: { value: new THREE.Color(0xe2c7b8) },
     uFade: { value: 0 },
+    // a real lens: what's far from the focus distance softens
+    tDof: { value: dofA.texture },
+    uFocus: { value: 12 },
+    uDof: { value: high ? 0.75 : 0 },
+    // the place's own grade (the photos are never touched — they're HTML)
+    uContrast: { value: 1.07 },
+    uVignette: { value: 0.16 },
     // 0 → 1: the place develops out of the dark in soft patches
     uReveal: { value: 1 },
     uRevealColor: { value: new THREE.Vector3(0.043, 0.043, 0.047) },
@@ -276,6 +286,8 @@ export function createPost(THREE, renderer, { quality = 'high' } = {}) {
       uniform float uSaturation; uniform vec3 uTint;
       uniform float uCloud; uniform vec3 uCloudLit; uniform vec3 uCloudShade; uniform float uFade;
       uniform float uReveal; uniform vec3 uRevealColor;
+      uniform sampler2D tDof; uniform float uFocus; uniform float uDof;
+      uniform float uContrast; uniform float uVignette;
       varying vec2 vUv;
       ${NOISE_GLSL}
 
@@ -294,15 +306,34 @@ export function createPost(THREE, renderer, { quality = 'high' } = {}) {
         return clamp(OUT * rrtOdt(IN * c), 0.0, 1.0);
       }
 
+      float viewZ(vec2 uv) {
+        float d = texture2D(tDepth, uv).x;
+        vec4 v = uProjInv * vec4(uv * 2.0 - 1.0, d * 2.0 - 1.0, 1.0);
+        return -v.z / v.w;
+      }
       void main() {
         vec3 c = texture2D(tColor, vUv).rgb;
         if (uAO > 0.0) c *= mix(1.0, texture2D(tAO, vUv).r, uAO);
+        // depth of field: behind the focus softens gently, very near a little
+        if (uDof > 0.0) {
+          float z = texture2D(tDepth, vUv).x >= 1.0 ? 1e4 : viewZ(vUv);
+          float far = smoothstep(0.0, 1.0, (z - uFocus * 1.3) / (uFocus * 2.2));
+          // only what's right in front of the lens softens (never the whole foreground)
+          float nf = min(uFocus * 0.45, 2.2);
+          float near = smoothstep(0.0, 1.0, (nf - z) / (nf * 0.6));
+          float coc = clamp(max(far, near), 0.0, 1.0) * uDof;
+          c = mix(c, texture2D(tDof, vUv).rgb, coc);
+        }
 
         vec3 glow = texture2D(tBloom, vUv).rgb * uBloom + texture2D(tRays, vUv).r * uRays * uRayColor;
         // the film curve, then the photographs' own colour
         c = toSRGB(aces((c * uExposure + glow) / 0.6));
         float l = dot(c, vec3(0.2126, 0.7152, 0.0722));
         c = mix(vec3(l), c, uSaturation) * uTint;
+        // a touch more depth in the tones, and the edges of the frame fall off
+        c = clamp((c - 0.5) * uContrast + 0.5, 0.0, 1.0);
+        vec2 vq = (vUv - 0.5) * vec2(uRes.x / uRes.y, 1.0);
+        c *= 1.0 - uVignette * smoothstep(0.35, 1.05, length(vq));
 
         // developing: the place comes up out of the dark in soft patches
         if (uReveal < 0.999) {
@@ -338,6 +369,8 @@ export function createPost(THREE, renderer, { quality = 'high' } = {}) {
     bloomA.setSize(qw, qh)
     bloomB.setSize(qw, qh)
     rays.setSize(qw, qh)
+    dofA.setSize(Math.max(2, Math.round(w / 2)), Math.max(2, Math.round(h / 2)))
+    dofB.setSize(Math.max(2, Math.round(w / 2)), Math.max(2, Math.round(h / 2)))
     aoA.setSize(Math.max(2, Math.round(w / 2)), Math.max(2, Math.round(h / 2)))
     aoB.setSize(Math.max(2, Math.round(w / 2)), Math.max(2, Math.round(h / 2)))
     uniforms.uRes.value.set(w, h)
@@ -425,6 +458,24 @@ export function createPost(THREE, renderer, { quality = 'high' } = {}) {
       uniforms.tAO.value = aoA.texture
     }
 
+    // 2c. the blurred copy for depth of field
+    if (uniforms.uDof.value > 0 && !flat) {
+      // two gentle passes at half size: smooth, no doubled edges
+      let src = color.texture
+      for (let i = 0; i < 2; i++) {
+        blurMat.uniforms.tInput.value = src
+        blurMat.uniforms.uDir.value.set(0.85 / dofA.width, 0)
+        renderer.setRenderTarget(dofB)
+        blurQuad.render(renderer)
+        blurMat.uniforms.tInput.value = dofB.texture
+        blurMat.uniforms.uDir.value.set(0, 0.85 / dofA.height)
+        renderer.setRenderTarget(dofA)
+        blurQuad.render(renderer)
+        src = dofA.texture
+      }
+      uniforms.tDof.value = dofA.texture
+    }
+
     // 3. bloom
     bloom(exposure)
 
@@ -461,7 +512,7 @@ export function createPost(THREE, renderer, { quality = 'high' } = {}) {
     render,
     renderClouds,
     dispose() {
-      for (const t of [color, normals, bloomA, bloomB, rays, aoA, aoB]) t.dispose()
+      for (const t of [color, normals, bloomA, bloomB, rays, aoA, aoB, dofA, dofB]) t.dispose()
       depthTexture.dispose()
       normalMaterial.dispose()
       rigNormalMaterial.dispose()

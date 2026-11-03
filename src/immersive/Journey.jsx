@@ -202,7 +202,7 @@ export default function Journey({ items, variant = 'home', landing = null, skip 
   useEffect(() => {
     const v = viewerRef.current
     if (!v) return
-    if (visible && (stage === 'memories' || (stage === 'place' && mode !== 'photo'))) v.start()
+    if (visible && stage === 'place' && mode !== 'photo') v.start()
     else v.stop()
   }, [visible, stage, phase])
   useEffect(() => {
@@ -264,33 +264,7 @@ export default function Journey({ items, variant = 'home', landing = null, skip 
     }
   }
 
-  // the memories as a place: a travel map with every shoot pinned on it
-  const mapItem = useMemo(
-    () => ({
-      slug: 'memories',
-      scene: 'memories',
-      hero: items[0]?.hero,
-      photos: [],
-      memories: items.map((it) => ({
-        slug: it.slug,
-        title: it.title || it.caption,
-        hero: it.hero,
-        city: it.city || it.locations?.find((l) => l.city)?.city || it.place || '',
-        lat: it.lat ?? null,
-        lon: it.lon ?? null,
-      })),
-    }),
-    [items]
-  )
-  useEffect(() => {
-    if (stage !== 'memories' || !use3D) return
-    getViewer().then((v) => v?.enter(mapItem, chapter + 1))
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [stage, use3D])
-  const onChapter = (i) => {
-    if (use3D) viewerRef.current?.photo(i + 1)
-    preloadSoon(i)
-  }
+  const onChapter = (i) => preloadSoon(i)
 
   // the chapter in view gets its place ready, so stepping in is quick
   const preloadTimer = useRef(0)
@@ -548,7 +522,7 @@ export default function Journey({ items, variant = 'home', landing = null, skip 
       {/* Memories */}
       <AnimatePresence>
         {stage === 'memories' && (
-          <Memories key="memories" items={items} start={chapter} onOpen={openMemory} onBack={backToLanding} onFinish={finish} onActive={onChapter} threeD={use3D} skipLink={exitPill} noCopy={noCopy} />
+          <Memories key="memories" items={items} start={chapter} onOpen={openMemory} onBack={backToLanding} onFinish={finish} onActive={onChapter} skipLink={exitPill} noCopy={noCopy} />
         )}
       </AnimatePresence>
 
@@ -722,84 +696,84 @@ function Chevron({ dir }) {
 }
 
 /**
- * The memories, as chapters. The chosen shoot plays like a trailer behind
- * its title — its photos one after another, full screen, drifting slowly —
- * with what it was, where, how many photos and when, and the first line of
- * its story. Every chapter waits in a numbered row along the bottom.
- * Scroll, swipe or use the arrow keys to move along; Step into the shoot
- * (or click the chosen card again) goes in.
+ * The memories as a 3D carousel: every shoot is a print standing on a slowly
+ * turning ring. Scroll, swipe, drag or use the arrow keys to turn it; the
+ * shoot at the front is lit and its name, type, city and year are written
+ * beside it. Step into the shoot (or click the front print) goes in.
  */
-const TRAILER = 4.6 // seconds per photo
-
-function Memories({ items, start = 0, onOpen, onBack, onFinish, onActive, threeD = false, skipLink, noCopy }) {
-  const rowRef = useRef(null)
+function Memories({ items, start = 0, onOpen, onBack, onFinish, onActive, skipLink, noCopy }) {
   const rootRef = useRef(null)
-  const stageRef = useRef(null)
+  const ringRef = useRef(null)
   const cardRefs = useRef([])
+  const shadeRefs = useRef([])
   const [active, setActive] = useState(start)
-  const [slide, setSlide] = useState(0)
   const activeRef = useRef(start)
   activeRef.current = active
   const reduced = useReducedMotion()
-
-  const it = items[active]
-  const reel = useMemo(() => sequence(it).photos.slice(0, 5).map((p) => p.src), [it])
-
-  const select = (i, smooth = true) => {
-    const k = Math.max(0, Math.min(items.length - 1, i))
-    if (k !== activeRef.current) setSlide(0)
-    setActive(k)
-    const el = cardRefs.current[k]
-    const row = rowRef.current
-    if (el && row) row.scrollTo({ left: el.offsetLeft + el.offsetWidth / 2 - row.clientWidth / 2, behavior: smooth && !reduced ? 'smooth' : 'auto' })
-  }
-  useLayoutEffect(() => select(start, false), []) // eslint-disable-line react-hooks/exhaustive-deps
+  const n = items.length
+  const STEP = 360 / n
+  const target = useRef(-start * STEP)
+  const shown = useRef(-start * STEP)
+  const [geo, setGeo] = useState(() => ringSize(n))
+  useEffect(() => {
+    const on = () => setGeo(ringSize(n))
+    window.addEventListener('resize', on)
+    return () => window.removeEventListener('resize', on)
+  }, [n])
   useEffect(() => onActive?.(active), [active]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  // the trailer: the shoot's photos, one after another
-  useEffect(() => {
-    if (threeD || reduced || reel.length < 2) return
-    const t = setInterval(() => setSlide((n) => (n + 1) % reel.length), TRAILER * 1000)
-    return () => clearInterval(t)
-  }, [reel, reduced])
-  // the next photos of the trailer load early
-  useEffect(() => {
-    reel.forEach((src) => {
-      const img = new Image()
-      img.src = src
-    })
-  }, [reel])
-
-  const open = () => {
-    const card = cardRefs.current[activeRef.current]?.querySelector('img')
-    // over the map the photo rises out of its card; over the trailer, out of the screen
-    onOpen(activeRef.current, card, threeD ? null : rootRef.current?.getBoundingClientRect())
+  const norm = (d) => ((((d + 180) % 360) + 360) % 360) - 180
+  const select = (i) => {
+    const k = ((i % n) + n) % n
+    target.current = target.current + norm(-k * STEP - target.current)
+    setActive(k)
   }
   const selectRef = useRef(select)
   selectRef.current = select
+  const open = () => {
+    const img = cardRefs.current[activeRef.current]?.querySelector('img')
+    onOpen(activeRef.current, img)
+  }
   const openRef = useRef(open)
   openRef.current = open
 
-  // wheel: one chapter per flick; arrow keys; the backdrop leans a little
-  // with the pointer, like looking through a window
+  // turn the ring: ease toward the target, light the front, shade the rest
   useEffect(() => {
+    let raf = 0
+    const loop = () => {
+      raf = requestAnimationFrame(loop)
+      shown.current += (target.current - shown.current) * (reduced ? 1 : 0.085)
+      if (ringRef.current) ringRef.current.style.transform = `translateZ(${-geo.R}px) rotateY(${shown.current.toFixed(3)}deg)`
+      for (let i = 0; i < n; i++) {
+        const d = Math.abs(norm(i * STEP + shown.current))
+        const sh = shadeRefs.current[i]
+        if (sh) sh.style.opacity = Math.min(0.78, d / 70).toFixed(3)
+      }
+    }
+    raf = requestAnimationFrame(loop)
+    return () => cancelAnimationFrame(raf)
+  }, [geo, n, STEP, reduced])
+
+  // wheel (one print per flick), keys, swipe, drag
+  useEffect(() => {
+    const el = rootRef.current
     let acc = 0
     let last = 0
-    let quietUntil = 0
+    let until = 0
     const onWheel = (e) => {
       e.preventDefault()
       const now = performance.now()
       if (now - last > 220) acc = 0
       last = now
-      if (now < quietUntil) {
-        quietUntil = now + 160
+      if (now < until) {
+        until = now + 160
         return
       }
       acc += Math.abs(e.deltaX) > Math.abs(e.deltaY) ? e.deltaX : e.deltaY
-      if (Math.abs(acc) > 45) {
+      if (Math.abs(acc) > 40) {
         selectRef.current(activeRef.current + (acc > 0 ? 1 : -1))
         acc = 0
-        quietUntil = now + 420
+        until = now + 380
       }
     }
     const onKey = (e) => {
@@ -810,87 +784,75 @@ function Memories({ items, start = 0, onOpen, onBack, onFinish, onActive, threeD
       else return
       e.preventDefault()
     }
-    let raf = 0
-    const onMove = (e) => {
-      if (raf) return
-      raf = requestAnimationFrame(() => {
-        raf = 0
-        const x = (e.clientX / window.innerWidth - 0.5) * -18
-        const y = (e.clientY / window.innerHeight - 0.5) * -12
-        stageRef.current?.style.setProperty('--px', `${x.toFixed(1)}px`)
-        stageRef.current?.style.setProperty('--py', `${y.toFixed(1)}px`)
-      })
+    let dx = null
+    let moved = 0
+    const down = (e) => {
+      if (e.target.closest('button, a')) return
+      dx = e.clientX
+      moved = 0
     }
-    const el = rootRef.current
-    el?.addEventListener('wheel', onWheel, { passive: false })
+    const move = (e) => {
+      if (dx == null) return
+      const d = e.clientX - dx
+      moved += Math.abs(d)
+      target.current += d * 0.09
+      dx = e.clientX
+    }
+    const up = () => {
+      if (dx == null) return
+      dx = null
+      if (moved < 4) return
+      const k = Math.round(-target.current / STEP)
+      selectRef.current(k)
+    }
+    el.addEventListener('wheel', onWheel, { passive: false })
+    el.addEventListener('pointerdown', down)
+    window.addEventListener('pointermove', move)
+    window.addEventListener('pointerup', up)
     window.addEventListener('keydown', onKey)
-    const fine = window.matchMedia('(hover: hover) and (pointer: fine)').matches
-    if (fine && !reduced) window.addEventListener('pointermove', onMove, { passive: true })
     return () => {
-      el?.removeEventListener('wheel', onWheel)
+      el.removeEventListener('wheel', onWheel)
+      el.removeEventListener('pointerdown', down)
+      window.removeEventListener('pointermove', move)
+      window.removeEventListener('pointerup', up)
       window.removeEventListener('keydown', onKey)
-      window.removeEventListener('pointermove', onMove)
-      cancelAnimationFrame(raf)
     }
-  }, []) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [STEP])
 
-  const count = it.photos?.length || 1
+  const it = items[active]
   const line = shootLine(it)
   const year = String(it.date || '').slice(0, 4)
-  const lastOne = active === items.length - 1
+  const count = it.photos?.length || 1
   const words = String(it.title || it.caption).split(/\s+/)
-  const src = reel[slide % reel.length] || it.hero
 
   return (
-    <motion.div ref={rootRef} className={`mx${threeD ? ' mx--3d' : ''}`} initial={{ opacity: 0 }} animate={{ opacity: 1, transition: { duration: 0.7 } }} exit={{ opacity: 0, transition: { duration: 0.6 } }}>
-      {!threeD && (
-      <div className="mx__stage" ref={stageRef} aria-hidden="true">
-        <AnimatePresence initial={false}>
-          <motion.img
-            key={src}
-            className="mx__bg"
-            src={src}
-            alt=""
-            initial={{ opacity: 0, scale: 1 }}
-            animate={{ opacity: 1, scale: reduced ? 1 : 1.06, transition: { opacity: { duration: 1.1 }, scale: { duration: TRAILER + 1.5, ease: 'linear' } } }}
-            exit={{ opacity: 0, transition: { duration: 1.1 } }}
-            {...noCopy}
-          />
-        </AnimatePresence>
-      </div>
-      )}
-      <div className="mx__scrim" aria-hidden="true" />
-
+    <motion.div ref={rootRef} className="rx" initial={{ opacity: 0 }} animate={{ opacity: 1, transition: { duration: 0.7 } }} exit={{ opacity: 0, transition: { duration: 0.6 } }}>
+      <div className="rx__glow" aria-hidden="true" />
       <button type="button" className="jr__pill jr__back" onClick={onBack}>
         ← Home
       </button>
       <div className="mem__skip">{skipLink}</div>
 
-      <div className="mx__info">
-        <p className="label mx__eyebrow">
-          {site.tour?.memoriesEyebrow || 'Step into a shoot'} <span aria-hidden="true">·</span> Chapter {String(active + 1).padStart(2, '0')} / {String(items.length).padStart(2, '0')}
+      <div className="rx__info">
+        <p className="label rx__eyebrow">
+          {site.tour?.memoriesEyebrow || 'Step into a shoot'} <span aria-hidden="true">·</span> {String(active + 1).padStart(2, '0')} / {String(n).padStart(2, '0')}
         </p>
         <AnimatePresence mode="wait">
-          <motion.div key={it.slug} exit={{ opacity: 0, y: -10, transition: { duration: 0.25 } }}>
-            <h2 className="display mx__title" aria-label={it.title || it.caption}>
+          <motion.div key={it.slug} exit={{ opacity: 0, y: -8, transition: { duration: 0.2 } }}>
+            <h2 className="display rx__title" aria-label={it.title || it.caption}>
               {words.map((w, k) => (
                 <span className="mx__word" key={k} aria-hidden="true">
-                  <motion.span
-                    initial={reduced ? false : { y: '105%' }}
-                    animate={{ y: '0%' }}
-                    transition={{ duration: 0.75, ease: [0.16, 1, 0.3, 1], delay: 0.06 * k }}
-                  >
+                  <motion.span initial={reduced ? false : { y: '105%' }} animate={{ y: '0%' }} transition={{ duration: 0.7, ease: [0.16, 1, 0.3, 1], delay: 0.05 * k }}>
                     {w}
                   </motion.span>
                 </span>
               ))}
             </h2>
-            <motion.p className="mx__meta" initial={{ opacity: 0 }} animate={{ opacity: 1, transition: { delay: 0.3, duration: 0.5 } }}>
+            <motion.p className="mx__meta" initial={{ opacity: 0 }} animate={{ opacity: 1, transition: { delay: 0.25, duration: 0.5 } }}>
               {[line, `${count} photos`, year].filter(Boolean).map((m, k) => (
                 <span key={k}>{m}</span>
               ))}
             </motion.p>
-
           </motion.div>
         </AnimatePresence>
         <div className="mx__actions">
@@ -900,46 +862,63 @@ function Memories({ items, start = 0, onOpen, onBack, onFinish, onActive, threeD
             </svg>
             Step into the shoot
           </button>
-          {lastOne && (
+          {active === n - 1 && (
             <button type="button" className="jr__pill mx__finish" onClick={onFinish}>
               Finish the experience
             </button>
           )}
-          {!threeD && reel.length > 1 && (
-            <span className="mx__dots" aria-hidden="true">
-              {reel.map((_, k) => (
-                <i key={k} className={k === slide ? 'is-on' : ''} />
-              ))}
-            </span>
-          )}
         </div>
       </div>
 
-      <div className="mx__row" ref={rowRef} role="listbox" aria-label="Chapters">
+      <div className="rx__stage" aria-hidden="false">
+        <div className="rx__ring" ref={ringRef} role="listbox" aria-label="Shoots">
+          {items.map((m, i) => (
+            <button
+              key={m.slug}
+              ref={(el) => (cardRefs.current[i] = el)}
+              type="button"
+              role="option"
+              aria-selected={i === active}
+              aria-label={m.title || m.caption}
+              className={`rx__card${i === active ? ' is-active' : ''}`}
+              style={{
+                width: geo.w,
+                height: geo.h,
+                marginLeft: -geo.w / 2,
+                marginTop: -geo.h / 2,
+                transform: `rotateY(${i * STEP}deg) translateZ(${geo.R}px)`,
+              }}
+              onClick={() => (i === active ? open() : select(i))}
+            >
+              <img src={m.hero} alt="" loading={Math.abs(i - start) < 4 ? 'eager' : 'lazy'} decoding="async" {...noCopy} />
+              <span className="rx__reflect" style={{ backgroundImage: `url("${m.hero}")` }} aria-hidden="true" />
+              <span className="rx__shade" ref={(el) => (shadeRefs.current[i] = el)} aria-hidden="true" />
+            </button>
+          ))}
+        </div>
+      </div>
+
+      <nav className="rx__names" aria-label="All shoots">
         {items.map((m, i) => (
-          <button
-            key={m.slug}
-            ref={(el) => (cardRefs.current[i] = el)}
-            type="button"
-            role="option"
-            aria-selected={i === active}
-            className={`mx__card${i === active ? ' is-active' : ''}`}
-            onClick={() => (i === active ? open() : select(i))}
-          >
-            <span className="mx__num" aria-hidden="true">
-              {String(i + 1).padStart(2, '0')}
-            </span>
-            <span className="mx__thumb">
-              <img src={m.hero} alt={m.alt || ''} loading={Math.abs(i - start) < 6 ? 'eager' : 'lazy'} decoding="async" {...noCopy} />
-              {i === active && !threeD && !reduced && reel.length > 1 && <span key={`${slide}`} className="mx__progress" style={{ animationDuration: `${TRAILER}s` }} />}
-            </span>
-            <span className="mx__name">{m.title || m.caption}</span>
-            <span className="mx__kind">{shootLine(m)}</span>
+          <button key={m.slug} type="button" className={i === active ? 'is-on' : ''} onClick={() => select(i)}>
+            {String(i + 1).padStart(2, '0')} {m.title || m.caption}
           </button>
         ))}
-      </div>
+      </nav>
     </motion.div>
   )
+}
+
+/** The ring's card size and radius for this screen. */
+function ringSize(n) {
+  const W = typeof window === 'undefined' ? 1280 : window.innerWidth
+  const H = typeof window === 'undefined' ? 800 : window.innerHeight
+  const phone = W <= 820
+  const h = Math.round(Math.min(H * (phone ? 0.42 : 0.46), 500))
+  const w = Math.round(h * 0.78)
+  const gap = w * (phone ? 0.18 : 0.26)
+  const R = Math.max((n * (w + gap)) / (2 * Math.PI), phone ? 300 : 520)
+  return { w, h, R }
 }
 
 /** "Pre-wedding · Paris" — what kind of shoot, and the city. */
