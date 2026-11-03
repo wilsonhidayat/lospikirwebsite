@@ -6,6 +6,21 @@
   "cover": "/photos/adriel-01.jpg",
   "intro": "",
   "scene": "campus",
+  "locations": [
+    {
+      "scene": "campus",
+      "photos": "1-7",
+      "views": [
+        9,
+        10,
+        11,
+        12,
+        13,
+        14,
+        15
+      ]
+    }
+  ],
   "place": "TU/e campus, Eindhoven",
   "city": "Eindhoven",
   "photos": [

@@ -295,15 +295,737 @@ function barkMap(THREE, seed) {
   )
 }
 
+/* --- inside: the Stadsschouwburg's staircase hall ------------------------------------ */
+
+/**
+ * Amara's graduation photos 1, 2, 6–9 were taken indoors, in the theatre on
+ * the square (the Stadsschouwburg, where the University of Amsterdam holds its
+ * ceremonies): the 1894 marble staircase with its red floral runner held by
+ * brass rods, red-brown marble strings, dark carved oak panelling and tall
+ * doors, a brass handrail on brackets, the half-landing with a carved oak
+ * cabinet, a great bouquet and a tall mirror, the return flights rising left
+ * and right to the gallery, a cream barrel vault with an amber hexagonal
+ * lantern, a leaded arched window; the white panelled foyer with its arched
+ * double doors and a brass urn of red winter berries; and the new white foyer
+ * with a curving red-carpeted stair behind a glass balustrade.
+ *
+ * Metres. Origin at the foot of the main flight, which rises toward +z.
+ */
+function buildHotel(THREE, ctx) {
+  ctx.sky = null
+  const world = createWorld(THREE, ctx, 'interior', {
+    // a low afternoon sun from the west, through the arched window
+    sun: { elevation: 26, azimuth: 262 },
+    sky: { zenith: 0x3f78c8, horizon: 0xc5dcef, clouds: 0.25 },
+    sunIntensity: 3.2,
+    sunColor: 0xffe2bc,
+    exposure: 1.15,
+  })
+  world.hemi.intensity = 1.5 // the viewer keeps 35%; the room's own probe does the rest
+  world.hemi.color.set(0xfff0dc)
+  world.hemi.groundColor.set(0x9a8f84)
+  const { scene } = world
+  const q = ctx.quality
+  const low = q === 'low'
+  const rand = seeded(1894)
+  const V = (x, y, z) => new THREE.Vector3(x, y, z)
+  const B = makeBatch(THREE)
+
+  /* materials ---------------------------------------------------------------- */
+  const carpetTex = paintTexture(
+    THREE,
+    256,
+    256,
+    (g, w, h) => {
+      g.fillStyle = '#a0101b'
+      g.fillRect(0, 0, w, h)
+      // the dark border down both edges, with a gold line
+      for (const x of [0, w - 22]) {
+        g.fillStyle = '#5e0a12'
+        g.fillRect(x, 0, 22, h)
+        g.fillStyle = '#c88a3c'
+        g.fillRect(x === 0 ? 19 : x, 0, 3, h)
+      }
+      const r = seeded(7)
+      // scattered roses and leaves
+      for (let i = 0; i < 26; i++) {
+        const cx = 34 + r() * (w - 68)
+        const cy = r() * h
+        for (const oy of [-h, 0, h]) {
+          g.fillStyle = '#3e4f24'
+          for (let k = 0; k < 3; k++) {
+            g.beginPath()
+            g.ellipse(cx + Math.cos(k * 2.1) * 11, cy + oy + Math.sin(k * 2.1) * 11, 7, 3.5, k * 2.1, 0, Math.PI * 2)
+            g.fill()
+          }
+          g.fillStyle = r() < 0.5 ? '#e0566a' : '#cc2e3e'
+          for (let k = 0; k < 6; k++) {
+            g.beginPath()
+            g.arc(cx + Math.cos(k * 1.05) * 5, cy + oy + Math.sin(k * 1.05) * 5, 4.5, 0, Math.PI * 2)
+            g.fill()
+          }
+          g.fillStyle = '#7a0c16'
+          g.beginPath()
+          g.arc(cx, cy + oy, 3, 0, Math.PI * 2)
+          g.fill()
+        }
+      }
+      // pile
+      for (let i = 0; i < 4000; i++) {
+        g.fillStyle = `rgba(${r() < 0.5 ? '0,0,0' : '255,200,200'},${(r() * 0.08).toFixed(3)})`
+        g.fillRect(r() * w, r() * h, 1, 1)
+      }
+    },
+    { kind: 'color' }
+  )
+  const pile = noiseNormalMap(THREE, 128, { cells: 32, strength: 1.2, octaves: 2 })
+  const carpet = new THREE.MeshStandardMaterial({ map: carpetTex, normalMap: pile, roughness: 0.96 })
+  const marbleTex = paintTexture(
+    THREE,
+    256,
+    256,
+    (g, w, h) => {
+      g.fillStyle = '#7d3a2c'
+      g.fillRect(0, 0, w, h)
+      const r = seeded(11)
+      for (let i = 0; i < 40; i++) {
+        g.fillStyle = `rgba(${r() < 0.5 ? '60,20,14' : '160,90,70'},${(0.15 + r() * 0.2).toFixed(2)})`
+        g.beginPath()
+        g.ellipse(r() * w, r() * h, 10 + r() * 40, 6 + r() * 20, r() * 3, 0, Math.PI * 2)
+        g.fill()
+      }
+      for (let i = 0; i < 22; i++) {
+        g.strokeStyle = `rgba(232,200,180,${(0.25 + r() * 0.45).toFixed(2)})`
+        g.lineWidth = 0.6 + r() * 1.6
+        g.beginPath()
+        let x = r() * w
+        let y = r() * h
+        g.moveTo(x, y)
+        for (let k = 0; k < 6; k++) {
+          x += (r() - 0.3) * 60
+          y += (r() - 0.5) * 60
+          g.lineTo(x, y)
+        }
+        g.stroke()
+      }
+    },
+    { kind: 'color' }
+  )
+  const marble = new THREE.MeshStandardMaterial({ map: marbleTex, roughness: 0.18, metalness: 0.0 })
+  const oakTex = paintTexture(
+    THREE,
+    256,
+    512,
+    (g, w, h) => {
+      // a tall panelled door/wainscot leaf: stiles, rails, raised fields with carved tops
+      g.fillStyle = '#3b2216'
+      g.fillRect(0, 0, w, h)
+      const r = seeded(13)
+      for (let i = 0; i < 300; i++) {
+        g.strokeStyle = `rgba(${r() < 0.5 ? '20,10,6' : '90,56,36'},0.35)`
+        g.lineWidth = 1
+        g.beginPath()
+        const x = r() * w
+        g.moveTo(x, 0)
+        g.bezierCurveTo(x + 4, h * 0.3, x - 4, h * 0.6, x + 2, h)
+        g.stroke()
+      }
+      const field = (x, y, fw, fh) => {
+        g.fillStyle = 'rgba(0,0,0,0.35)'
+        g.fillRect(x - 3, y - 3, fw + 6, fh + 6)
+        g.fillStyle = 'rgba(150,100,64,0.6)'
+        g.fillRect(x, y, fw, 4)
+        g.fillRect(x, y, 4, fh)
+        g.fillStyle = 'rgba(12,6,3,0.6)'
+        g.fillRect(x, y + fh - 4, fw, 4)
+        g.fillRect(x + fw - 4, y, 4, fh)
+        g.fillStyle = 'rgba(78,46,28,0.75)'
+        g.fillRect(x + 12, y + 12, fw - 24, fh - 24)
+        g.strokeStyle = 'rgba(140,94,60,0.55)'
+        g.lineWidth = 2
+        g.strokeRect(x + 12, y + 12, fw - 24, fh - 24)
+        // carved scroll at the top of the field
+        g.strokeStyle = 'rgba(140,94,60,0.6)'
+        g.lineWidth = 2
+        g.beginPath()
+        g.arc(x + fw / 2, y + 26, 14, Math.PI, 0)
+        g.arc(x + fw / 2 - 20, y + 26, 6, 0, Math.PI * 1.5)
+        g.stroke()
+      }
+      field(30, 30, w - 60, h * 0.5)
+      field(30, h * 0.5 + 70, w - 60, h * 0.5 - 100)
+    },
+    { kind: 'color' }
+  )
+  const oak = new THREE.MeshStandardMaterial({ map: oakTex, roughness: 0.38, normalMap: noiseNormalMap(THREE, 128, { cells: 8, strength: 0.6, octaves: 2, stretch: [1, 6] }), normalScale: new THREE.Vector2(0.35, 0.35) })
+  const brass = new THREE.MeshStandardMaterial({ color: 0xdcbf72, roughness: 0.24, metalness: 1 })
+  const cream = M.plaster(THREE, { color: '#efe4cf', dirt: 0.05, tile: 3, quality: q, seed: 21 })
+  const whitePaint = new THREE.MeshStandardMaterial({ color: 0xe8e5de, roughness: 0.5 })
+  const floorTile = M.floor(THREE, { kind: 'tile', color: '#e7dfd0', tileSize: 0.6, polish: 0.75, tile: 4, quality: q, seed: 22 })
+  const glassClear = new THREE.MeshPhysicalMaterial({ color: 0xdfe8ea, roughness: 0.03, metalness: 0, transparent: true, opacity: 0.16, side: THREE.DoubleSide, depthWrite: false, envMapIntensity: 1.5 })
+  const darkWood = new THREE.MeshStandardMaterial({ color: 0x2b170e, roughness: 0.4 })
+
+  /* the floor, the foyers' rooms --------------------------------------------- */
+  const box = (mat, tile, w, h, d, x, y, z) => B.add(mat, M.box(THREE, w, h, d, mat, tile).geometry.translate(x, y, z))
+  box(floorTile, [4, 4], 27, 0.1, 22, 6.5, -0.1, -1.25)
+
+  /* the main flight: marble steps, the runner, brass rods ------------------- */
+  const N = 16
+  const RISE = 0.175
+  const TREAD = 0.35
+  const Z0 = 0.5
+  const LZ = Z0 + N * TREAD // 6.1, the half-landing
+  const LY = N * RISE // 2.8
+  const rods = []
+  for (let i = 0; i < N; i++) {
+    const z = Z0 + (i + 0.5) * TREAD
+    const top = (i + 1) * RISE
+    box(marble, [2, 2], 3.7, top, TREAD + 0.01, 0, 0, z)
+    box(carpet, [3.0, 1.4], 3.0, top + 0.012, TREAD + 0.012, 0, 0, z - 0.006)
+    rods.push(V(0, top + 0.02, Z0 + (i + 1) * TREAD - 0.03))
+  }
+  // the half-landing, carpeted wall to wall
+  box(marble, [2, 2], 12.4, LY, 3.7, 0, 0, LZ + 1.85)
+  box(carpet, [3.0, 1.4], 12.2, 0.012, 3.5, 0, LY, LZ + 1.8)
+  // the return flights up to the gallery, left and right
+  for (const sx of [-1, 1]) {
+    for (let j = 0; j < N; j++) {
+      const z = LZ - (j + 0.5) * TREAD
+      const top = LY + (j + 1) * RISE
+      box(marble, [2, 2], 3.5, top, TREAD + 0.01, sx * 4.0, 0, z)
+      box(carpet, [3.0, 1.4], 2.9, top + 0.012, TREAD + 0.012, sx * 4.0, 0, z + 0.006)
+      rods.push(V(sx * 4.0, top + 0.02, LZ - (j + 1) * TREAD + 0.03))
+    }
+  }
+  {
+    const rod = mergeGeometries(
+      [new THREE.CylinderGeometry(0.012, 0.012, 2.9, 6).rotateZ(Math.PI / 2), new THREE.SphereGeometry(0.03, 8, 6).translate(-1.47, 0, 0), new THREE.SphereGeometry(0.03, 8, 6).translate(1.47, 0, 0)].map((g) => g.toNonIndexed()),
+      false
+    )
+    const mesh = new THREE.InstancedMesh(rod, brass, rods.length)
+    const m = new THREE.Matrix4()
+    rods.forEach((p, i) => mesh.setMatrixAt(i, m.makeTranslation(p.x, p.y, p.z)))
+    scene.add(mesh)
+  }
+  // the gallery at the top, over the foyer's end
+  box(marble, [2, 2], 12.4, 0.35, 1.9, 0, LY * 2 - 0.35, -0.45)
+  box(carpet, [3.0, 1.4], 12.2, 0.012, 1.7, 0, LY * 2, -0.45)
+
+  /* walls -------------------------------------------------------------------- */
+  // the tall oak-panelled walls either side of the main flight, up to the return flights
+  const sideWall = (x) => {
+    const s = new THREE.Shape()
+    s.moveTo(Z0, 0)
+    s.lineTo(LZ, 0)
+    s.lineTo(LZ, LY - 0.25)
+    s.lineTo(Z0, LY * 2 - 0.35)
+    s.closePath()
+    const g = new THREE.ExtrudeGeometry(s, { depth: 0.3, bevelEnabled: false })
+    scaleUV(g, 1 / 1.3, 1 / 2.7)
+    g.rotateY(-Math.PI / 2)
+    g.translate(x + 0.15, 0, 0)
+    return g
+  }
+  B.add(oak, sideWall(-1.85))
+  B.add(oak, sideWall(1.85))
+  // the red marble string along the steps on both walls
+  const strings = beamBatch(THREE)
+  for (const sx of [-1, 1]) {
+    strings.add(V(sx * 1.72, 0.12, Z0 - 0.1), V(sx * 1.72, LY + 0.12, LZ), 0.06, 0.42)
+    // the handrail on brass brackets
+    const a = V(sx * 1.62, 0.95, Z0)
+    const b = V(sx * 1.62, LY + 0.95, LZ)
+    for (let k = 0; k <= 5; k++) {
+      const p = a.clone().lerp(b, k / 5)
+      B.add(brass, new THREE.CylinderGeometry(0.012, 0.012, 0.16, 6).rotateZ(Math.PI / 2).translate(p.x + sx * 0.08, p.y - 0.05, p.z))
+    }
+    const rail = beamBatch(THREE)
+    rail.add(a, b, 0.05, 0.05)
+    rail.add(V(sx * 1.62, LY + 0.95, LZ), V(sx * 1.62, LY + 0.95, LZ + 0.4), 0.05, 0.05)
+    scene.add(rail.build(brass))
+    // up the return flights too, on the outer walls
+    const c = V(sx * 5.92, LY + 0.95, LZ)
+    const d = V(sx * 5.92, LY * 2 + 0.95, Z0)
+    const r2 = beamBatch(THREE)
+    r2.add(c, d, 0.05, 0.05)
+    scene.add(r2.build(brass))
+    // and over the return flights' inner edge, a brass-capped oak balustrade
+    for (let k = 0; k <= 12; k++) {
+      const z = LZ - (k / 12) * (LZ - Z0)
+      const y = LY + ((LZ - z) / (LZ - Z0)) * LY
+      strings.add(V(sx * 2.15, y, z), V(sx * 2.15, y + 0.95, z), 0.05, 0.05)
+    }
+    strings.add(V(sx * 2.15, LY + 0.95, LZ), V(sx * 2.15, LY * 2 + 0.95, Z0), 0.08, 0.06)
+  }
+  scene.add(strings.build(marble))
+  // the gallery's balustrade over the main flight
+  for (let x = -1.7; x <= 1.71; x += 0.17) B.add(darkWood, new THREE.BoxGeometry(0.05, 0.85, 0.05).translate(x, LY * 2 + 0.43, 0.45))
+  box(brass, [1, 1], 3.6, 0.06, 0.1, 0, LY * 2 + 0.88, 0.45)
+
+  // the hall's walls: a marble dado, oak panelling to 3.4 m along the sides, cream plaster above; a barrel vault
+  const HW = 6.2
+  const HZ1 = 9.8
+  const wallYZ = (x, z0, z1, y0, y1, holes, mat, tile, out) => {
+    const s = new THREE.Shape()
+    s.moveTo(z0, y0)
+    s.lineTo(z1, y0)
+    s.lineTo(z1, y1)
+    s.lineTo(z0, y1)
+    s.closePath()
+    for (const h of holes || []) s.holes.push(h)
+    const g = new THREE.ExtrudeGeometry(s, { depth: 0.3, bevelEnabled: false, curveSegments: 16 })
+    scaleUV(g, 1 / tile[0], 1 / tile[1])
+    g.rotateY(-Math.PI / 2)
+    g.translate(x + (out > 0 ? 0.3 : 0), 0, 0)
+    B.add(mat, g)
+  }
+  // the arched leaded window, high on the west wall over the landing
+  const win = { z0: 5.6, z1: 8.4, y0: 6.0, y1: 10.2 }
+  const arch = new THREE.Path()
+  arch.moveTo(win.z0, win.y0)
+  arch.lineTo(win.z1, win.y0)
+  arch.lineTo(win.z1, win.y1 - 1.4)
+  arch.absarc((win.z0 + win.z1) / 2, win.y1 - 1.4, (win.z1 - win.z0) / 2, 0, Math.PI, false)
+  arch.lineTo(win.z0, win.y0)
+  wallYZ(-HW, -1.3, HZ1, 3.4, 15.5, [arch], cream, [3, 3], -1)
+  wallYZ(HW, -1.3, HZ1, 3.4, 15.5, [], cream, [3, 3], 1)
+  for (const sx of [-1, 1]) {
+    wallYZ(sx * HW, -1.3, HZ1, 0, 3.4, [], oak, [1.3, 2.7], sx)
+    box(marble, [2, 2], 0.08, 0.3, HZ1 + 1.3, sx * (HW - 0.04), 0, (HZ1 - 1.3) / 2)
+  }
+  box(cream, [3, 3], HW * 2 + 0.6, 15.5, 0.3, 0, 0, HZ1 + 0.15)
+  box(cream, [3, 3], HW * 2 + 0.6, 10, 0.3, 0, LY * 2, -1.45)
+  {
+    const vault = new THREE.CylinderGeometry(HW, HW, HZ1 + 1.3, 40, 1, true, Math.PI / 2, Math.PI)
+    vault.rotateX(Math.PI / 2)
+    vault.translate(0, 9.4, (HZ1 - 1.3) / 2)
+    scaleUV(vault, 6, 4)
+    const mat = cream.clone()
+    mat.side = THREE.DoubleSide
+    B.add(mat, vault)
+    // ribs across the vault and a moulded cornice where it springs
+    for (let z = -1; z <= HZ1; z += 3.6) {
+      const rib = new THREE.TorusGeometry(HW - 0.08, 0.12, 6, 40, Math.PI)
+      rib.translate(0, 9.4, z)
+      B.add(whitePaint, rib)
+    }
+    for (const sx of [-1, 1]) box(whitePaint, [1, 1], 0.4, 0.35, HZ1 + 1.3, sx * (HW - 0.2), 9.1, (HZ1 - 1.3) / 2)
+  }
+  // the leaded glass, letting the sun in
+  {
+    const lead = paintTexture(
+      THREE,
+      128,
+      256,
+      (g, w, h) => {
+        g.fillStyle = 'rgba(228,236,232,0.28)'
+        g.fillRect(0, 0, w, h)
+        g.strokeStyle = 'rgba(40,40,36,1)'
+        g.lineWidth = 2
+        for (let y = 0; y <= h; y += 22) {
+          g.beginPath()
+          g.moveTo(0, y)
+          g.lineTo(w, y)
+          g.stroke()
+        }
+        for (let x = 0; x <= w; x += 20) {
+          g.beginPath()
+          g.moveTo(x, 0)
+          g.lineTo(x, h)
+          g.stroke()
+        }
+        g.lineWidth = 6
+        g.strokeRect(0, 0, w, h)
+      },
+      { kind: 'color' }
+    )
+    const s = new THREE.Shape(arch.getPoints(24))
+    const g = new THREE.ShapeGeometry(s, 24)
+    const uv = g.attributes.uv
+    const p = g.attributes.position
+    for (let i = 0; i < uv.count; i++) uv.setXY(i, (p.getX(i) - win.z0) / (win.z1 - win.z0), (p.getY(i) - win.y0) / (win.y1 - win.y0))
+    g.rotateY(-Math.PI / 2)
+    g.translate(-HW - 0.15, 0, 0)
+    const m = new THREE.Mesh(g, new THREE.MeshStandardMaterial({ map: lead, transparent: true, side: THREE.DoubleSide, roughness: 0.2, emissive: 0xfff4e2, emissiveIntensity: 0.35, depthWrite: false }))
+    m.castShadow = false
+    scene.add(m)
+  }
+
+  /* the half-landing: the carved cabinet, the bouquet, the mirror, sconces --- */
+  {
+    const cz = HZ1 - 0.45
+    box(darkWood, [1, 1], 2.7, 0.08, 0.72, 0, LY, cz) // plinth
+    box(oak, [1.0, 2.0], 2.6, 1.08, 0.62, 0, LY + 0.08, cz)
+    box(darkWood, [1, 1], 2.8, 0.07, 0.74, 0, LY + 1.16, cz)
+    for (const sx of [-0.65, 0.65]) {
+      box(darkWood, [1, 1], 1.1, 0.8, 0.05, sx, LY + 0.22, cz - 0.33)
+      B.add(brass, new THREE.SphereGeometry(0.025, 8, 6).translate(sx * 0.12, LY + 0.62, cz - 0.37))
+    }
+    // the tall mirror over it, a dark carved frame
+    const mirror = new THREE.Mesh(new THREE.PlaneGeometry(2.1, 3.3), new THREE.MeshStandardMaterial({ color: 0x6f6a64, roughness: 0.06, metalness: 1 }))
+    mirror.position.set(0, LY + 3.05, HZ1 - 0.02)
+    mirror.rotation.y = Math.PI
+    scene.add(mirror)
+    for (const [w, h, x, y] of [[2.5, 0.2, 0, LY + 1.3], [2.5, 0.3, 0, LY + 4.7], [0.2, 3.5, -1.15, LY + 1.3], [0.2, 3.5, 1.15, LY + 1.3]]) box(darkWood, [1, 1], w, h, 0.12, x, y, HZ1 - 0.06)
+    // the bouquet: red roses and peonies, orange lilies, greenery, in a brass urn
+    const vase = new THREE.LatheGeometry([0.12, 0.2, 0.24, 0.18, 0.14, 0.2].map((r, i) => new THREE.Vector2(r, i * 0.09)), 18)
+    B.add(brass, vase.translate(0.3, LY + 1.23, cz))
+    const fl = []
+    const leaves = []
+    for (let i = 0; i < (low ? 90 : 220); i++) {
+      const a = rand() * Math.PI * 2
+      const r = Math.sqrt(rand()) * 0.85
+      const y = LY + 1.75 + rand() * 0.95 * (1 - r * 0.5)
+      ;(rand() < 0.62 ? fl : leaves).push(V(0.3 + Math.cos(a) * r * 1.1, y, cz - 0.05 + Math.sin(a) * r * 0.4))
+    }
+    const m = new THREE.Matrix4()
+    const c = new THREE.Color()
+    const flowers = new THREE.InstancedMesh(new THREE.IcosahedronGeometry(0.075, 1), new THREE.MeshStandardMaterial({ roughness: 0.7 }), fl.length)
+    const flCols = [0xb5121e, 0xd42a3a, 0xe8697a, 0xf08a3a, 0x9a0e18, 0xf2a2b0]
+    fl.forEach((p, i) => {
+      const k = range(rand, 0.8, 1.5)
+      flowers.setMatrixAt(i, m.makeScale(k, k * 0.8, k).setPosition(p.x, p.y, p.z))
+      flowers.setColorAt(i, c.setHex(pick(rand, flCols)))
+    })
+    const leafMesh = new THREE.InstancedMesh(new THREE.IcosahedronGeometry(0.09, 0).scale(1.6, 0.35, 0.8), new THREE.MeshStandardMaterial({ color: 0x3d5a28, roughness: 0.6 }), leaves.length)
+    leaves.forEach((p, i) => leafMesh.setMatrixAt(i, m.makeRotationY(rand() * 3).multiply(new THREE.Matrix4().makeRotationZ(rand() - 0.5)).setPosition(p.x, p.y, p.z)))
+    flowers.castShadow = leafMesh.castShadow = true
+    scene.add(flowers, leafMesh)
+    // brass sconces with small cream shades either side of the mirror
+    for (const sx of [-1, 1]) {
+      B.add(brass, new THREE.CylinderGeometry(0.02, 0.02, 0.4, 6).rotateX(Math.PI / 2).translate(sx * 1.75, LY + 2.6, HZ1 - 0.2))
+      const shade = new THREE.Mesh(new THREE.CylinderGeometry(0.09, 0.15, 0.2, 14, 1, true), new THREE.MeshStandardMaterial({ color: 0xfff1d8, emissive: 0xffc988, emissiveIntensity: 2.2, side: THREE.DoubleSide }))
+      shade.position.set(sx * 1.75, LY + 2.75, HZ1 - 0.42)
+      scene.add(shade)
+      const l = new THREE.PointLight(0xffc68a, 6, 7, 2)
+      l.position.set(sx * 1.75, LY + 2.7, HZ1 - 0.6)
+      scene.add(l)
+    }
+  }
+
+  /* the lantern: an amber hexagon in a brass frame, on a chain from the vault --- */
+  {
+    const ly = 8.0
+    const lz = 4.0
+    const glass = new THREE.Mesh(new THREE.CylinderGeometry(0.5, 0.36, 0.95, 6, 1, true), new THREE.MeshStandardMaterial({ color: 0xffc070, emissive: 0xff9a3c, emissiveIntensity: 2.4, side: THREE.DoubleSide, roughness: 0.3 }))
+    glass.position.set(0, ly, lz)
+    scene.add(glass)
+    const fr = beamBatch(THREE)
+    for (let k = 0; k < 6; k++) {
+      const a = (k / 6) * Math.PI * 2
+      fr.add(V(Math.sin(a) * 0.5, ly + 0.48, lz + Math.cos(a) * 0.5), V(Math.sin(a) * 0.36, ly - 0.48, lz + Math.cos(a) * 0.36), 0.035)
+      const b = ((k + 1) / 6) * Math.PI * 2
+      fr.add(V(Math.sin(a) * 0.52, ly + 0.5, lz + Math.cos(a) * 0.52), V(Math.sin(b) * 0.52, ly + 0.5, lz + Math.cos(b) * 0.52), 0.05)
+      fr.add(V(Math.sin(a) * 0.38, ly - 0.5, lz + Math.cos(a) * 0.38), V(Math.sin(b) * 0.38, ly - 0.5, lz + Math.cos(b) * 0.38), 0.05)
+    }
+    fr.add(V(0, ly + 0.5, lz), V(0, 15.2, lz), 0.03)
+    scene.add(fr.build(brass, { castShadow: false }))
+    B.add(brass, new THREE.ConeGeometry(0.55, 0.3, 6).translate(0, ly + 0.66, lz))
+    B.add(brass, new THREE.SphereGeometry(0.1, 8, 6).translate(0, ly - 0.58, lz))
+    const l = new THREE.PointLight(0xffb062, 55, 22, 2)
+    l.position.set(0, ly - 0.2, lz)
+    scene.add(l)
+  }
+
+  /* the white foyer: panelled walls, the arched double doors, the urn of berries --- */
+  {
+    const FZ0 = -12
+    const FZ1 = -1.3
+    const FH = LY * 2 - 0.35
+    const panelTex = paintTexture(
+      THREE,
+      256,
+      256,
+      (g, w, h) => {
+        g.fillStyle = '#f3f0e8'
+        g.fillRect(0, 0, w, h)
+        g.strokeStyle = 'rgba(150,140,120,0.45)'
+        g.lineWidth = 3
+        g.strokeRect(28, 30, w - 56, h * 0.55)
+        g.strokeRect(28, h * 0.55 + 60, w - 56, h * 0.3)
+        g.strokeStyle = 'rgba(255,255,255,0.9)'
+        g.lineWidth = 2
+        g.strokeRect(31, 33, w - 62, h * 0.55 - 6)
+      },
+      { kind: 'color' }
+    )
+    const panelled = new THREE.MeshStandardMaterial({ map: panelTex, roughness: 0.5 })
+    box(panelled, [1.6, 2.6], 14.4, FH, 0.3, 0, 0, FZ0 - 0.15)
+    // the west wall, and the east wall opened wide onto the new foyer
+    box(panelled, [1.6, 2.6], 0.3, FH, FZ1 - FZ0 + 0.3, -7.15, 0, (FZ0 + FZ1) / 2)
+    box(panelled, [1.6, 2.6], 0.3, FH, 2.7, 7.15, 0, FZ0 + 1.35)
+    box(panelled, [1.6, 2.6], 0.3, FH, 2.2, 7.15, 0, FZ1 - 1.1)
+    box(panelled, [1.6, 2.6], 0.3, FH - 4.2, 6.0, 7.15, 4.2, -6.5)
+    box(whitePaint, [2, 2], 14.6, 0.3, FZ1 - FZ0 + 0.3, 0, FH, (FZ0 + FZ1) / 2)
+    // the hall's side walls carry on into the foyer as the stair-hall opening's piers
+    for (const sx of [-1, 1]) box(panelled, [1.6, 2.6], 7.1 - HW, FH, 0.3, sx * (HW + (7.1 - HW) / 2), 0, -1.3)
+    // the doors: two leaves under an arched fanlight
+    const doorTex = paintTexture(
+      THREE,
+      256,
+      512,
+      (g, w, h) => {
+        g.fillStyle = '#f5f3ee'
+        g.fillRect(0, 0, w, h)
+        const leaf = (x0) => {
+          g.fillStyle = '#e9e5dc'
+          g.fillRect(x0 + 14, h * 0.6, w / 2 - 28, h * 0.3)
+          g.strokeStyle = 'rgba(140,130,110,0.6)'
+          g.lineWidth = 3
+          g.strokeRect(x0 + 14, h * 0.6, w / 2 - 28, h * 0.3)
+          // the glazed upper part with an arched head and glazing bars
+          g.fillStyle = '#cfe0ea'
+          g.beginPath()
+          g.moveTo(x0 + 18, h * 0.55)
+          g.lineTo(x0 + 18, h * 0.2)
+          g.arc(x0 + w / 4, h * 0.2, w / 4 - 18, Math.PI, 0)
+          g.lineTo(x0 + w / 2 - 18, h * 0.55)
+          g.closePath()
+          g.fill()
+          g.strokeStyle = '#f5f3ee'
+          g.lineWidth = 4
+          g.beginPath()
+          g.moveTo(x0 + w / 4, h * 0.08)
+          g.lineTo(x0 + w / 4, h * 0.55)
+          g.moveTo(x0 + 18, h * 0.38)
+          g.lineTo(x0 + w / 2 - 18, h * 0.38)
+          g.stroke()
+        }
+        leaf(0)
+        leaf(w / 2)
+        g.fillStyle = '#d8d2c4'
+        g.fillRect(w / 2 - 2, 0, 4, h)
+      },
+      { kind: 'color' }
+    )
+    const doorEm = paintTexture(
+      THREE,
+      64,
+      128,
+      (g, w, h) => {
+        g.fillStyle = '#000'
+        g.fillRect(0, 0, w, h)
+        g.fillStyle = '#9ab'
+        for (const x0 of [0, w / 2]) {
+          g.beginPath()
+          g.moveTo(x0 + 5, h * 0.55)
+          g.lineTo(x0 + 5, h * 0.2)
+          g.arc(x0 + w / 4, h * 0.2, w / 4 - 5, Math.PI, 0)
+          g.lineTo(x0 + w / 2 - 5, h * 0.55)
+          g.fill()
+        }
+      },
+      { kind: 'color' }
+    )
+    const door = new THREE.Mesh(new THREE.PlaneGeometry(2.4, 3.6), new THREE.MeshStandardMaterial({ map: doorTex, emissiveMap: doorEm, emissive: 0xffffff, emissiveIntensity: 1.1, roughness: 0.4 }))
+    door.position.set(1.3, 1.8, FZ0 + 0.02)
+    scene.add(door)
+    for (const [w, h, x, y] of [[0.22, 4.6, 0.0, 0], [0.22, 4.6, 2.6, 0], [2.8, 0.24, 1.3, 4.6]]) box(whitePaint, [1, 1], w, h, 0.14, x, y, FZ0 + 0.07)
+    // the fanlight over the doors
+    const fan = new THREE.Mesh(new THREE.CircleGeometry(0.95, 24, 0, Math.PI), new THREE.MeshStandardMaterial({ color: 0xcfe0ea, emissive: 0x9ab0c0, emissiveIntensity: 1.0, roughness: 0.1 }))
+    fan.position.set(1.3, 3.65, FZ0 + 0.03)
+    scene.add(fan)
+    for (let k = 1; k < 6; k++) {
+      const a = (k / 6) * Math.PI
+      B.add(whitePaint, new THREE.BoxGeometry(0.035, 0.95, 0.03).translate(0, 0.475, 0).rotateZ(a - Math.PI / 2).translate(1.3, 3.65, FZ0 + 0.05))
+    }
+    // the brass urn of red ilex berries
+    const urn = new THREE.LatheGeometry([0.3, 0.36, 0.38, 0.4, 0.42, 0.44, 0.46, 0.48].map((r, i) => new THREE.Vector2(r, i * 0.2)), 24)
+    B.add(brass, urn.translate(-2.4, 0, FZ0 + 0.9))
+    const berries = []
+    const twigs = beamBatch(THREE)
+    for (let t = 0; t < (low ? 40 : 90); t++) {
+      const a = rand() * Math.PI * 2
+      const el = range(rand, 0.15, 1.4)
+      const len = range(rand, 0.6, 1.25)
+      const base = V(-2.4 + Math.cos(a) * 0.15, 1.4, FZ0 + 0.9 + Math.sin(a) * 0.15)
+      const dir = V(Math.cos(a) * Math.cos(el), Math.sin(el) + 0.2, Math.sin(a) * Math.cos(el) * 0.6).normalize()
+      const tip = base.clone().addScaledVector(dir, len)
+      twigs.add(base, tip, 0.012)
+      for (let b = 0; b < (low ? 6 : 12); b++) berries.push(base.clone().lerp(tip, 0.35 + rand() * 0.65).add(V(range(rand, -0.06, 0.06), range(rand, -0.05, 0.05), range(rand, -0.06, 0.06))))
+    }
+    scene.add(twigs.build(new THREE.MeshStandardMaterial({ color: 0x4a3426, roughness: 0.8 }), { castShadow: false }))
+    const bm = new THREE.InstancedMesh(new THREE.IcosahedronGeometry(0.03, 1), new THREE.MeshStandardMaterial({ color: 0xc80f1c, roughness: 0.25 }), berries.length)
+    const m = new THREE.Matrix4()
+    berries.forEach((p, i) => bm.setMatrixAt(i, m.makeTranslation(p.x, p.y, p.z)))
+    scene.add(bm)
+    const l = new THREE.PointLight(0xfff0dc, 14, 16, 2)
+    l.position.set(0, 4.6, -7)
+    scene.add(l)
+  }
+
+  /* the new foyer: white curved walls, a curving red stair behind glass ----- */
+  {
+    const C = [16.5, -8.5]
+    const R0 = 2.6
+    const R1 = 5.4
+    const sector = (a0, a1, r0, r1, y0, h) => {
+      const pts = []
+      const seg = 4
+      for (let k = 0; k <= seg; k++) {
+        const a = a0 + ((a1 - a0) * k) / seg
+        pts.push(new THREE.Vector2(C[0] + Math.cos(a) * r1, -(C[1] + Math.sin(a) * r1)))
+      }
+      for (let k = seg; k >= 0; k--) {
+        const a = a0 + ((a1 - a0) * k) / seg
+        pts.push(new THREE.Vector2(C[0] + Math.cos(a) * r0, -(C[1] + Math.sin(a) * r0)))
+      }
+      const g = new THREE.ExtrudeGeometry(new THREE.Shape(pts), { depth: h, bevelEnabled: false })
+      g.rotateX(-Math.PI / 2)
+      g.translate(0, y0, 0)
+      scaleUV(g, 0.5, 0.5)
+      return g
+    }
+    const STEPS = 16
+    const A0 = Math.PI
+    const A1 = Math.PI * 0.5
+    const glassPts = []
+    for (let k = 0; k < STEPS; k++) {
+      const a0 = A0 + ((A1 - A0) * k) / STEPS
+      const a1 = A0 + ((A1 - A0) * (k + 1)) / STEPS
+      const top = (k + 1) * RISE
+      B.add(carpet, sector(a0, a1, R0, R1, 0, top))
+      glassPts.push([a0, top])
+    }
+    glassPts.push([A1, STEPS * RISE])
+    // the white stringer on the outside, the glass balustrade on the inside, a steel rail
+    const strip = (r, yOff, h) => {
+      const pos = []
+      for (let k = 0; k < glassPts.length - 1; k++) {
+        const [a0, y0] = glassPts[k]
+        const [a1, y1] = glassPts[k + 1]
+        const p0 = [C[0] + Math.cos(a0) * r, C[1] + Math.sin(a0) * r]
+        const p1 = [C[0] + Math.cos(a1) * r, C[1] + Math.sin(a1) * r]
+        const b0 = y0 + yOff
+        const b1 = y1 + yOff
+        pos.push(p0[0], b0, p0[1], p1[0], b1, p1[1], p1[0], b1 + h, p1[1], p0[0], b0, p0[1], p1[0], b1 + h, p1[1], p0[0], b0 + h, p0[1])
+      }
+      const g = new THREE.BufferGeometry()
+      g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3))
+      g.computeVertexNormals()
+      g.setAttribute('uv', new THREE.Float32BufferAttribute(new Float32Array((pos.length / 3) * 2), 2))
+      return g
+    }
+    const stringer = new THREE.Mesh(strip(R1 + 0.02, -0.4, 0.55), new THREE.MeshStandardMaterial({ color: 0xf4f2ee, roughness: 0.4, side: THREE.DoubleSide }))
+    scene.add(stringer)
+    const glassB = new THREE.Mesh(strip(R0 - 0.02, 0.05, 1.0), glassClear)
+    scene.add(glassB)
+    const rail = beamBatch(THREE)
+    for (let k = 0; k < glassPts.length - 1; k++) {
+      const [a0, y0] = glassPts[k]
+      const [a1, y1] = glassPts[k + 1]
+      rail.add(V(C[0] + Math.cos(a0) * (R0 - 0.02), y0 + 1.07, C[1] + Math.sin(a0) * (R0 - 0.02)), V(C[0] + Math.cos(a1) * (R0 - 0.02), y1 + 1.07, C[1] + Math.sin(a1) * (R0 - 0.02)), 0.05, 0.05)
+    }
+    scene.add(rail.build(new THREE.MeshStandardMaterial({ color: 0xcfd3d6, roughness: 0.2, metalness: 1 })))
+    // the upper landing it reaches, and the curved white wall round it all
+    box(whitePaint, [2, 2], 5.9, 0.3, 5.6, 19.45, STEPS * RISE - 0.3, -3.2)
+    box(carpet, [3.0, 1.4], 5.8, 0.012, 5.4, 19.45, STEPS * RISE, -3.2)
+    const wall = new THREE.CylinderGeometry(R1 + 0.6, R1 + 0.6, 7, 40, 1, true, Math.PI * 1.68, Math.PI * 0.34)
+    wall.translate(C[0], 3.5, C[1])
+    const wm = new THREE.MeshStandardMaterial({ color: 0xe6e3dc, roughness: 0.6, side: THREE.DoubleSide })
+    B.add(wm, wall)
+    box(wm, [2, 2], 0.3, 7, 12, 22.4, 0, -6)
+    box(wm, [2, 2], 15.4, 7, 0.3, 14.7, 0, -12.15)
+    box(wm, [2, 2], 15.4, 7, 0.3, 14.7, 0, 0.15)
+    box(wm, [2, 2], 15.4, 0.3, 12.6, 14.7, 7, -6)
+    // a dark doorway at the top of the stair, and recessed downlights in the ceiling
+    box(new THREE.MeshStandardMaterial({ color: 0x1b1714, roughness: 0.8 }), [1, 1], 0.05, 2.9, 2.4, 22.22, STEPS * RISE, -3.2)
+    const spotM = new THREE.MeshStandardMaterial({ color: 0xffffff, emissive: 0xfff2dc, emissiveIntensity: 3 })
+    for (let x = 9; x < 22; x += 2.4) for (let z = -11; z < 0; z += 2.6) {
+      const d = new THREE.Mesh(new THREE.CircleGeometry(0.07, 12), spotM)
+      d.rotation.x = Math.PI / 2
+      d.position.set(x, 6.98, z)
+      scene.add(d)
+    }
+    for (const [x, z] of [[11, -4], [17, -8]]) {
+      const l = new THREE.PointLight(0xfff0de, 7, 14, 2)
+      l.position.set(x, 6.2, z)
+      scene.add(l)
+    }
+  }
+
+  B.build(scene)
+
+  /* the room's own light probe: cream above, warm walls round, the red carpet below --- */
+  {
+    const W = 64
+    const H = 32
+    const toHalf = THREE.DataUtils.toHalfFloat
+    const data = new Uint16Array(W * H * 4)
+    for (let j = 0; j < H; j++) {
+      const lat = ((j + 0.5) / H - 0.5) * Math.PI
+      const y = Math.sin(lat)
+      for (let i = 0; i < W; i++) {
+        const lon = ((i + 0.5) / W - 0.5) * Math.PI * 2
+        const dx = Math.cos(lon) * Math.cos(lat)
+        let c
+        if (y > 0.25) c = [0.92, 0.88, 0.8]
+        else if (y > -0.2) c = [0.55, 0.47, 0.38]
+        else c = [0.42, 0.3, 0.26]
+        // the window to the west
+        if (dx < -0.75 && y > 0.1 && y < 0.6) c = [3.2, 3.1, 2.9]
+        const k = (j * W + i) * 4
+        data[k] = toHalf(c[0])
+        data[k + 1] = toHalf(c[1])
+        data[k + 2] = toHalf(c[2])
+        data[k + 3] = toHalf(1)
+      }
+    }
+    const env = new THREE.DataTexture(data, W, H, THREE.RGBAFormat, THREE.HalfFloatType)
+    env.mapping = THREE.EquirectangularReflectionMapping
+    env.minFilter = env.magFilter = THREE.LinearFilter
+    env.generateMipmaps = false
+    env.needsUpdate = true
+    scene.traverse((o) => {
+      const ms = Array.isArray(o.material) ? o.material : o.material ? [o.material] : []
+      for (const m of ms) if (m.isMeshStandardMaterial && !m.envMap) m.envMap = env
+    })
+  }
+
+  world.focusShadows(V(0, 4, 4), 16)
+
+  /* --- the views: one per photograph (1, 2, 6, 7, 8, 9) ------------------------------ */
+  const spots = [
+    // 0 · photo 1: in the new foyer at the foot of the curving red stair
+    { pos: V(9.6, 1.5, -9.2), look: V(14.6, 3.0, -5.6) },
+    // 1 · photo 2: in the white foyer, the arched double doors and the urn of berries
+    { pos: V(0.6, 1.55, -6.0), look: V(0.7, 2.3, -12) },
+    // 2 · photo 6: low at the foot of the main flight, up to the landing, the mirror and the lantern
+    { pos: V(0, 1.15, 0.05), look: V(0, 6.6, 9.6) },
+    // 3 · photo 7: from the lower left of the flight, up and across to the cabinet and its bouquet
+    { pos: V(-1.25, 1.35, 0.9), look: V(1.8, 3.8, 9.0) },
+    // 4 · photo 8: low on the right, steeply up past the oak doors to the lantern
+    { pos: V(1.0, 0.75, 0.15), look: V(-0.6, 6.8, 8.0) },
+    // 5 · photo 9: held high over the top of the flight, down onto the landing and the bouquet
+    { pos: V(1.2, 4.6, 4.8), look: V(-2.2, 2.6, 8.6) },
+  ]
+  const path = {
+    positions: [V(0.5, 3.2, -6.5), V(4.5, 2.4, -7.5), V(8.0, 1.8, -8.4), spots[0].pos.clone()],
+    targets: [V(0, 2, -12), V(8, 2.4, -8), V(13, 2.8, -6.5), spots[0].look.clone()],
+    fov: 54,
+    near: 0.1,
+    spots,
+  }
+  const groundAt = (x, z) => {
+    if (Math.abs(x) < 1.85 && z > Z0 && z < LZ) return Math.ceil((z - Z0) / TREAD) * RISE
+    return 0
+  }
+  return { scene, world, path, groundAt, clearance: 0.5, update() {} }
+}
+
 /* --- the place ------------------------------------------------------------------- */
 
-export function buildLeidseplein(THREE, ctx, { light = 'day' } = {}) {
+export function buildLeidseplein(THREE, ctx, { light = 'day', variant = 'square' } = {}) {
+  if (variant === 'hotel') return buildHotel(THREE, ctx)
+  // a crisp, clear winter afternoon: deep blue overhead whatever the photo's sky reads as
+  ctx.sky = null
   const world = createWorld(THREE, ctx, light, {
     // a low winter sun from the south-west, behind the hotel as you face it
-    sun: { elevation: 14, azimuth: 214 },
-    fog: { density: 0.0017 },
+    sun: { elevation: 16, azimuth: 214 },
+    sky: { zenith: 0x3b74c4, horizon: 0xc9dcee, ground: 0x9a968c, sun: 0xfff1d8, cloudLit: 0xffffff, cloudShade: 0xc6d0de, clouds: 0.32 },
+    fog: { density: 0.0007 },
     sunColor: 0xfff0dc,
-    sunIntensity: 2.1,
+    sunIntensity: 2.3,
   })
   const { scene } = world
   const rand = seeded(1883)
@@ -1529,8 +2251,15 @@ export function buildLeidseplein(THREE, ctx, { light = 'day' } = {}) {
 
   /* --- the views ------------------------------------------------------------------- */
 
+  // Amara's photos 3, 4, 5 → spots 1, 2, 0 (views [1, 2, 0]); the rest for browsing
   const spots = [
-    // the hero: at the fountain's edge, across the water and the lit trees to the hotel
+    // 0 · photo 5 (hero): low by the fountain's rim, up past the lit trees into the sky
+    { pos: V(4.5, 0.95, 10.8), look: V(-6, 17, -40) },
+    // 1 · photo 3: across the square to the domed corner where Leidsestraat leaves it
+    { pos: V(-8, 1.6, 26), look: V(60, 14, 13) },
+    // 2 · photo 4: at the rim, the jets on the left, the hotel block over the canal behind
+    { pos: V(-2, 1.45, 11.6), look: V(-12, 6.5, -60) },
+    // the hero's older framing: at the fountain's edge, across the water and the lit trees to the hotel
     { pos: V(2.5, 1.6, 11.5), look: V(-4, 9, -60) },
     // from the west rim: the stepped basins, the jets, the hotel block behind
     { pos: V(-10, 1.7, 4), look: V(6, 6.5, -70) },

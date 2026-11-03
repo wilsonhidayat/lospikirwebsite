@@ -49,15 +49,35 @@ function bedY(x, z) {
   const d = z - shoreZ(x)
   return d > 0 ? d * 0.035 : Math.max(-7, d * 0.028)
 }
-// bowls the wind has scooped out of the dunes: bare sand
+// bowls the wind has scooped out of the dunes: bare sand (kept out of the
+// photographs' views, which show an unbroken sea of grass)
 const BLOWOUTS = [
-  { x: 48, z: -52, r: 20, d: 4.5 },
-  { x: -62, z: 8, r: 26, d: 5.5 },
-  { x: 130, z: -20, r: 22, d: 5 },
   { x: -150, z: -58, r: 24, d: 5 },
-  { x: 70, z: 60, r: 30, d: 6 },
+  { x: 40, z: 150, r: 28, d: 6 },
   { x: -20, z: 120, r: 26, d: 5 },
 ]
+// a trodden track (an "olifantenpad") through the grass where the couple
+// walked toward the sea in photos 8 and 9: a polyline in (x, z)
+const TRAIL = [
+  [22, -66],
+  [18, -76],
+  [14, -84],
+  [13.5, -92],
+  [16, -100],
+  [19, -108],
+]
+function trailDist(x, z) {
+  let best = 1e9
+  for (let i = 0; i < TRAIL.length - 1; i++) {
+    const [ax, az] = TRAIL[i]
+    const [bx, bz] = TRAIL[i + 1]
+    const dx = bx - ax
+    const dz = bz - az
+    const t = Math.max(0, Math.min(1, ((x - ax) * dx + (z - az) * dz) / (dx * dx + dz * dz)))
+    best = Math.min(best, Math.hypot(x - ax - dx * t, z - az - dz * t))
+  }
+  return best
+}
 
 /** Ground height at (x, z). */
 function duneH(x, z) {
@@ -72,7 +92,7 @@ function duneH(x, z) {
   const rh = (7.5 + 6 * fbm(x * 0.006 + 5, 1.3, 3)) * notch
   const ridge = dz < 0 ? rh * Math.exp(-(dz * dz) / 150) : rh * Math.exp(-((dz / 34) ** 4))
   // older dunes inland: ridged crests and soft hollows
-  const inland = smoothstep(crest + 10, crest + 60, z)
+  const inland = smoothstep(crest + 20, crest + 85, z)
   const roll = (1 + 11 * ridged(x * 0.0105 + 3.1, z * 0.0135 - 1.7, 4) + 3 * fbm(x * 0.028 + 7, z * 0.028, 3)) * inland
   let h = smax(ridge, roll, 6)
   // hummocks round the grass tussocks
@@ -84,12 +104,39 @@ function duneH(x, z) {
   // the path is a shallow trough trodden into the sand
   const trough = Math.max(0, 1 - pathD / 3)
   h -= trough * trough * 0.7
+  const td = trailDist(x, z)
+  if (td < 1) h -= (1 - td) * (1 - td) * 0.18
   h *= smoothstep(foot - 12, foot + 4, z)
   return beach + h
 }
 
+/**
+ * Where each photograph was taken from. Azimuths in degrees (0 → +Z, 90 → +X,
+ * 180 → −Z toward the sea); pitch in degrees (negative = looking down).
+ * Photos 8–12 in the grass on the foredune's plateau, 13–14 on the beach.
+ */
+const DUNE_VIEWS = [
+  // 8 · the hero: the couple walking away down the trodden track toward the
+  // sea, the water bright on the left under the low sun, a dune shoulder right
+  { x: 12.5, z: -82, eye: 1.55, az: 182, pitch: -4.5 },
+  // 9 · a few steps on, lower, the same way: more sky, the sea a thin band
+  { x: 14.5, z: -86.5, eye: 1.35, az: 186, pitch: -2.0 },
+  // 10 · turned along the dunes: grass to a level horizon, no sea, blue sky
+  { x: 21, z: -80, eye: 1.5, az: 292, pitch: -2.5 },
+  // 11 · inland, the sun behind-left: the far ridge with dark shrubs, a roof
+  { x: 24.5, z: -74.5, eye: 1.4, az: 64, pitch: -3.0 },
+  // 12 · straight away from the sun: the grass lit full-face, low horizon
+  { x: 19.5, z: -72, eye: 1.5, az: 34, pitch: -1.5 },
+]
+const BEACH_VIEWS = [
+  // 13 · on the dry beach among the footprints, the sun low right of centre over the sea
+  { x: -6, z: -146, eye: 1.6, az: 229, pitch: -5.0 },
+  // 14 · at the water's edge, the wet sand a mirror, the sun just left of centre
+  { x: -34, z: null, eye: 1.45, az: 206, pitch: -2.0 },
+]
+
 /** How much marram grows here (0 bare sand … 1 dense). */
-function grassiness(x, z) {
+function grassiness(x, z, trail = true) {
   const foot = footZ(x)
   if (z < foot + 1) return 0
   let g = smoothstep(foot + 1, foot + 13, z)
@@ -98,7 +145,12 @@ function grassiness(x, z) {
     const q = ((x - b.x) ** 2 + (z - b.z) ** 2) / (b.r * b.r)
     if (q < 1) g *= smoothstep(0.3, 0.95, q)
   }
-  g *= 0.4 + 0.6 * smoothstep(0.3, 0.56, fbm(x * 0.045 + 11, z * 0.045 - 3, 3))
+  // the trodden track: a narrow parting in the grass
+  if (trail) g *= 0.25 + 0.75 * smoothstep(0.25, 0.75, trailDist(x, z))
+  // behind the foredune the grass closes into a continuous golden sward, only
+  // thinning here and there
+  const close = smoothstep(crestZ(x) - 6, crestZ(x) + 8, z)
+  g *= 0.62 + 0.38 * Math.max(close, smoothstep(0.3, 0.56, fbm(x * 0.045 + 11, z * 0.045 - 3, 3)))
   return g
 }
 
@@ -149,7 +201,7 @@ function surfPatch(THREE, mat) {
           float s0 = swellH(vWorld.xz, uTime);
           float sx = swellH(vWorld.xz + vec2(se, 0.0), uTime);
           float sz = swellH(vWorld.xz + vec2(0.0, se), uTime);
-          n = normalize(n + vec3(-(sx - s0) / se, 0.0, -(sz - s0) / se) * (1.3 / (1.0 + dist * 0.004)));
+          n = normalize(n + vec3(-(sx - s0) / se, 0.0, -(sz - s0) / se) * (0.7 / (1.0 + dist * 0.004)));
         }
         ${fA}`
       )
@@ -224,7 +276,7 @@ function grassPatch(mat, U) {
         `#include <emissivemap_fragment>
         vec3 sunV = normalize((viewMatrix * vec4(uSunDirW, 0.0)).xyz);
         float backLit = pow(max(dot(normalize(-vViewPosition), sunV), 0.0), 4.0);
-        totalEmissiveRadiance += diffuseColor.rgb * uSunTint * (backLit * 1.1 * (0.2 + vTipF) + 0.06);`
+        totalEmissiveRadiance += diffuseColor.rgb * uSunTint * (backLit * 0.8 * (0.2 + vTipF) + 0.05);`
       )
   }
 }
@@ -240,9 +292,9 @@ function tussockGeometry(THREE, rand) {
   const up = new THREE.Vector3(0, 1, 0)
   const cBase = new THREE.Color(0x4f4826)
   const cMid = new THREE.Color(0x9a8448)
-  const cTip = new THREE.Color(0xd8bd80)
+  const cTip = new THREE.Color(0xcfb075)
   const cStalk = new THREE.Color(0xbfa66a)
-  const cPlume = new THREE.Color(0xf2dfae)
+  const cPlume = new THREE.Color(0xd9bf8c)
   const tmp = new THREE.Color()
   const strip = (pts, widths, side, n, colors) => {
     const start = pos.length / 3
@@ -258,8 +310,8 @@ function tussockGeometry(THREE, rand) {
       }
     })
   }
-  // leaves
-  for (let b = 0; b < 14; b++) {
+  // leaves: thin, rolled, mostly upright with a few arching over
+  for (let b = 0; b < 15; b++) {
     const a = rand() * Math.PI * 2
     const out = new THREE.Vector3(Math.cos(a), 0, Math.sin(a))
     const side = new THREE.Vector3(-Math.sin(a), 0, Math.cos(a))
@@ -280,30 +332,33 @@ function tussockGeometry(THREE, rand) {
       cols.push(t < 0.5 ? tmp.copy(cBase).lerp(cMid, t * 2).clone() : tmp.copy(cMid).lerp(cTip, t * 2 - 1).clone())
     }
     const n = up.clone().multiplyScalar(0.75).addScaledVector(out, 0.45).normalize()
-    strip(pts, [0.022, 0.017, 0.011, 0.002], side, n, cols)
+    strip(pts, [0.016, 0.013, 0.008, 0.0015], side, n, cols)
   }
-  // plumed stalks, taller than the leaves
-  for (let b = 0; b < 3; b++) {
+  // plumed stalks, taller than the leaves: the feathery seed heads that
+  // catch the low sun all over the dunes in the photographs
+  for (let b = 0; b < 6; b++) {
     const a = rand() * Math.PI * 2
     const out = new THREE.Vector3(Math.cos(a), 0, Math.sin(a))
     const side = new THREE.Vector3(-Math.sin(a), 0, Math.cos(a))
     const root = out.clone().multiplyScalar(rand() * 0.06)
-    const H = range(rand, 0.85, 1.15)
-    const lean = range(rand, 0.05, 0.28)
+    const H = range(rand, 0.8, 1.2)
+    const lean = range(rand, 0.05, 0.32)
     const dir = up.clone().multiplyScalar(Math.cos(lean)).addScaledVector(out, Math.sin(lean))
     const top = root.clone().addScaledVector(dir, H)
     const n = up.clone().multiplyScalar(0.8).addScaledVector(out, 0.35).normalize()
-    strip([root, root.clone().addScaledVector(dir, H * 0.5), top], [0.012, 0.009, 0.006], side, n, [cBase, cStalk, cStalk])
-    // the plume: a spindle, two crossed strips, nodding a little
-    const pdir = dir.clone().addScaledVector(out, 0.35).normalize()
-    const L = range(rand, 0.16, 0.26)
+    strip([root, root.clone().addScaledVector(dir, H * 0.5), top], [0.008, 0.006, 0.004], side, n, [cBase, cStalk, cStalk])
+    // the plume: a soft, slightly open panicle, two crossed strips, nodding
+    const pdir = dir.clone().addScaledVector(out, range(rand, 0.25, 0.7)).normalize()
+    const L = range(rand, 0.17, 0.3)
     const p1 = top.clone().addScaledVector(pdir, L * 0.5)
     const p2 = top.clone().addScaledVector(pdir, L)
     const side2 = new THREE.Vector3().crossVectors(pdir, side).normalize()
-    // a slender cylindrical spike, not a leaf: narrow, evenly thick, tapering at the tip
     const pa = top.clone().addScaledVector(pdir, L * 0.15)
     const pb = top.clone().addScaledVector(pdir, L * 0.8)
-    for (const s of [side, side2]) strip([top, pa, p1, pb, p2], [0.006, 0.018, 0.02, 0.016, 0.003], s, n, [cStalk, cPlume, cPlume, cPlume, cPlume])
+    const fat = range(rand, 0.8, 1.35)
+    tmp.copy(cPlume).multiplyScalar(range(rand, 0.9, 1.06))
+    const pc = tmp.clone()
+    for (const s of [side, side2]) strip([top, pa, p1, pb, p2], [0.004, 0.013 * fat, 0.017 * fat, 0.012 * fat, 0.003], s, n, [cStalk, pc, pc, pc, pc])
   }
   const g = new THREE.BufferGeometry()
   g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3))
@@ -382,9 +437,9 @@ function tussockTexture(THREE, seed) {
       const t = k / 13
       const px = tx + lean * 40 * t
       const py = ty - t * 60
-      g.fillStyle = `rgba(${236 + range(rand, -12, 12)},${214 + range(rand, -12, 12)},${160 + range(rand, -12, 12)},1)`
+      g.fillStyle = `rgba(${214 + range(rand, -12, 12)},${190 + range(rand, -12, 12)},${136 + range(rand, -12, 12)},1)`
       g.beginPath()
-      g.ellipse(px + range(rand, -3, 3), py, 5 * Math.sin(Math.PI * Math.min(1, t * 1.1 + 0.05)) + 1.2, 6, lean, 0, Math.PI * 2)
+      g.ellipse(px + range(rand, -2, 2), py, 3.4 * Math.sin(Math.PI * Math.min(1, t * 1.1 + 0.05)) + 1.2, 6, lean, 0, Math.PI * 2)
       g.fill()
     }
   }
@@ -425,14 +480,36 @@ function tussockTexture(THREE, seed) {
 
 export function buildCoast(THREE, ctx, { light = 'sunset' } = {}) {
   const sunset = light === 'sunset'
-  const world = createWorld(THREE, ctx, light, {
+  // a fine evening: our own clear sky (the photos' skies are pale and hazy),
+  // deep blue overhead, warm apricot at the horizon, a few lit clouds
+  ctx.sky = null
+  const world = createWorld(THREE, ctx, 'golden', {
     // low over the sea, a little to the left as you face the water
-    sun: { elevation: sunset ? 6 : 11, azimuth: 206 },
-    fog: { density: 0.0014 },
-    sunColor: sunset ? 0xffc38c : 0xffd6a4,
-    sunIntensity: sunset ? 2.5 : 2.3,
+    sun: { elevation: sunset ? 6.5 : 11, azimuth: 214 },
+    sky: { zenith: 0x2f63b2, horizon: 0xd2d9dd, ground: 0xb89c7a, sun: 0xffd9a0, cloudLit: 0xfff0dc, cloudShade: 0x9a9cab, clouds: 0.3 },
+    fog: { density: 0.00075 },
+    sunColor: sunset ? 0xffc58e : 0xffd6a4,
+    sunIntensity: sunset ? 2.7 : 2.4,
+    hemi: [0xc6d6ef, 0x8c7552, 0.85],
+    water: { deep: 0x42637a, shallow: 0x7896a0, stroke: 0xf6e3c8 },
   })
   const { scene } = world
+  // a warm glow low round the setting sun, cooler blue away from it
+  {
+    const sm = world.sky.material
+    sm.fragmentShader = sm.fragmentShader.replace(
+      'gl_FragColor = vec4(col, 1.0);',
+      `float lowSky = 1.0 - smoothstep(-0.02, 0.45, h);
+        // the band of apricot and gold along the horizon under the sun
+        // (linear values: a deep apricot, a burning gold at the core)
+        col = mix(col, vec3(1.0, 0.42, 0.13) * 1.1, pow(sd, 2.2) * lowSky * 0.7 * day);
+        col += vec3(1.0, 0.36, 0.08) * pow(sd, 10.0) * 0.6 * lowSky * day;
+        col += vec3(1.0, 0.56, 0.22) * pow(sd, 3.0) * 0.16 * (1.0 - lowSky) * day;
+        col = mix(col, col * vec3(0.92, 0.98, 1.08), (1.0 - sd) * 0.3);
+        gl_FragColor = vec4(col, 1.0);`
+    )
+    sm.needsUpdate = true
+  }
   const low = ctx.quality === 'low'
   const rand = seeded(2025)
   const V = (x, y, z) => new THREE.Vector3(x, y, z)
@@ -445,18 +522,21 @@ export function buildCoast(THREE, ctx, { light = 'sunset' } = {}) {
   /* --- terrain ----------------------------------------------------------- */
 
   // one grid, fine (≈1 m) where the viewpoints are, stretching coarser to the haze
-  const NX = low ? 170 : 300
-  const NZ = low ? 150 : 260
+  const NX = low ? 170 : 280
+  const NZ = low ? 150 : 240
   const geo = new THREE.PlaneGeometry(2, 2, NX, NZ)
   geo.rotateX(-Math.PI / 2)
   const pos = geo.attributes.position
   const uv = geo.attributes.uv
   const colors = new Float32Array(pos.count * 3)
   const wetA = new Float32Array(pos.count)
-  const cSand = new THREE.Color(1, 0.99, 0.97)
+  const grassA = new Float32Array(pos.count)
+  const trodA = new Float32Array(pos.count)
+  const cSand = new THREE.Color(0.96, 0.89, 0.78)
   const cPath = new THREE.Color(1.06, 1.03, 0.99)
-  const cGrass = new THREE.Color(0.46, 0.42, 0.26)
-  const cGrassDark = new THREE.Color(0.27, 0.26, 0.16)
+  const cGrass = new THREE.Color(0.6, 0.49, 0.28)
+  const cGrassDark = new THREE.Color(0.4, 0.33, 0.18)
+  const cStraw = new THREE.Color(0.86, 0.74, 0.5)
   const cShrub = new THREE.Color(0.25, 0.27, 0.17)
   const cWet = new THREE.Color(0.44, 0.4, 0.38)
   const cSoaked = new THREE.Color(0.33, 0.31, 0.3)
@@ -471,12 +551,16 @@ export function buildCoast(THREE, ctx, { light = 'sunset' } = {}) {
     pos.setXYZ(i, x, h, z)
     uv.setXY(i, x / 4, z / 4)
     const shore = shoreZ(x)
-    const g = grassiness(x, z)
+    // the ground's colour ignores the trodden track: it is thatch there too
+    const g = grassiness(x, z, false)
     const n1 = fbm(x * 0.07 + 3, z * 0.07, 3)
+    // seen from afar the dunes read as the grass tops: straw, not thatch
+    const afar = smoothstep(35, 140, Math.hypot(x - 17, z + 79))
     c.copy(cSand).multiplyScalar(0.94 + 0.12 * n1)
     if (Math.abs(x - pathX(z)) < 2.2 && z > footZ(x) - 4) c.lerp(cPath, 0.8)
     c.lerp(cGrass, smoothstep(0, 0.5, g) * 0.9)
-    c.lerp(cGrassDark, smoothstep(0.45, 1, g) * (0.4 + 0.5 * n1))
+    c.lerp(cGrassDark, smoothstep(0.45, 1, g) * (0.4 + 0.5 * n1) * (1 - afar))
+    c.lerp(cStraw, smoothstep(0.3, 0.8, g) * afar * 0.85)
     c.lerp(cShrub, shrubbiness(x, z) * 0.85)
     // the tide line: a dark ribbon of shells and weed
     const tl = z - (shore + 34 + 3 * Math.sin(x * 0.05))
@@ -486,24 +570,102 @@ export function buildCoast(THREE, ctx, { light = 'sunset' } = {}) {
     const soaked = smoothstep(shore + 7, shore + 1, z)
     c.lerp(cWet, wet * 0.9).lerp(cSoaked, soaked)
     wetA[i] = Math.min(1, wet * 0.65 + soaked * 0.35)
+    // under the grass: no wind ripples, a mat of old thatch
+    grassA[i] = smoothstep(0.05, 0.45, g) * (1 - afar * 0.7)
+    // footprints all over the dry beach and along the paths
+    const foot = footZ(x)
+    const onBeach = smoothstep(shore + 6, shore + 16, z) * (1 - smoothstep(foot - 2, foot + 4, z))
+    const onPath = (1 - smoothstep(1.2, 3.2, Math.abs(x - pathX(z)))) * smoothstep(foot - 6, foot, z)
+    const nearPost = Math.exp(-((x + 15) ** 2) / 9000) // busiest round the beach entrance
+    trodA[i] = Math.min(1, onBeach * (0.35 + 0.65 * nearPost) + onPath)
     colors[i * 3] = c.r
     colors[i * 3 + 1] = c.g
     colors[i * 3 + 2] = c.b
   }
   geo.setAttribute('color', new THREE.BufferAttribute(colors, 3))
   geo.setAttribute('aWet', new THREE.BufferAttribute(wetA, 1))
+  geo.setAttribute('aGrass', new THREE.BufferAttribute(grassA, 1))
+  geo.setAttribute('aTrod', new THREE.BufferAttribute(trodA, 1))
   geo.computeVertexNormals()
   geo.computeBoundingSphere()
-  const sandMat = M.sand(THREE, { color: '#d8c19c', tile: 4, quality: ctx.quality, seed: 61 })
+  // soft wind ripples only (the dunes and beach in the photos are trampled,
+  // not combed): the texture keeps grain and tone, the shader adds the rest
+  const sandMat = M.sand(THREE, { color: '#dcc29a', ripples: false, tile: 4, quality: ctx.quality, seed: 61 })
   sandMat.vertexColors = true
   sandMat.onBeforeCompile = (sh) => {
     sh.vertexShader = sh.vertexShader
-      .replace('#include <common>', '#include <common>\nattribute float aWet;\nvarying float vWet;')
-      .replace('#include <begin_vertex>', '#include <begin_vertex>\nvWet = aWet;')
+      .replace('#include <common>', '#include <common>\nattribute float aWet;\nattribute float aGrass;\nattribute float aTrod;\nvarying float vWet;\nvarying float vGrass;\nvarying float vTrod;\nvarying vec3 vSandW;')
+      .replace('#include <begin_vertex>', '#include <begin_vertex>\nvWet = aWet;\nvGrass = aGrass;\nvTrod = aTrod;\nvSandW = (modelMatrix * vec4(transformed, 1.0)).xyz;')
     sh.fragmentShader = sh.fragmentShader
-      .replace('#include <common>', '#include <common>\nvarying float vWet;')
-      .replace('#include <roughnessmap_fragment>', '#include <roughnessmap_fragment>\nroughnessFactor = mix(roughnessFactor, 0.06, vWet);')
-      .replace('#include <normal_fragment_maps>', '#include <normal_fragment_maps>\nnormal = normalize(mix(normal, normalize(vNormal), vWet * 0.85));')
+      .replace(
+        '#include <common>',
+        `#include <common>
+        varying float vWet; varying float vGrass; varying float vTrod; varying vec3 vSandW;
+        float sHash(vec2 p) { p = fract(p * vec2(123.34, 456.21)); p += dot(p, p + 45.32); return fract(p.x * p.y); }
+        float sNoise(vec2 p) {
+          vec2 i = floor(p); vec2 f = fract(p); vec2 u = f * f * (3.0 - 2.0 * f);
+          return mix(mix(sHash(i), sHash(i + vec2(1.0, 0.0)), u.x), mix(sHash(i + vec2(0.0, 1.0)), sHash(i + vec2(1.0, 1.0)), u.x), u.y);
+        }
+        // footprints: one (or none) per cell, a toe blob and a heel blob with
+        // ragged edges, of all sizes and depths, three overlapping layers
+        float sPrint(vec2 p, float sc, float seed) {
+          vec2 q = p / sc;
+          vec2 cell = floor(q);
+          vec2 f = q - cell;
+          float h = sHash(cell + seed);
+          if (h > 0.68) return 0.0;
+          float a = sHash(cell + 7.3 + seed) * 6.2832;
+          vec2 c = vec2(0.5) + (vec2(sHash(cell + 1.7 + seed), sHash(cell + 3.1 + seed)) - 0.5) * 0.36;
+          vec2 d = f - c;
+          d = vec2(cos(a) * d.x + sin(a) * d.y, -sin(a) * d.x + cos(a) * d.y);
+          float sz = (0.7 + 0.55 * sHash(cell + 5.9 + seed)) * 0.55 / sc;
+          float rag = (sNoise(p * 11.0 + seed) - 0.5) * 0.05;
+          float r1 = length((d - vec2(0.0, 0.08)) * vec2(1.0, 0.8)) / sz + rag;
+          float r2 = length((d + vec2(0.0, 0.1)) * vec2(1.05, 1.0)) / sz + rag;
+          float r = min(r1, r2);
+          float pit = max(smoothstep(0.17, 0.05, r1), smoothstep(0.14, 0.04, r2) * 0.85);
+          float rim = smoothstep(0.13, 0.2, r) * smoothstep(0.3, 0.2, r);
+          return (-pit + 0.16 * rim) * (0.45 + 0.8 * h);
+        }
+        float sPrints(vec2 p) {
+          return sPrint(p, 0.55, 0.0) + sPrint(p + 0.27, 0.62, 3.1) * 0.8 + sPrint(p - 0.19, 0.47, 9.7) * 0.6;
+        }
+        float sHeight(vec2 p) {
+          float lumps = sNoise(p * 1.7) * 0.6 + sNoise(p * 4.3) * 0.4;
+          float ripple = sin(p.y * 9.0 + sNoise(p * 0.7) * 6.0) * 0.12 * (1.0 - vTrod);
+          return lumps * 0.5 + ripple + sPrints(p) * vTrod * 0.8;
+        }`
+      )
+      .replace('#include <roughnessmap_fragment>', '#include <roughnessmap_fragment>\nroughnessFactor = mix(mix(roughnessFactor, 0.06, vWet), 1.0, vGrass * 0.6);')
+      .replace(
+        '#include <normal_fragment_maps>',
+        `#include <normal_fragment_maps>
+        {
+          // trampled sand: lumps, prints and soft ripples as a height field,
+          // its slope tilting the normal (fades with distance)
+          float fade = (1.0 - vGrass) * (1.0 - vWet * 0.8) * (1.0 - smoothstep(25.0, 70.0, length(vViewPosition)));
+          if (fade > 0.01) {
+            vec2 p = vSandW.xz;
+            float e = 0.03;
+            float h0 = sHeight(p);
+            float hx = sHeight(p + vec2(e, 0.0));
+            float hz = sHeight(p + vec2(0.0, e));
+            vec3 gW = vec3(-(hx - h0) / e, 0.0, -(hz - h0) / e) * 0.032 * fade;
+            normal = normalize(normal + (viewMatrix * vec4(gW, 0.0)).xyz);
+          }
+          normal = normalize(mix(normal, normalize(vNormal), max(vWet * 0.85, vGrass * 0.7)));
+        }`
+      )
+      .replace(
+        '#include <color_fragment>',
+        `#include <color_fragment>
+        // the thatch under the grass: dead leaves, dark between the tussocks
+        float th = sNoise(vSandW.xz * 2.3) * 0.6 + sNoise(vSandW.xz * 7.0) * 0.4;
+        // (in the shade of the blades, too: the sky barely reaches it)
+        diffuseColor.rgb *= mix(1.0, 0.42 + 0.3 * th, vGrass);
+        // prints hold shadow in their bottoms
+        diffuseColor.rgb *= 1.0 + sPrints(vSandW.xz) * vTrod * 0.06;`
+      )
   }
   const terrain = new THREE.Mesh(geo, sandMat)
   terrain.receiveShadow = true
@@ -515,7 +677,9 @@ export function buildCoast(THREE, ctx, { light = 'sunset' } = {}) {
   const seaMat = surfPatch(
     THREE,
     waterMaterial(THREE, {
-      palette: { ...world.light, water: { deep: 0x4b5961, shallow: 0x7a8887, stroke: 0xf1e7dd } },
+      // reflections: a muted evening sky, not the deep blue overhead, so the
+      // swell doesn't fleck the sea with blue
+      palette: { ...world.light, sky: { ...world.light.sky, zenith: 0x8597ab, horizon: 0xe8c08e }, water: { deep: 0x3f5a6c, shallow: 0x748c94, stroke: 0xf1e7dd } },
       scale: 1,
     })
   )
@@ -551,58 +715,62 @@ export function buildCoast(THREE, ctx, { light = 'sunset' } = {}) {
   const bladeMat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.78, metalness: 0, side: THREE.DoubleSide })
   grassPatch(bladeMat, windU)
   const cardTex = tussockTexture(THREE, 77)
-  const cardMat = new THREE.MeshStandardMaterial({ map: cardTex, alphaTest: 0.42, roughness: 0.8, metalness: 0, side: THREE.DoubleSide })
+  const cardMat = new THREE.MeshStandardMaterial({ map: cardTex, color: 0xcdb994, alphaTest: 0.42, roughness: 0.8, metalness: 0, side: THREE.DoubleSide })
   grassPatch(cardMat, windU)
   const cardDepth = new THREE.MeshDepthMaterial({ depthPacking: THREE.RGBADepthPacking, map: cardTex, alphaTest: 0.42 })
 
   // the viewpoints in the dunes (x, z): blade-level grass grows densest round these
-  const duneSpots = [
-    [12, -88],
-    [pathX(-80), -80],
-    [25, -45],
-    [-40, -90],
-    [60, crestZ(60)],
-  ]
+  const duneSpots = DUNE_VIEWS.map((v) => [v.x, v.z])
   const nearestSpot = (x, z) => {
     let best = 1e9
     for (const [sx, sz] of duneSpots) best = Math.min(best, Math.hypot(x - sx, z - sz))
     return best
   }
-  const NEAR_R = 17
+  const NEAR_R = 11
   const MID_R = 70
   const near = []
   const mid = []
   const far = []
   const kq = low ? 0.45 : 1
-  for (const [sx, sz] of duneSpots) {
-    // thickest right round the camera: the grass you look through
-    const nC = Math.round(Math.PI * 49 * 1.4 * kq)
-    for (let i = 0; i < nC; i++) {
-      const r = 7 * Math.sqrt(rand())
-      const a = rand() * Math.PI * 2
-      const x = sx + Math.cos(a) * r
-      const z = sz + Math.sin(a) * r
-      if (r < 1.3 || rand() > grassiness(x, z)) continue
-      near.push([x, z])
+  // sample the union of the viewpoints' surroundings once, with a density
+  // falling off from each camera (so overlapping spots don't double up)
+  {
+    let x0 = 1e9
+    let x1 = -1e9
+    let z0 = 1e9
+    let z1 = -1e9
+    for (const [sx, sz] of duneSpots) {
+      x0 = Math.min(x0, sx - MID_R)
+      x1 = Math.max(x1, sx + MID_R)
+      z0 = Math.min(z0, sz - MID_R)
+      z1 = Math.max(z1, sz + MID_R)
     }
-    const nN = Math.round(Math.PI * NEAR_R * NEAR_R * 0.9 * kq)
+    const area = (x1 - x0) * (z1 - z0)
+    // the blade-by-blade tussocks: a closed carpet round the lens
+    const nN = Math.round(((NEAR_R * 2 * 2.6) ** 2 / 4) * duneSpots.length * kq)
     for (let i = 0; i < nN; i++) {
-      const r = NEAR_R * Math.sqrt(rand())
-      const a = rand() * Math.PI * 2
-      const x = sx + Math.cos(a) * r
-      const z = sz + Math.sin(a) * r
-      if (r < 1.3) continue // not right on the lens
-      if (rand() > grassiness(x, z)) continue
+      const [sx, sz] = duneSpots[i % duneSpots.length]
+      const x = sx + range(rand, -NEAR_R, NEAR_R)
+      const z = sz + range(rand, -NEAR_R, NEAR_R)
+      const d = nearestSpot(x, z)
+      if (d > NEAR_R || d < 1.4) continue
+      // each sample stands for ~1/2.6² m²; keep fewer where another spot's square overlaps
+      let cover = 0
+      for (const [ox, oz] of duneSpots) if (Math.abs(x - ox) < NEAR_R && Math.abs(z - oz) < NEAR_R) cover++
+      if (rand() * cover > 1) continue
+      if (rand() > grassiness(x, z) * (1 - 0.45 * smoothstep(NEAR_R * 0.55, NEAR_R, d))) continue
       near.push([x, z])
     }
-    const nM = Math.round(Math.PI * (MID_R * MID_R - NEAR_R * NEAR_R) * 0.42 * kq)
+    // cards beyond: thick up to ~35 m, thinner to the edge of the zone
+    const nM = Math.round(area * 0.95 * kq)
     for (let i = 0; i < nM; i++) {
-      const r = Math.sqrt(NEAR_R * NEAR_R + rand() * (MID_R * MID_R - NEAR_R * NEAR_R))
-      const a = rand() * Math.PI * 2
-      const x = sx + Math.cos(a) * r
-      const z = sz + Math.sin(a) * r
-      if (nearestSpot(x, z) < NEAR_R - 1) continue
-      if (rand() > grassiness(x, z)) continue
+      const x = range(rand, x0, x1)
+      const z = range(rand, z0, z1)
+      const d = nearestSpot(x, z)
+      if (d < 2.2 || d > MID_R) continue
+      // inside the blade zone only a light underlayer of cards, filling the gaps
+      const under = d < NEAR_R - 2.5 ? 0.75 : 1
+      if (rand() > grassiness(x, z) * under * (1 - 0.55 * smoothstep(30, MID_R, d))) continue
       mid.push([x, z])
     }
   }
@@ -615,7 +783,7 @@ export function buildCoast(THREE, ctx, { light = 'sunset' } = {}) {
     mid.push([x, z])
   }
   // and sparse big tussocks out to the haze
-  for (let i = 0, n = Math.round(30000 * kq); i < n; i++) {
+  for (let i = 0, n = Math.round(16000 * kq); i < n; i++) {
     const x = range(rand, -650, 650)
     const z = range(rand, -125, 520)
     if (nearestSpot(x, z) < MID_R - 6) continue
@@ -629,7 +797,7 @@ export function buildCoast(THREE, ctx, { light = 'sunset' } = {}) {
   const e = new THREE.Euler()
   const sc = new THREE.Vector3()
   const p3 = new THREE.Vector3()
-  const gold = [0xffffff, 0xf2e6cc, 0xe6d6b0, 0xfff4dc, 0xd9c79f, 0xf8ecd2]
+  const gold = [0xffffff, 0xf2e6cc, 0xe6d6b0, 0xfff4dc, 0xd9c79f, 0xf8ecd2, 0xd4cfa0, 0xc9c493]
   const plant = (mesh, list, { sMin, sMax, tilt, castShadow }) => {
     list.forEach(([x, z], i) => {
       p3.set(x, duneH(x, z) - 0.06, z)
@@ -658,11 +826,11 @@ export function buildCoast(THREE, ctx, { light = 'sunset' } = {}) {
   if (nearA.length) plant(new THREE.InstancedMesh(tussocks[0], bladeMat, nearA.length), nearA, { sMin: 0.85, sMax: 1.25, tilt: 0.12, castShadow: true })
   if (nearB.length) plant(new THREE.InstancedMesh(tussocks[1], bladeMat, nearB.length), nearB, { sMin: 0.85, sMax: 1.25, tilt: 0.12, castShadow: true })
   if (mid.length) {
-    const mesh = plant(new THREE.InstancedMesh(cardGeometry(THREE, 3, 1.25, 1.05), cardMat, mid.length), mid, { sMin: 0.8, sMax: 1.25, tilt: 0.08, castShadow: true })
+    const mesh = plant(new THREE.InstancedMesh(cardGeometry(THREE, 3, 1.7, 1.05), cardMat, mid.length), mid, { sMin: 0.85, sMax: 1.3, tilt: 0.08, castShadow: true })
     mesh.customDepthMaterial = cardDepth
   }
   if (far.length) {
-    const mesh = plant(new THREE.InstancedMesh(cardGeometry(THREE, 2, 1.6, 1.15), cardMat, far.length), far, { sMin: 0.9, sMax: 1.4, tilt: 0.06, castShadow: false })
+    const mesh = plant(new THREE.InstancedMesh(cardGeometry(THREE, 2, 1.9, 1.15), cardMat, far.length), far, { sMin: 1.0, sMax: 1.5, tilt: 0.06, castShadow: false })
     mesh.customDepthMaterial = cardDepth
   }
 
@@ -785,6 +953,72 @@ export function buildCoast(THREE, ctx, { light = 'sunset' } = {}) {
   }
   strandpaal(-24, -134, '58')
   strandpaal(980, -133, '59')
+
+  /* --- litter bins on the beach (the dark dots along the sand in photo 13) ---- */
+  {
+    const binGeo = mergeGeometries(
+      [
+        new THREE.CylinderGeometry(0.34, 0.31, 0.95, 14, 1).translate(0, 0.62, 0),
+        new THREE.CylinderGeometry(0.37, 0.37, 0.06, 14, 1).translate(0, 1.11, 0),
+        new THREE.CylinderGeometry(0.045, 0.045, 1.25, 6, 1).translate(0, 0.32, -0.36),
+      ].map((g) => g.toNonIndexed()),
+      false
+    )
+    const binMat = new THREE.MeshStandardMaterial({ color: 0x2f4a3c, roughness: 0.55, metalness: 0.35 })
+    const list = [
+      [-22, -176],
+      [-47, -171],
+      [-71, -167],
+      [30, -170],
+      [-110, -160],
+    ]
+    const bins = new THREE.InstancedMesh(binGeo, binMat, list.length)
+    list.forEach(([x, z], i) => {
+      m4.makeTranslation(x, duneH(x, z) - 0.25, z)
+      bins.setMatrixAt(i, m4)
+    })
+    bins.castShadow = bins.receiveShadow = true
+    scene.add(bins)
+  }
+
+  /* --- dune houses on the far ridge inland (the roof in photo 11) ------------- */
+  {
+    const wallMat = M.plaster(THREE, { color: '#ece4d4', dirt: 0.08, tile: 3, quality: ctx.quality, seed: 81 })
+    const tileMat = M.roof(THREE, { kind: 'tiles', color: '#9a4a32', tile: 2, quality: ctx.quality, seed: 82 })
+    const winMat = new THREE.MeshPhysicalMaterial({ color: 0x1e2a33, roughness: 0.08, metalness: 0.3, clearcoat: 1 })
+    const house = (x, z, w, d, h, ry) => {
+      const g = new THREE.Group()
+      g.add(M.box(THREE, w, h, d, wallMat, [3, 3]))
+      // a steep pantile roof, gables to the sides
+      const s = new THREE.Shape()
+      s.moveTo(-d / 2 - 0.4, 0)
+      s.lineTo(d / 2 + 0.4, 0)
+      s.lineTo(0, d * 0.62)
+      s.lineTo(-d / 2 - 0.4, 0)
+      const rg = new THREE.ExtrudeGeometry(s, { depth: w + 0.5, bevelEnabled: false })
+      rg.rotateY(Math.PI / 2)
+      rg.translate(-(w + 0.5) / 2, h, 0)
+      const ruv = rg.attributes.uv
+      for (let i = 0; i < ruv.count; i++) ruv.setXY(i, ruv.getX(i) / 2, ruv.getY(i) / 2)
+      const roofMesh = new THREE.Mesh(rg, tileMat)
+      g.add(roofMesh)
+      for (const sx of [-w * 0.25, w * 0.25]) {
+        const win = new THREE.Mesh(new THREE.PlaneGeometry(1.1, 1.2), winMat)
+        win.position.set(sx, h * 0.55, d / 2 + 0.02)
+        g.add(win)
+      }
+      g.position.set(x, duneH(x, z) - 0.3, z)
+      g.rotation.y = ry
+      g.traverse((o) => {
+        if (o.isMesh) o.castShadow = o.receiveShadow = true
+      })
+      scene.add(g)
+    }
+    // about 14° right of photo 11's view, 260 m off on the inland ridge
+    house(224, 92, 9, 7, 3.2, -0.7)
+    house(240, 104, 7, 6.5, 3.0, -0.5)
+    house(206, 112, 8, 7, 3.4, -0.9)
+  }
 
   /* --- a beach pavilion on stilts, down the beach ------------------------------ */
 
@@ -924,31 +1158,23 @@ export function buildCoast(THREE, ctx, { light = 'sunset' } = {}) {
 
   /* --- the views ------------------------------------------------------------------ */
 
-  const at = (x, z, eye) => V(x, duneH(x, z) + eye, z)
-  const s0 = at(12, -88, 1.65)
-  const spots = [
-    // the hero: on the foredune plateau in the grass, the sea beyond, the sun low on the left
-    { pos: s0, look: V(26, s0.y - 9, -400) },
-    // down the path into the notch, the sea framed by the dune shoulders
-    { pos: at(pathX(-74), -74, 1.7), look: V(pathX(-160) - 4, 2.2, -260) },
-    // in the tall grass on a dune slope, across the rolling dunes, sun from behind-left
-    { pos: at(25, -45, 1.6), look: V(150, 9, -20) },
-    // from the plateau, inland over the dunes and thickets, long shadows ahead
-    { pos: at(-40, -90, 1.7), look: V(-10, 6, 120) },
-    // up on the foredune crest: the beach and the sea along the coast
-    { pos: at(60, crestZ(60), 4.5), look: V(-120, 0.5, -175) },
-    // down on the beach at the foot of the path, toward the sea and the sun
-    { pos: at(-6, -150, 1.7), look: V(-60, 1.5, -420) },
-    // at the water's edge, the wet sand mirroring the sky, along the surf
-    { pos: at(22, shoreZ(22) + 4.5, 1.6), look: V(-160, 0.8, -300) },
-    // from near the water back up at the dunes, the beach pole and the pavilion
-    { pos: at(-48, shoreZ(-48) + 9, 1.7), look: V(10, 7, -100) },
-  ]
-  world.focusShadows(V(8, 6, -112), 95)
+  // one spot per photograph, in the gallery's order (photos 8 … 14)
+  const view = (v) => {
+    const z = v.z ?? shoreZ(v.x) + 3.5
+    const pos = V(v.x, Math.max(duneH(v.x, z), 0.05) + v.eye, z)
+    const a = (v.az * Math.PI) / 180
+    const p = (v.pitch * Math.PI) / 180
+    const D = 60
+    const look = V(v.x + Math.sin(a) * Math.cos(p) * D, pos.y + Math.sin(p) * D, z + Math.cos(a) * Math.cos(p) * D)
+    return { pos, look }
+  }
+  const spots = [...DUNE_VIEWS, ...BEACH_VIEWS].map(view)
+  const s0 = spots[0].pos
+  world.focusShadows(V(4, 6, -100), 85)
 
   const path = {
-    positions: [V(70, 110, 380), V(30, 62, 200), V(16, 34, 40), V(14, 22, -40), s0.clone()],
-    targets: [V(0, 0, -150), V(0, 4, -260), V(10, 6, -320), V(20, 8, -380), spots[0].look.clone()],
+    positions: [V(70, 110, 380), V(40, 62, 200), V(24, 34, 40), V(16, 14, -50), s0.clone()],
+    targets: [V(0, 0, -150), V(0, 4, -260), V(10, 6, -320), V(12, 6, -260), spots[0].look.clone()],
     fov: 52,
     near: 0.3,
     spots,

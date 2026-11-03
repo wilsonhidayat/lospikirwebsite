@@ -584,11 +584,11 @@ export function buildCityHall(THREE, ctx, { light = 'golden' } = {}) {
   const RT = [4.8, 4.8] // rusticated tile
   const BT = [1.5, 1.5] // bluestone tile
   const stone = weather(
-    pbrMat(THREE, stoneSet(THREE, TS, { TW: AT[0], TH: AT[1], course: 0.45, minL: 0.7, maxL: 1.6, joint: 0.012, chamfer: 0.02, relief: 0.1, base: [0.79, 0.69, 0.54], mortar: [0.62, 0.55, 0.46], seed: 11, tone: 0.085, normal: 2 })),
+    pbrMat(THREE, stoneSet(THREE, TS, { TW: AT[0], TH: AT[1], course: 0.45, minL: 0.7, maxL: 1.6, joint: 0.012, chamfer: 0.02, relief: 0.1, base: [0.78, 0.7, 0.575], mortar: [0.63, 0.57, 0.49], seed: 11, tone: 0.085, normal: 2 })),
     { key: 'ashlar' }
   )
   const rustic = weather(
-    pbrMat(THREE, stoneSet(THREE, TS, { TW: RT[0], TH: RT[1], course: 0.6, minL: 1.0, maxL: 1.9, joint: 0.022, chamfer: 0.05, relief: 0.1, base: [0.78, 0.68, 0.53], mortar: [0.66, 0.6, 0.5], seed: 12, tone: 0.09, normal: 2.2 })),
+    pbrMat(THREE, stoneSet(THREE, TS, { TW: RT[0], TH: RT[1], course: 0.6, minL: 1.0, maxL: 1.9, joint: 0.022, chamfer: 0.05, relief: 0.1, base: [0.77, 0.69, 0.565], mortar: [0.66, 0.61, 0.52], seed: 12, tone: 0.09, normal: 2.2 })),
     { key: 'rustic', grime: 0.34 }
   )
   const block = weather(pbrMat(THREE, blockSet(THREE, TSs, 13)), { key: 'block', streaks: 0.12 })
@@ -608,7 +608,7 @@ export function buildCityHall(THREE, ctx, { light = 'golden' } = {}) {
   const setts = M.paving(THREE, { kind: 'setts', color: '#7f7a72', joint: '#4a463f', unit: 0.14, tile: 2, quality: q, seed: 26 })
   const asphalt = M.asphalt(THREE, { color: '#46474b', tile: 6, quality: q, seed: 27 })
   const bikeLane = M.asphalt(THREE, { color: '#8e4535', tile: 6, quality: q, seed: 28 })
-  const loggiaFloor = M.floor(THREE, { kind: 'tile', color: '#8c7660', tileSize: 0.8, polish: 0.72, tile: 4, quality: q, seed: 29 })
+  const loggiaFloor = M.floor(THREE, { kind: 'tile', color: '#6f5c4a', tileSize: 0.8, polish: 0.55, tile: 4, quality: q, seed: 29 })
   const dark = new THREE.MeshStandardMaterial({ color: 0x15110d, roughness: 1 })
   const iron = new THREE.MeshStandardMaterial({ color: 0x1c3a2a, roughness: 0.42, metalness: 0.55 })
   const galv = new THREE.MeshStandardMaterial({ color: 0x9ea3a6, roughness: 0.35, metalness: 0.85 })
@@ -704,15 +704,18 @@ export function buildCityHall(THREE, ctx, { light = 'golden' } = {}) {
         for (const side of [-1, 1]) {
           const bx = h.x + side * h.w * 0.25
           BOXES.push({ m: L(F, bx, h.y0 + 0.16, 0.2, h.w * 0.46, 0.3, 0.3) })
-          const nF = low ? 10 : 24
+          const nF = low ? 18 : 44
           for (let k = 0; k < nF; k++) {
             const fx = bx + range(rand, -h.w * 0.21, h.w * 0.21)
-            const leaf = rand() < 0.55
+            const leaf = rand() < 0.66
             const col = leaf
-              ? new THREE.Color().setHSL(range(rand, 0.22, 0.3), 0.45, range(rand, 0.18, 0.28))
-              : new THREE.Color().setHSL(pickHue(rand), range(rand, 0.5, 0.75), range(rand, 0.42, 0.56))
-            const s = range(rand, 0.7, 1.3) * (leaf ? 1.3 : 1)
-            FLOWERS.push({ m: L(F, fx, h.y0 + 0.34 + range(rand, 0, 0.16), 0.2 + range(rand, -0.11, 0.11), s, s * 0.8, s, rand(), rand(), 0), c: col })
+              ? new THREE.Color().setHSL(range(rand, 0.2, 0.3), range(rand, 0.3, 0.45), range(rand, 0.12, 0.22))
+              : new THREE.Color().setHSL(pickHue(rand), range(rand, 0.35, 0.6), range(rand, 0.3, 0.45))
+            const s = range(rand, 0.45, 0.85) * (leaf ? 1.25 : 0.8)
+            // leaves spill a little over the box's front edge
+            const fz = 0.2 + range(rand, -0.12, 0.14)
+            const fy = h.y0 + 0.31 + range(rand, -0.02, 0.13) - (fz > 0.3 && leaf ? range(rand, 0, 0.1) : 0)
+            FLOWERS.push({ m: L(F, fx, fy, fz, s, s * 0.75, s, rand() * 3, rand() * 3, 0), c: col })
           }
         }
       }
@@ -1596,14 +1599,14 @@ export function buildCityHall(THREE, ctx, { light = 'golden' } = {}) {
     const shopRed = M.shopfront(THREE, { color: '#2c2824', frame: '#1d1d1d', fascia: '#5a2a22', awning: '#8a2f24', bay: 3.4, storey: 4.2, quality: q, seed: 46 })
     const trim = new THREE.MeshStandardMaterial({ color: 0xd6ccb8, roughness: 0.8 })
     const facs = [fBrick, fStone, fPlaster, fBrick, fGlass]
+    // every building across the streets goes into one group, merged by
+    // material at the end: a handful of draw calls instead of a hundred and more
+    const townRoot = new THREE.Group()
     const town = (x, z, w, d, storeys, fac, sh, ry) => {
       const { group } = M.townhouse(THREE, { w, d, storeys, facade: fac, shop: sh, roof: 'flat', trim })
       group.position.set(x, 0, z)
       group.rotation.y = ry
-      group.traverse((o) => {
-        if (o.isMesh) o.castShadow = o.receiveShadow = true
-      })
-      scene.add(group)
+      townRoot.add(group)
     }
     // south side of Doelwater, facing the hall
     let x = -112
@@ -1628,6 +1631,7 @@ export function buildCityHall(THREE, ctx, { light = 'golden' } = {}) {
     // west and north
     for (let zz = -110; zz < 20; zz += 26) town(-78 - 8, zz + 12, 24, 16, 6, facs[(zz / 26) & 3 ? 0 : 2], shop, Math.PI / 2)
     for (let xx = -100; xx < 60; xx += 28) town(xx + 13, -110 - 8, 26, 16, 7, facs[1], shop, 0)
+    mergeByMaterial(townRoot)
     // the World Trade Center tower across Coolsingel, and other high-rises far off
     const unit = new THREE.BoxGeometry(1, 1, 1).translate(0, 0.5, 0)
     const uvs = unit.attributes.uv.array
@@ -1672,7 +1676,7 @@ export function buildCityHall(THREE, ctx, { light = 'golden' } = {}) {
   instanced(new THREE.BoxGeometry(1, 1, 1), block, VOUS)
   instanced(new THREE.BoxGeometry(1, 1, 1), blue, SILL)
   instanced(new THREE.BoxGeometry(1, 1, 1), planter, BOXES)
-  instanced(new THREE.IcosahedronGeometry(0.06, 1), new THREE.MeshStandardMaterial({ roughness: 0.8 }), FLOWERS)
+  instanced(new THREE.IcosahedronGeometry(0.07, 0), new THREE.MeshStandardMaterial({ roughness: 0.85, flatShading: false }), FLOWERS)
   const baluster = new THREE.LatheGeometry(
     [[0.001, 0], [0.075, 0], [0.075, 0.06], [0.05, 0.1], [0.09, 0.3], [0.05, 0.56], [0.075, 0.63], [0.075, 0.72], [0.001, 0.72]].map(([r, y]) => new THREE.Vector2(r, y)),
     8
@@ -1693,21 +1697,31 @@ export function buildCityHall(THREE, ctx, { light = 'golden' } = {}) {
   /* --- light, the flight in, the viewpoints --------------------------------- */
   world.focusShadows(V(6, 0, -6), 64)
 
+  // One spot per photograph, from where each was taken (photos 1 … 7 in
+  // order). Consecutive moves are straight lines: each pair is chosen so the
+  // line between them clears the lamp posts, the sign, the bollards and the
+  // loggia's columns.
   const spots = [
-    // 0 · photo 1: the iron gate between its rusticated piers, the no-entry sign
-    { pos: V(-29.8, 1.7, 12.2), look: V(-31.6, 4.4, -0.5) },
-    // 1 · photo 2: the green glazed door in its stepped arch
-    { pos: V(-21.3, 1.65, 5.6), look: V(-23.4, 3.0, -1.4) },
-    // 2 · photo 3: low under the Burgerlijke Stand portal, railings and steps
-    { pos: V(-10.2, 1.25, 6.9), look: V(-12.3, 4.7, -1.6) },
-    // 3 · photo 4: the deep niche with its window, rusticated voussoirs
-    { pos: V(1.6, 1.65, 9.6), look: V(0.9, 4.6, -1.0) },
-    // 4 · photo 5: the colonnaded loggia up its five steps
-    { pos: V(33.2, 1.7, 6.6), look: V(21.0, 3.8, -2.6) },
-    // 5 · photo 6: inside the loggia, the blind arch with its window
-    { pos: V(25.6, 2.55, -1.25), look: V(24.3, 3.9, -7.2) },
-    // 6 · photo 7: along the railing and the light well, flower boxes above
-    { pos: V(45.8, 1.65, 9.4), look: V(40.2, 3.4, 0.5) },
+    // 0 · photo 1: square on to the iron gate across the pavement, its piers
+    // either side, the no-entry and warning signs on the right
+    { pos: V(-35.4, 1.45, 8.3), look: V(-35.6, 3.3, -1.0) },
+    // 1 · photo 2: close in on the right of the green glazed door, the
+    // rusticated pier raking away on the right, the step in the foreground
+    { pos: V(-21.5, 1.5, 4.6), look: V(-23.9, 2.75, -1.3) },
+    // 2 · photo 3: low by the steps on the right of the Burgerlijke Stand
+    // portal, looking up past the railings to the plaque, the doors, the statue
+    { pos: V(-10.9, 1.2, 5.4), look: V(-13.9, 4.6, -1.9) },
+    // 3 · photo 4: straight on to the deep niche with its window, a little low
+    { pos: V(-2.0, 1.4, 8.1), look: V(-2.0, 3.55, -1.2) },
+    // 4 · photo 5: from the pavement off the west end of the steps, up into
+    // the loggia, the west column big at the left edge, the domed bays beyond
+    { pos: V(14.5, 1.6, 6.5), look: V(17.6, 3.4, -3.5) },
+    // 5 · photo 6: inside the loggia, square on to the east blind arch and
+    // its arched window, the polished floor in the foreground
+    { pos: V(26.15, 2.45, -0.45), look: V(26.15, 3.25, -7.0) },
+    // 6 · photo 7: across the pavement, square on to the light-well railing
+    // on its stone kerb, the flower boxes on the windows above
+    { pos: V(40.5, 1.6, 9.0), look: V(40.5, 2.5, 0.0) },
   ]
   const end = spots[0]
   const path = {
@@ -1734,6 +1748,63 @@ export function buildCityHall(THREE, ctx, { light = 'golden' } = {}) {
       trams[0].position.z = ((t * 7.5) % span) - span / 2
       trams[1].position.z = span / 2 - ((t * 6.5 + 260) % span)
     },
+  }
+
+  /** Merge every mesh under `root` into one mesh per material (world space), added to the scene. */
+  function mergeByMaterial(root) {
+    root.updateMatrixWorld(true)
+    const lists = new Map()
+    const keep = []
+    const push = (mat, g) => {
+      if (!lists.has(mat)) lists.set(mat, [])
+      lists.get(mat).push(g)
+    }
+    root.traverse((o) => {
+      if (!o.isMesh) return
+      if (o.isInstancedMesh) {
+        keep.push(o)
+        return
+      }
+      let g = o.geometry.clone().applyMatrix4(o.matrixWorld)
+      if (g.index) g = g.toNonIndexed() // keeps the groups, in vertex ranges
+      for (const k of Object.keys(g.attributes)) if (!['position', 'normal', 'uv'].includes(k)) g.deleteAttribute(k)
+      if (!g.attributes.normal) g.computeVertexNormals()
+      if (!g.attributes.uv) g.setAttribute('uv', new THREE.Float32BufferAttribute(new Float32Array(g.attributes.position.count * 2), 2))
+      if (!Array.isArray(o.material)) {
+        g.clearGroups()
+        push(o.material, g)
+        return
+      }
+      // a multi-material mesh (a box with a facade on its sides and a roof on
+      // top): split it by its groups, each part joining its material's batch
+      const n = g.attributes.position.count
+      const groups = g.groups.length ? g.groups : [{ start: 0, count: n, materialIndex: 0 }]
+      for (const grp of groups) {
+        const mat = o.material[grp.materialIndex]
+        if (!mat) continue
+        const start = grp.start
+        const end = Math.min(n, grp.start + grp.count)
+        if (end <= start) continue
+        const part = new THREE.BufferGeometry()
+        for (const k of ['position', 'normal', 'uv']) {
+          const at = g.attributes[k]
+          part.setAttribute(k, new THREE.BufferAttribute(at.array.slice(start * at.itemSize, end * at.itemSize), at.itemSize))
+        }
+        push(mat, part)
+      }
+    })
+    lists.forEach((geos, mat) => {
+      const merged = mergeGeometries(geos, false)
+      if (!merged) return
+      const mesh = new THREE.Mesh(merged, mat)
+      mesh.castShadow = mesh.receiveShadow = true
+      scene.add(mesh)
+    })
+    for (const o of keep) {
+      o.matrixWorld.decompose(o.position, o.quaternion, o.scale)
+      o.castShadow = o.receiveShadow = true
+      scene.add(o)
+    }
   }
 
   function instanced(geo, mat, items, { cast = true } = {}) {

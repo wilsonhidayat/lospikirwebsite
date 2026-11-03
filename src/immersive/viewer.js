@@ -64,7 +64,7 @@ function tween(initial) {
 }
 
 const wait = (s) => new Promise((r) => setTimeout(r, s * 1000))
-const NIGHT_OR_INDOOR = new Set(['waterfront-night', 'party-boat', 'studio', 'interior', 'hall', 'blob'])
+const NIGHT_OR_INDOOR = new Set(['waterfront-night', 'party-boat', 'studio', 'interior', 'hall', 'blob', 'stadsloket', 'restaurant', 'leidseplein-hotel', 'memories'])
 const fract = (v) => v - Math.floor(v)
 const ARRIVE_FROM = 0.72 // how far along its arrival path a place starts
 
@@ -147,10 +147,16 @@ export async function createViewer({ canvas, quality = 'high', onError, onPhase 
     if (pending.has(key)) return pending.get(key)
     const job = (async () => {
       await wait(0.016)
-      const [sky, grade] = await Promise.all([NIGHT_OR_INDOOR.has(p.scene) ? null : skyFromProject(p), gradeFromProject(p)])
+      const neutral = p.scene === 'memories'
+      const [sky, grade] = await Promise.all([
+        NIGHT_OR_INDOOR.has(p.scene) ? null : skyFromProject(p),
+        neutral ? { tint: [1, 1, 1], saturation: 1 } : gradeFromProject(p),
+      ])
       ctx.sky = sky
+      ctx.memories = p.memories || null
       const place = await loadScene(p.scene, THREE, ctx)
       ctx.sky = null
+      ctx.memories = null
       place.grade = grade
       environment(place)
       place.scene.traverse((o) => {

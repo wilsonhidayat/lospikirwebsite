@@ -17,10 +17,12 @@
  * Metres. The pond is at the origin; north (the Erasmus Building) is −Z.
  */
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js'
+import { ConvexGeometry } from 'three/addons/geometries/ConvexGeometry.js'
 import { createWorld, waterMaterial, addTrees } from '../world.js'
 import * as M from '../materials.js'
 import { addForest } from '../trees.js'
 import { beamBatch, seeded, range, pick } from '../utils.js'
+import { makeKit } from './interior.js'
 
 /* --- kit: tileable noise and painted PBR texture sets ---------------------- */
 
@@ -690,12 +692,420 @@ function statueGeometry(THREE) {
   return mergeGeometries(parts, false)
 }
 
+
+/* --- the central hall of the Erasmus Building (ayesha-02) ---------------------- */
+
+/** The colourful fused-glass frieze on the first-floor balustrade: a long strip. */
+function friezeCanvas(W, H, rand) {
+  const c = document.createElement('canvas')
+  c.width = W
+  c.height = H
+  const g = c.getContext('2d')
+  g.fillStyle = '#1b1a1c'
+  g.fillRect(0, 0, W, H)
+  const cols = ['#d23a2e', '#e8892b', '#f2c230', '#2f7fc1', '#1f4f9a', '#6a3f98', '#2e9a5a', '#c43c7a', '#e6e1d4', '#7fb6d9']
+  let x = 0
+  while (x < W) {
+    const w = range(rand, 0.25, 0.7) * H
+    // a little stained-glass panel: stacked blocks and a disc
+    let y = 0
+    while (y < H) {
+      const h = range(rand, 0.15, 0.45) * H
+      g.fillStyle = pick(rand, cols)
+      g.fillRect(x + 2, y + 2, w - 4, h - 4)
+      y += h
+    }
+    if (rand() < 0.5) {
+      g.fillStyle = pick(rand, cols)
+      g.beginPath()
+      g.arc(x + w / 2, range(rand, 0.25, 0.75) * H, w * 0.28, 0, Math.PI * 2)
+      g.fill()
+    }
+    x += w + range(rand, 0.02, 0.2) * H
+  }
+  return c
+}
+
+/** A hanging typographic banner (no faces: the hall's banners are printed text). */
+function bannerCanvas(W, H) {
+  const c = document.createElement('canvas')
+  c.width = W
+  c.height = H
+  const g = c.getContext('2d')
+  g.fillStyle = '#0d2236'
+  g.fillRect(0, 0, W, H)
+  g.fillStyle = '#f2c230'
+  g.fillRect(0, H * 0.72, W, H * 0.28)
+  g.fillStyle = '#ffffff'
+  g.textAlign = 'center'
+  g.font = `700 ${Math.round(W * 0.16)}px "Helvetica Neue", Arial, sans-serif`
+  g.fillText('MAKE IT', W / 2, H * 0.3)
+  g.fillText('HAPPEN.', W / 2, H * 0.46)
+  g.font = `400 ${Math.round(W * 0.06)}px "Helvetica Neue", Arial, sans-serif`
+  g.fillText('Erasmus University Rotterdam', W / 2, H * 0.6)
+  g.fillStyle = '#0d2236'
+  g.font = `italic 400 ${Math.round(W * 0.13)}px "Brush Script MT", "Segoe Script", cursive`
+  g.fillText('Erasmus', W / 2, H * 0.88)
+  return c
+}
+
+/** Info-booth panels: white and navy with a big blue curve and a line of text. */
+function boothCanvas(W, H, text) {
+  const c = document.createElement('canvas')
+  c.width = W
+  c.height = H
+  const g = c.getContext('2d')
+  g.fillStyle = '#f4f4f2'
+  g.fillRect(0, 0, W, H)
+  g.fillStyle = '#1f3e8f'
+  g.beginPath()
+  g.arc(W * 0.1, H * 0.55, W * 0.55, -0.8, 1.2)
+  g.lineTo(0, H)
+  g.fill()
+  g.fillStyle = '#5aa0e0'
+  g.beginPath()
+  g.arc(W * 0.95, H * 0.95, W * 0.3, 0, Math.PI * 2)
+  g.fill()
+  g.fillStyle = '#ffffff'
+  g.font = `800 ${Math.round(W * 0.11)}px "Helvetica Neue", Arial, sans-serif`
+  text.split('\n').forEach((t, i) => g.fillText(t, W * 0.08, H * 0.2 + i * W * 0.12))
+  return c
+}
+
+/**
+ * The great hall: dark polished marble floor, board-marked concrete balconies
+ * on two levels round three sides, a deep red slatted ceiling 12 m up, a wall
+ * of tall windows on the east, the Polyhedral Netstructure (white polyhedra on
+ * white rods) in the middle, a coffee bar, an info booth, a red poster stand.
+ * H = { x0, x1, z0, z1, h }; the glazed entrance end is z1 (south).
+ */
+function buildHallInterior(THREE, ctx, scene, H, rand) {
+  const K = makeKit(THREE, ctx)
+  const low = K.low
+  const S = low ? 256 : 512
+  const hall = new THREE.Group()
+  scene.add(hall)
+  const B = K.batcher()
+  const frames = beamBatch(THREE)
+  const glassGeos = []
+  const { slab, box, rbox, cyl, rod, std } = K
+  const W = H.x1 - H.x0
+  const D = H.z1 - H.z0
+  const BAL = 3.2 // balcony depth
+  const LV = [4.2, 8.2] // balcony floor levels
+
+  /* materials */
+  const marbleSet = pbr(THREE, S, S, (u, v, p) => {
+    // 1.2 m tile: 4 courses of 0.3 m, stones 0.6 m long, running bond
+    const row = Math.floor(v * 4)
+    const uu = u * 2 + (row % 2) * 0.5
+    const col = Math.floor(uu)
+    const fx = uu - col
+    const fy = v * 4 - row
+    const id = row * 7 + (((col % 2) + 2) % 2) * 13 + col * 3
+    const vein = fbm(u * 0.7 + hash(id, 1, 4) * 0.3, v, 9, 4, 11)
+    const ve = Math.abs(vein - 0.5) < 0.018 ? 1 : 0
+    const tone = 0.85 + hash(id, 2, 4) * 0.3
+    const n = fbm(u, v, 14, 3, 9)
+    p.r = (0.2 + n * 0.07) * tone + ve * 0.16
+    p.g = (0.18 + n * 0.06) * tone + ve * 0.15
+    p.b = (0.165 + n * 0.05) * tone + ve * 0.14
+    const joint = fx < 0.006 || fx > 0.994 || fy < 0.012 || fy > 0.988
+    p.h = joint ? 0.3 : 0.6
+    p.ro = joint ? 0.6 : 0.1 + n * 0.08
+    if (joint) {
+      p.r *= 0.6
+      p.g *= 0.6
+      p.b *= 0.6
+    }
+  }, { normal: 1.2 })
+  const floorMat = pbrMat(THREE, marbleSet, { metalness: 0, envMapIntensity: 1.2 })
+  const board = pbr(THREE, S, S, (u, v, p) => {
+    // board-marked concrete: horizontal boards 15 cm, grain, tie holes
+    const b = Math.floor(v * 8)
+    const fv = v * 8 - b
+    const n = fbm(u, v, 8, 3, 21)
+    const grain = fbm(u * 0.15, v * 8, 30, 2, 22 + b)
+    const k = 0.9 + n * 0.12 + (grain - 0.5) * 0.08 + hash(b, 1, 5) * 0.05
+    p.r = 0.74 * k
+    p.g = 0.68 * k
+    p.b = 0.58 * k
+    p.h = 0.5 + (grain - 0.5) * 0.3 - (fv < 0.03 ? 0.25 : 0)
+    p.ro = 0.85
+    const tx = (u * 4) % 1
+    const ty = (v * 2) % 1
+    if (Math.hypot(tx - 0.5, (ty - 0.5) * 0.5) < 0.02) {
+      p.r *= 0.55
+      p.g *= 0.55
+      p.b *= 0.55
+      p.h = 0.2
+    }
+  }, { normal: 1.6 })
+  const concrete = pbrMat(THREE, board, { metalness: 0 })
+  const redSet = pbr(THREE, low ? 128 : 256, low ? 128 : 256, (u, v, p) => {
+    // a deep red slatted ceiling: slats 8 cm, shadow gaps
+    const f = (u * 16) % 1
+    const n = fbm(u, v, 6, 2, 31)
+    const gap = f > 0.86
+    p.r = gap ? 0.16 : 0.62 + n * 0.06
+    p.g = gap ? 0.02 : 0.05
+    p.b = gap ? 0.03 : 0.07
+    p.h = gap ? 0.1 : 0.6 + Math.sin(f * Math.PI) * 0.2
+    p.ro = 0.6
+  }, { normal: 2 })
+  const redCeil = pbrMat(THREE, redSet, { metalness: 0 })
+  const woodMat = K.wood('#8a5b37', { rough: 0.55 })
+  const dark = std('#202124', 0.5, 0.4)
+  const white = std('#f3f2ee', 0.45, 0, { normalMap: K.fine(), normalScale: new THREE.Vector2(0.2, 0.2) })
+  const glass = K.glassMaterial(2.5)
+  const steel = std('#2b2d30', 0.4, 0.7)
+
+  /* shell */
+  B.add(floorMat, slab(H.x0, H.x1, -0.3, 0.06, H.z0, H.z1, 1.2))
+  B.add(concrete, slab(H.x0 - 0.4, H.x0, 0, H.h + 0.6, H.z0 - 0.4, H.z1, 2.4))
+  B.add(concrete, slab(H.x0 - 0.4, H.x1 + 0.3, 0, H.h + 0.6, H.z0 - 0.4, H.z0, 2.4))
+  B.add(redCeil, K.quad(
+    [
+      [H.x0, H.h, H.z0],
+      [H.x1, H.h, H.z0],
+      [H.x1, H.h, H.z1],
+      [H.x0, H.h, H.z1],
+    ],
+    [
+      [0, 0],
+      [W / 1.6, 0],
+      [W / 1.6, D / 1.6],
+      [0, D / 1.6],
+    ],
+    new THREE.Vector3(0, -1, 0)
+  ), false)
+  B.add(concrete, slab(H.x0 - 0.4, H.x1 + 0.3, H.h, H.h + 0.6, H.z0 - 0.4, H.z1 + 0.2, 2.4)) // the roof slab
+  // the east wall: a warm timber base, a band, then tall windows to the roof
+  const BASE = 2.8
+  B.add(woodMat, slab(H.x1, H.x1 + 0.25, 0, BASE, H.z0, H.z1, 1.2))
+  B.add(concrete, slab(H.x1 - 0.05, H.x1 + 0.3, BASE, BASE + 0.5, H.z0, H.z1, 2.4))
+  for (let z = H.z0 + 0.6; z <= H.z1 - 0.5; z += 1.8) frames.add(new THREE.Vector3(H.x1 + 0.1, BASE + 0.5, z), new THREE.Vector3(H.x1 + 0.1, H.h, z), 0.16, 0.08)
+  for (const y of [5.6, 8.6, H.h - 0.1]) frames.add(new THREE.Vector3(H.x1 + 0.1, y, H.z0), new THREE.Vector3(H.x1 + 0.1, y, H.z1), 0.12, 0.08)
+  {
+    const g = new THREE.PlaneGeometry(D, H.h - BASE - 0.5)
+    g.rotateY(-Math.PI / 2)
+    g.translate(H.x1 + 0.12, (H.h + BASE + 0.5) / 2, (H.z0 + H.z1) / 2)
+    glassGeos.push(g)
+  }
+  // glazed doors into the timber base
+  for (const zc of [H.z0 + 10, H.z0 + 26]) {
+    B.add(dark, slab(H.x1 - 0.02, H.x1 + 0.05, 0, 2.6, zc - 1.25, zc + 1.25, 1))
+    const g = new THREE.PlaneGeometry(2.3, 2.4)
+    g.rotateY(-Math.PI / 2)
+    g.translate(H.x1 - 0.03, 1.25, zc)
+    glassGeos.push(g)
+    frames.add(new THREE.Vector3(H.x1 - 0.04, 0, zc), new THREE.Vector3(H.x1 - 0.04, 2.5, zc), 0.05, 0.06)
+  }
+  // the glazed entrance end (south)
+  for (let x = H.x0 + 2.2; x < H.x1; x += 2.2) frames.add(new THREE.Vector3(x, 0, H.z1), new THREE.Vector3(x, H.h, H.z1), 0.1, 0.18)
+  for (const y of [0.05, 3.0, 7.0, H.h - 0.1]) frames.add(new THREE.Vector3(H.x0, y, H.z1), new THREE.Vector3(H.x1, y, H.z1), 0.18, 0.12)
+  {
+    const g = new THREE.PlaneGeometry(W, H.h)
+    g.translate((H.x0 + H.x1) / 2, H.h / 2, H.z1)
+    glassGeos.push(g)
+  }
+  // balconies on two levels along the west wall and the north end, with
+  // deep concrete balustrade fascias and square columns at their edge
+  for (const y of LV) {
+    B.add(concrete, slab(H.x0, H.x0 + BAL, y - 0.35, y, H.z0, H.z1 - 1.5, 2.4))
+    B.add(concrete, slab(H.x0, H.x1, y - 0.35, y, H.z0, H.z0 + BAL, 2.4))
+    B.add(floorMat, slab(H.x0, H.x0 + BAL, y, y + 0.01, H.z0, H.z1 - 1.5, 1.2))
+    B.add(concrete, slab(H.x0 + BAL, H.x0 + BAL + 0.25, y - 0.5, y + 1.05, H.z0 + BAL, H.z1 - 1.5, 2.4))
+    B.add(concrete, slab(H.x0 + BAL, H.x1, y - 0.5, y + 1.05, H.z0 + BAL, H.z0 + BAL + 0.25, 2.4))
+    // dark doorways and office glazing at the back of each level
+    for (let z = H.z0 + 5; z < H.z1 - 4; z += 6) B.add(dark, slab(H.x0 + 0.001, H.x0 + 0.03, y + 0.05, y + 2.4, z, z + 2.2, 1))
+  }
+  for (let z = H.z1 - 4; z > H.z0 + BAL; z -= 7.2) B.add(concrete, slab(H.x0 + BAL - 0.05, H.x0 + BAL + 0.6, 0, H.h, z - 0.35, z + 0.35, 2.4))
+  for (const x of [H.x0 + BAL + 7.2, H.x0 + BAL + 14.4]) B.add(concrete, slab(x - 0.35, x + 0.35, 0, H.h, H.z0 + BAL - 0.05, H.z0 + BAL + 0.6, 2.4))
+  // the frieze of coloured glass on the first-floor balustrade (Frishert)
+  {
+    const fc = friezeCanvas(low ? 2048 : 4096, 128, rand)
+    const t = new THREE.CanvasTexture(fc)
+    t.colorSpace = THREE.SRGBColorSpace
+    t.anisotropy = 8
+    const m = new THREE.MeshStandardMaterial({ map: t, roughness: 0.2, metalness: 0, emissive: 0xffffff, emissiveMap: t, emissiveIntensity: 0.35 })
+    const g = new THREE.PlaneGeometry(D - BAL - 3, 1.0)
+    g.rotateY(Math.PI / 2)
+    g.translate(H.x0 + BAL + 0.26, LV[0] + 0.45, (H.z0 + BAL + H.z1 - 1.5) / 2)
+    B.add(m, g, false)
+  }
+  // ceiling spots: small black cans
+  {
+    const cans = []
+    for (let x = H.x0 + 2; x < H.x1; x += 4) for (let z = H.z0 + 3; z < H.z1; z += 6) cans.push([x, z])
+    const im = new THREE.InstancedMesh(new THREE.CylinderGeometry(0.09, 0.09, 0.22, 12), dark, cans.length)
+    const m4 = new THREE.Matrix4()
+    cans.forEach(([x, z], i) => im.setMatrixAt(i, m4.makeTranslation(x, H.h - 0.11, z)))
+    im.instanceMatrix.needsUpdate = true
+    hall.add(im)
+  }
+  // the far banner, hanging between the levels
+  {
+    const t = new THREE.CanvasTexture(bannerCanvas(512, 640))
+    t.colorSpace = THREE.SRGBColorSpace
+    const g = new THREE.PlaneGeometry(3.6, 4.5)
+    g.translate((H.x0 + H.x1) / 2 + 1.2, 6.4, H.z0 + BAL + 0.4)
+    B.add(new THREE.MeshStandardMaterial({ map: t, roughness: 0.7 }), g, false)
+    for (const dx of [-1.7, 1.7]) frames.add(new THREE.Vector3((H.x0 + H.x1) / 2 + 1.2 + dx, 8.65, H.z0 + BAL + 0.4), new THREE.Vector3((H.x0 + H.x1) / 2 + 1.2 + dx, H.h, H.z0 + BAL + 0.4), 0.01, 0.01)
+  }
+  // the coffee bar under the north balcony: counter, a lit back bar, a menu board
+  {
+    const cx = H.x0 + BAL + 6.5
+    const cz = H.z0 + 1.6
+    B.add(woodMat, slab(cx - 3, cx + 3, 0, 1.05, cz + 0.6, cz + 1.2, 1))
+    B.add(dark, slab(cx - 3.05, cx + 3.05, 1.05, 1.1, cz + 0.55, cz + 1.25, 1))
+    const glow = new THREE.MeshStandardMaterial({ color: 0x101214, emissive: 0xcfe6ee, emissiveIntensity: 0.9, roughness: 0.2 })
+    B.add(glow, slab(cx - 2.8, cx + 2.8, 0.9, 2.2, H.z0 + 0.02, H.z0 + 0.3, 1), false)
+    B.add(white, slab(cx - 3.2, cx + 3.2, 2.6, 3.1, H.z0 + 0.02, H.z0 + 0.6, 1))
+  }
+  // the info booth (blue and white panels) with two high stools
+  {
+    const t = new THREE.CanvasTexture(boothCanvas(512, 768, 'UNLOCK\nYOUR\nPOTENTIAL'))
+    t.colorSpace = THREE.SRGBColorSpace
+    const pm = new THREE.MeshStandardMaterial({ map: t, roughness: 0.5 })
+    const bx = H.x0 + BAL + 1.4
+    const bz = H.z1 - 12
+    B.add(white, slab(bx - 0.05, bx + 0.05, 0, 2.5, bz - 1.1, bz + 1.1, 1))
+    const g = new THREE.PlaneGeometry(2.2, 2.5)
+    g.rotateY(Math.PI / 2)
+    g.translate(bx + 0.06, 1.25, bz)
+    B.add(pm, g, false)
+    B.add(std('#1f3e8f', 0.6), slab(bx, bx + 2.0, 0, 2.5, bz - 1.25, bz - 1.15, 1))
+    B.add(white, slab(bx + 0.4, bx + 1.6, 1.0, 1.05, bz - 0.4, bz + 0.4, 1))
+    for (const dz of [-0.3, 0.3]) {
+      B.add(steel, cyl(0.02, 0.02, 0.78, 8).translate(bx + 1.9, 0.39, bz + dz))
+      B.add(dark, cyl(0.17, 0.17, 0.05, 20).translate(bx + 1.9, 0.8, bz + dz))
+      B.add(steel, cyl(0.18, 0.2, 0.02, 20).translate(bx + 1.9, 0.01, bz + dz))
+    }
+  }
+  // a red poster stand by the windows, bins
+  {
+    const pc = document.createElement('canvas')
+    pc.width = 256
+    pc.height = 384
+    const g = pc.getContext('2d')
+    g.fillStyle = '#d32a2a'
+    g.fillRect(0, 0, 256, 384)
+    g.fillStyle = '#ffd400'
+    g.font = '800 30px "Helvetica Neue", Arial, sans-serif'
+    ;['THESIS', 'WEEK', '2024'].forEach((t, i) => g.fillText(t, 22, 70 + i * 38))
+    g.fillStyle = '#ffffff'
+    g.font = '500 16px "Helvetica Neue", Arial, sans-serif'
+    for (let i = 0; i < 6; i++) g.fillRect(22, 220 + i * 20, 120 + (i % 3) * 30, 6)
+    const t = new THREE.CanvasTexture(pc)
+    t.colorSpace = THREE.SRGBColorSpace
+    const sx = H.x1 - 1.4
+    const sz = H.z0 + 13
+    const pg = new THREE.PlaneGeometry(0.9, 1.35)
+    pg.rotateY(-Math.PI / 2 + 0.25)
+    pg.translate(sx, 1.25, sz)
+    B.add(new THREE.MeshStandardMaterial({ map: t, roughness: 0.5 }), pg, false)
+    B.add(white, tf3(THREE, box(0.95, 1.45, 0.03), [sx + 0.02, 1.25, sz], -Math.PI / 2 + 0.25))
+    B.add(white, slab(sx - 0.25, sx + 0.25, 0, 0.03, sz - 0.25, sz + 0.25, 1))
+    B.add(white, rod([sx + 0.03, 0, sz], [sx + 0.03, 0.55, sz], 0.02))
+    for (let i = 0; i < 3; i++) B.add(std(['#3a6fb0', '#d9852b', '#4a8a3c'][i], 0.5), slab(H.x0 + 0.1, H.x0 + 0.6, 0, 1.0, H.z1 - 6 - i * 0.55, H.z1 - 5.55 - i * 0.55, 1))
+  }
+
+  /* the Polyhedral Netstructure: white truncated octahedra on a net of white rods */
+  {
+    const sc = new THREE.Vector3((H.x0 + H.x1) / 2 - 0.5, 0, H.z1 - 13)
+    B.add(std('#55585c', 0.6), slab(sc.x - 0.8, sc.x + 0.8, 0, 1.15, sc.z - 0.8, sc.z + 0.8, 1))
+    const pts = []
+    for (const a of [-1, 1]) for (const b of [-2, 2]) {
+      pts.push(new THREE.Vector3(0, a, b), new THREE.Vector3(0, b, a), new THREE.Vector3(a, 0, b), new THREE.Vector3(b, 0, a), new THREE.Vector3(a, b, 0), new THREE.Vector3(b, a, 0))
+    }
+    const unit = new ConvexGeometry(pts)
+    unit.scale(0.3, 0.3, 0.3)
+    const nodes = [
+      [0.2, 4.0, 0.3, 1.0],
+      [-1.2, 5.6, -0.5, 1.1],
+      [1.0, 6.4, 0.8, 1.15],
+      [-0.2, 7.9, -0.2, 1.05],
+      [1.4, 8.6, -0.9, 0.95],
+      [-1.4, 3.4, 1.0, 0.9],
+    ]
+    const sculptMat = std('#f1f0ec', 0.38)
+    for (const [x, y, z, k] of nodes) {
+      const g = unit.clone()
+      g.rotateY(rand() * 3)
+      g.rotateX(rand() * 0.6)
+      g.scale(k, k, k)
+      g.translate(sc.x + x, y, sc.z + z)
+      B.add(sculptMat, g)
+    }
+    const rods = beamBatch(THREE)
+    const P = (n) => new THREE.Vector3(sc.x + n[0], n[1], sc.z + n[2])
+    // rods tie the nodes together and shoot out past them into the air
+    for (let i = 0; i < nodes.length; i++) for (let j = i + 1; j < nodes.length; j++) {
+      if (rand() < 0.45) continue
+      const a = P(nodes[i])
+      const b = P(nodes[j])
+      const dir = b.clone().sub(a).normalize()
+      rods.add(a.clone().addScaledVector(dir, -range(rand, 0.4, 1.6)), b.clone().addScaledVector(dir, range(rand, 0.4, 2.4)), 0.045, 0.045)
+    }
+    for (let i = 0; i < 4; i++) rods.add(new THREE.Vector3(sc.x + range(rand, -0.3, 0.3), 1.15, sc.z + range(rand, -0.3, 0.3)), P(nodes[i]), 0.05, 0.05)
+    hall.add(rods.build(sculptMat))
+  }
+
+  hall.add(frames.build(steel))
+  {
+    const g = K.batcher()
+    for (const gg of glassGeos) g.add(glass, gg, false)
+    g.build(hall)
+  }
+  B.build(hall)
+  hall.traverse((o) => {
+    if (o.isMesh) o.receiveShadow = true
+  })
+
+  /* the hall's own light probe: red ceiling, beige concrete, a wall of daylight */
+  {
+    const room = { x0: H.x0, x1: H.x1, y0: 0, y1: H.h, z0: H.z0, z1: H.z1 }
+    const P0 = new THREE.Vector3((H.x0 + H.x1) / 2 + 2, 3.5, (H.z0 + H.z1) / 2)
+    const Q = new THREE.Vector3()
+    const env = K.probe(low ? 96 : 192, low ? 48 : 96, (d) => {
+      const { t, face } = K.roomHit(P0, d, room)
+      Q.copy(P0).addScaledVector(d, t)
+      const sky = [0.75 + d.y * 0.3, 0.85 + d.y * 0.3, 1.0 + d.y * 0.4]
+      if (face === 'x+') return Q.y > BASE + 0.5 ? sky : [0.22, 0.14, 0.09]
+      if (face === 'z+') return Q.y > 0.3 ? [sky[0] * 0.9, sky[1] * 0.9, sky[2] * 0.9] : [0.3, 0.3, 0.28]
+      if (face === 'y+') return [0.28, 0.025, 0.03]
+      if (face === 'y-') return [0.05, 0.04, 0.035]
+      return [0.3, 0.27, 0.22]
+    })
+    K.applyEnv(hall, env)
+  }
+  // a little warm fill from the ceiling cans
+  for (const z of [H.z0 + 8, H.z0 + 22, H.z0 + 34]) {
+    const pl = new THREE.PointLight(0xffd7a8, 9, 14, 2)
+    pl.position.set((H.x0 + H.x1) / 2 + 3, 5.5, z)
+    scene.add(pl)
+  }
+}
+
+/** Transform helper: position and a yaw. */
+function tf3(THREE, g, p, ry) {
+  g.rotateY(ry)
+  g.translate(p[0], p[1], p[2])
+  return g
+}
+
 /* --- the place ----------------------------------------------------------------- */
 
-export function buildErasmus(THREE, ctx, { light = 'overcast' } = {}) {
-  const world = createWorld(THREE, ctx, light, {
-    sun: { elevation: 30, azimuth: 330 },
-    fog: { density: 0.0012 },
+export function buildErasmus(THREE, ctx) {
+  // a fine early-autumn day with a clear blue sky (the photographer's wish),
+  // whatever the photos' own pale skies say
+  ctx.sky = null
+  const world = createWorld(THREE, ctx, 'day', {
+    sun: { elevation: 36, azimuth: 330 },
+    sunIntensity: 2.3,
+    fog: { density: 0.0006 },
+    sky: { zenith: 0x3f7fd0, horizon: 0xbcd6ee, clouds: 0.3 },
   })
   const { scene } = world
   const low = ctx.quality === 'low'
@@ -709,10 +1119,10 @@ export function buildErasmus(THREE, ctx, { light = 'overcast' } = {}) {
   const lawn = M.lawn(THREE, { color: '#5b6f37', worn: 0.15, tile: 3, quality: 'low', seed: 21 })
   const asphalt = M.asphalt(THREE, { color: '#3b3c3e', tile: 6, quality: 'low' })
   const deckFlags = M.paving(THREE, { kind: 'flags', color: '#a8a59e', joint: '#5c5a55', unit: 0.6, tile: 4, quality: ctx.quality, seed: 31 })
-  const stepConcrete = M.concrete(THREE, { color: '#b9b4aa', tile: 3, ties: false, quality: ctx.quality, seed: 5 })
+  const stepConcrete = M.concrete(THREE, { color: '#a49c8f', tile: 3, ties: false, quality: ctx.quality, seed: 5 })
   const ebConcrete = M.concrete(THREE, { color: '#9e917e', tile: 4, ties: false, quality: ctx.quality, seed: 8 })
   const wood = M.planks(THREE, { color: '#6d5a45', width: 0.09, tile: 2, quality: 'low', seed: 4 })
-  const polySet = polyPaving(THREE, S, { seed: 3 })
+  const polySet = polyPaving(THREE, S, { seed: 3, color: [0.76, 0.7, 0.6] })
   const poly = pbrMat(THREE, polySet, { metalness: 0 })
   const hedge = pbrMat(THREE, hedgeTex(THREE, s2), { metalness: 0 })
   const bronze = pbrMat(THREE, bronzeTex(THREE, s2), { envMapIntensity: 0.9 })
@@ -826,8 +1236,8 @@ export function buildErasmus(THREE, ctx, { light = 'overcast' } = {}) {
   /* the pond, the sitting steps, the terraces, the deck ------------------------- */
   const pondW = 40
   const pondD = 16
-  const pondPal = { ...world.light, water: { deep: 0x34362f, shallow: 0x5a5c50, stroke: 0xf2f1ee } }
-  const water = waterMaterial(THREE, { palette: pondPal, scale: 0.22, strokes: 0.3 })
+  const pondPal = { ...world.light, water: { deep: 0x252e2b, shallow: 0x4a5752, stroke: 0xf2f1ee } }
+  const water = waterMaterial(THREE, { palette: pondPal, scale: 0.1, strokes: 0.12 })
   const pond = new THREE.Mesh(new THREE.PlaneGeometry(pondW, pondD), water)
   pond.rotation.x = -Math.PI / 2
   pond.position.set(0, 0.22, 0)
@@ -852,9 +1262,32 @@ export function buildErasmus(THREE, ctx, { light = 'overcast' } = {}) {
   }
   // reeds and flowering plants along the north edge of the pond
   {
+    // clumps of thin arching blades (one merged clump, instanced), not boxes
+    const blades = []
+    const br = seeded(19)
+    for (let i = 0; i < 18; i++) {
+      const a = br() * Math.PI * 2
+      const h = range(br, 0.6, 1.0)
+      const lean = range(br, 0.1, 0.5)
+      const g = new THREE.PlaneGeometry(0.03, h, 1, 3)
+      const pp = g.attributes.position
+      for (let k = 0; k < pp.count; k++) {
+        const y = pp.getY(k) + h / 2
+        pp.setY(k, y)
+        pp.setZ(k, Math.pow(y / h, 2) * lean * h)
+      }
+      g.rotateY(a)
+      g.translate(Math.cos(a) * 0.06, 0, Math.sin(a) * 0.06)
+      blades.push(g.toNonIndexed())
+    }
+    const clump = mergeGeometries(blades, false)
+    clump.computeVertexNormals()
     const tufts = []
-    for (let i = 0; i < (low ? 40 : 90); i++) tufts.push({ x: range(rand, -19, 19), z: range(rand, -7.8, -6.9), y: 0, w: range(rand, 0.4, 0.9), h: range(rand, 0.4, 1.1), d: range(rand, 0.3, 0.6), r: rand() * 3 })
-    instBoxes(THREE, scene, tufts, new THREE.MeshStandardMaterial({ color: 0x55602f, roughness: 0.9 }))
+    for (let i = 0; i < (low ? 40 : 90); i++) {
+      const k = range(rand, 0.6, 1.3)
+      tufts.push({ x: range(rand, -19.5, 19.5), z: range(rand, -7.9, -6.8), y: 0.2, w: k, h: k, d: k, r: rand() * 6 })
+    }
+    instBoxes(THREE, scene, tufts, new THREE.MeshStandardMaterial({ color: 0x6b7a38, roughness: 0.85, side: THREE.DoubleSide }), { geo: clump })
   }
 
   const deck = { x0: -34, x1: 34, z0: -56, z1: -16.2, h: 3.6 }
@@ -882,9 +1315,8 @@ export function buildErasmus(THREE, ctx, { light = 'overcast' } = {}) {
   batch.box(pebble, 0.35, 1.05, deck.z1 - deck.z0 - 10, deck.x1 - 0.2, deck.h, (deck.z0 + deck.z1) / 2 - 5, [1.5, 1.5])
   // wooden deck benches and dark plant boxes up top (photo 3)
   for (const [x, z] of [
-    [18, -40],
-    [24, -46],
-    [-2, -52],
+    [-27.2, -54.6],
+    [-2, -53.5],
     [26, -26],
   ]) {
     batch.box(darkMetal, 1.4, 1.1, 1.4, x, deck.h, z, [1, 1])
@@ -905,6 +1337,33 @@ export function buildErasmus(THREE, ctx, { light = 'overcast' } = {}) {
     scene.add(mesh)
     // a thin roof edge and a recessed, glazed ground storey
     batch.box(darkMetal, x1 - x0 + 0.6, 0.5, z1 - z0 + 0.6, (x0 + x1) / 2, deck.h + h, (z0 + z1) / 2, [2, 2])
+  }
+
+  /* a five-storey brown precast block on the deck behind the steps (photo 6) ------- */
+  {
+    const x0 = -3
+    const x1 = 36
+    const z0 = -50
+    const z1 = -36
+    const h = 17
+    const mesh = new THREE.Mesh(boxGeo(THREE, x1 - x0, h, z1 - z0, [6.4, 7.2]), tinbergen)
+    mesh.position.set((x0 + x1) / 2, deck.h, (z0 + z1) / 2)
+    mesh.castShadow = mesh.receiveShadow = true
+    scene.add(mesh)
+    batch.box(ebConcrete, x1 - x0 + 0.5, 0.7, z1 - z0 + 0.5, (x0 + x1) / 2, deck.h + h, (z0 + z1) / 2, [4, 4])
+    // a glazed stair tower on its west end
+    batch.box(lobbyGlass, 4, h + 1.5, 5, x0 - 1.6, deck.h, z1 - 4, [7.2, 7])
+  }
+  // the sunken courtyard between the deck and the Erasmus Building: a glass
+  // roof light with a red edge (seen over the parapet in photo 3)
+  {
+    const gx0 = -40
+    const gx1 = -21
+    batch.box(lobbyGlass, gx1 - gx0, 2.4, 5.5, (gx0 + gx1) / 2, 0, -61, [7.2, 7])
+    batch.box(new THREE.MeshStandardMaterial({ color: 0xb21f24, roughness: 0.5 }), gx1 - gx0 + 0.3, 0.25, 5.8, (gx0 + gx1) / 2, 2.4, -61, [2, 2])
+    const roof = new THREE.Mesh(new THREE.BoxGeometry(gx1 - gx0, 0.06, 5.5), new THREE.MeshStandardMaterial({ color: 0x1d2a30, roughness: 0.05, metalness: 0.9 }))
+    roof.position.set((gx0 + gx1) / 2, 2.68, -61)
+    scene.add(roof)
   }
 
   /* the Erasmus Building ---------------------------------------------------------- */
@@ -964,10 +1423,67 @@ export function buildErasmus(THREE, ctx, { light = 'overcast' } = {}) {
     const cols = []
     for (let z = z0 + 2; z < z1; z += 6) cols.push({ x: x0 + 1.2, z, w: 0.5, h: 4.5, d: 0.5 })
     instBoxes(THREE, scene, cols, darkMetal)
-    const words = lettering(THREE, 'THE ERASMIAN WAY', { w: 30, h: 2.4, font: '700 {px}px "Helvetica Neue", Arial, sans-serif', color: '#f4f4f2', px: 180, emissive: 0.2 })
-    words.rotation.y = -Math.PI / 2
-    words.position.set(x0 - 0.06, 8.6, (z0 + z1) / 2 - 3)
-    scene.add(words)
+    // the dark glass band: "THE ERASMIAN WAY" in wide white capitals, coloured
+    // dots and a line drawing on the glass (photo 5)
+    {
+      const c = document.createElement('canvas')
+      c.width = 4096
+      c.height = 256
+      const g = c.getContext('2d')
+      g.fillStyle = '#16191c'
+      g.fillRect(0, 0, 4096, 256)
+      // reflections of the sky in the glazing, mullions every 1.3 m
+      const grd = g.createLinearGradient(0, 0, 0, 256)
+      grd.addColorStop(0, 'rgba(120,150,180,0.35)')
+      grd.addColorStop(1, 'rgba(40,55,70,0.15)')
+      g.fillStyle = grd
+      g.fillRect(0, 0, 4096, 256)
+      g.fillStyle = '#0a0b0c'
+      for (let x = 0; x < 4096; x += 133) g.fillRect(x, 0, 6, 256)
+      g.fillRect(0, 0, 4096, 10)
+      g.fillRect(0, 246, 4096, 10)
+      const dots = ['#2f86d6', '#e0452c', '#7a3fb0', '#f08a24', '#22a35a', '#2f86d6', '#e0452c']
+      for (let i = 0; i < 16; i++) {
+        g.fillStyle = dots[i % dots.length]
+        g.beginPath()
+        g.arc(80 + i * 250 + ((i * 97) % 90), 40 + ((i * 53) % 170), 22 + ((i * 31) % 22), 0, Math.PI * 2)
+        g.fill()
+      }
+      g.fillStyle = '#1fb36a'
+      g.beginPath()
+      g.moveTo(3500, 256)
+      g.lineTo(3700, 120)
+      g.lineTo(3780, 256)
+      g.fill()
+      g.strokeStyle = 'rgba(240,240,240,0.85)'
+      g.lineWidth = 5
+      g.beginPath()
+      g.moveTo(3200, 230)
+      g.bezierCurveTo(3260, 60, 3380, 60, 3420, 180)
+      g.bezierCurveTo(3450, 250, 3330, 240, 3360, 120)
+      g.stroke()
+      g.fillStyle = '#f4f4f2'
+      g.font = '500 150px "Helvetica Neue", Arial, sans-serif'
+      g.textBaseline = 'middle'
+      const word = 'THE  ERASMIAN  WAY'
+      let x = 420
+      for (const ch of word) {
+        g.fillText(ch, x, 132)
+        x += g.measureText(ch).width + 34
+      }
+      const t = new THREE.CanvasTexture(c)
+      t.colorSpace = THREE.SRGBColorSpace
+      t.anisotropy = 8
+      const band = new THREE.Mesh(new THREE.PlaneGeometry(z1 - z0, 3.2), new THREE.MeshStandardMaterial({ map: t, roughness: 0.12, metalness: 0.4, emissive: 0xffffff, emissiveMap: t, emissiveIntensity: 0.12 }))
+      band.rotation.y = -Math.PI / 2
+      band.position.set(x0 - 0.05, 8.7, (z0 + z1) / 2)
+      scene.add(band)
+    }
+    // concrete bollards and a set of coloured recycling bins along the verge
+    const bol = []
+    for (let z = z0 - 6; z <= z1; z += 3.2) bol.push({ x: x0 - 3.2, z, w: 0.45, h: 0.6, d: 0.45 })
+    instBoxes(THREE, scene, bol, stepConcrete)
+    for (let i = 0; i < 3; i++) batch.box(new THREE.MeshStandardMaterial({ color: [0x8c9296, 0xd9692b, 0x3f8a3a][i], roughness: 0.5 }), 0.7, 1.25, 0.7, x0 - 2.0, 0, z0 + 2 + i * 0.75, [1, 1])
     // a bright info screen in the ground-floor glazing
     const screen = new THREE.Mesh(
       new THREE.PlaneGeometry(6, 2.2),
@@ -992,6 +1508,12 @@ export function buildErasmus(THREE, ctx, { light = 'overcast' } = {}) {
     batch.box(darkMetal, 24.6, 1.6, 24.6, 110, 84, -92, [2, 2])
     const theilMat = ebFacade.clone()
     theilMat.color = new THREE.Color(0xb7b4b0)
+    // the long banded slab rising behind Sanders (photo 5)
+    const sb = new THREE.Mesh(boxGeo(THREE, 16, 34, 66, ebTile), [ebFacade, ebFacade, ebConcrete, ebConcrete, ebCore, ebCore])
+    sb.position.set(98, 0, 2)
+    sb.castShadow = sb.receiveShadow = true
+    scene.add(sb)
+    batch.box(ebConcrete, 16.6, 1.6, 66.6, 98, 34, 2, [4, 4])
     const th = new THREE.Mesh(boxGeo(THREE, 50.4, 40.8, 15, ebTile), theilMat)
     th.position.set(-112, 0, -100)
     th.castShadow = th.receiveShadow = true
@@ -1033,6 +1555,11 @@ export function buildErasmus(THREE, ctx, { light = 'overcast' } = {}) {
     instBoxes(THREE, scene, legs, stepConcrete)
     instBoxes(THREE, scene, tops, wood)
     batch.box(hedge, 30, 1.25, 1.1, statueAt.x, 0, statueAt.z - 5.6, [1.5, 1.5])
+    // a lawn strip east of the statue with a pale path through it (photo 4)
+    scene.add(flat(THREE, 7, 18, lawn, 3, -38.6, 0.055, statueAt.z + 4.5))
+    const path = flat(THREE, 1.3, 19, deckFlags, 4, -38.2, 0.07, statueAt.z + 4.5)
+    path.rotation.y = 0.32
+    scene.add(path)
     batch.box(hedge, 1.1, 1.25, 12, statueAt.x - 15.5, 0, statueAt.z - 0.6, [1.5, 1.5])
     // beds behind, under the big trees
     batch.box(soil, 44, 0.12, 22, statueAt.x - 2, 0, statueAt.z - 18, [4, 4])
@@ -1051,9 +1578,39 @@ export function buildErasmus(THREE, ctx, { light = 'overcast' } = {}) {
   }
   // flower bed in front of Sanders (yellow, out of focus in photo 5)
   {
+    // daffodil-like yellow heads on thin stems, leaves at the foot
+    const stems = []
+    const heads = []
+    const fr = seeded(23)
+    for (let i = 0; i < 3; i++) {
+      const top = new THREE.Vector3(range(fr, -0.08, 0.08), range(fr, 0.55, 0.8), range(fr, -0.08, 0.08))
+      const st = new THREE.CylinderGeometry(0.006, 0.008, 1, 5)
+      st.translate(0, 0.5, 0)
+      st.applyQuaternion(new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 1, 0), top.clone().normalize()))
+      st.scale(1, top.length(), 1)
+      stems.push(st.toNonIndexed())
+      const hd = new THREE.IcosahedronGeometry(0.045, 1)
+      hd.scale(1, 0.6, 1)
+      hd.translate(top.x, top.y, top.z)
+      heads.push(hd)
+    }
+    for (let i = 0; i < 4; i++) {
+      const lf = new THREE.PlaneGeometry(0.03, 0.35)
+      lf.translate(0, 0.17, 0)
+      lf.rotateX(range(fr, -0.3, 0.3))
+      lf.rotateY(fr() * 3)
+      stems.push(lf.toNonIndexed())
+    }
+    const stemGeo = mergeGeometries(stems, false)
+    stemGeo.computeVertexNormals()
+    const headGeo = mergeGeometries(heads, false)
     const fl = []
-    for (let i = 0; i < (low ? 60 : 140); i++) fl.push({ x: range(rand, 30, 40), z: range(rand, -6, 10), w: 0.18, h: range(rand, 0.4, 0.9), d: 0.18, r: rand() * 3 })
-    instBoxes(THREE, scene, fl, new THREE.MeshStandardMaterial({ color: 0xd9a23a, roughness: 0.7, emissive: 0x3a2508, emissiveIntensity: 0.3 }), { cast: false })
+    for (let i = 0; i < (low ? 70 : 170); i++) {
+      const k = range(rand, 0.8, 1.2)
+      fl.push({ x: range(rand, 30, 40), y: 0.2, z: range(rand, -6, 10), w: k, h: k, d: k, r: rand() * 6 })
+    }
+    instBoxes(THREE, scene, fl, new THREE.MeshStandardMaterial({ color: 0x4f6b2a, roughness: 0.8, side: THREE.DoubleSide }), { cast: false, geo: stemGeo })
+    instBoxes(THREE, scene, fl, new THREE.MeshStandardMaterial({ color: 0xf2bf2a, roughness: 0.6, emissive: 0x4a3008, emissiveIntensity: 0.35 }), { cast: false, geo: headGeo })
     batch.box(soil, 11, 0.2, 17, 35, 0, 2, [3, 3])
   }
 
@@ -1079,9 +1636,9 @@ export function buildErasmus(THREE, ctx, { light = 'overcast' } = {}) {
     [92, 40],
     [108, -20],
     [108, 30],
-    [-40, -58],
+    [-46, -60],
     [40, -60],
-    [-60, -40],
+    [-47, -40],
     [-64, -10],
   ]) autumn.push({ x: x + range(rand, -1, 1), z: z + range(rand, -1, 1), h: range(rand, 8, 12) })
   addForest(THREE, scene, autumn, { species: 'lime', season: 'autumn', seed: 5, quality: tq })
@@ -1109,7 +1666,7 @@ export function buildErasmus(THREE, ctx, { light = 'overcast' } = {}) {
     [
       { x: 58, z: 30.5, len: 30, dir: 0 },
       { x: 58, z: 34, len: 30, dir: 0 },
-      { x: -10, z: -60, len: 30, dir: 0, fill: 0.9 },
+      { x: 2, z: -61, len: 24, dir: 0, fill: 0.9 },
       { x: 30, z: -60, len: 22, dir: 0 },
       { x: -64, z: 2, len: 20, dir: Math.PI / 2 },
       { x: -40, z: 50, len: 18, dir: 0 },
@@ -1121,7 +1678,7 @@ export function buildErasmus(THREE, ctx, { light = 'overcast' } = {}) {
   for (let x = -40; x <= 40; x += 16) lamps.push({ x, z: 17 })
   for (let z = -6; z <= 40; z += 15) lamps.push({ x: 30, z, r: Math.PI })
   lamps.push({ x: -34, z: -6 }, { x: -34, z: 8 })
-  for (let x = -100; x <= 120; x += 20) lamps.push({ x, z: -60 })
+  for (let x = -100; x <= 120; x += 20) if (x < -78 || x > -50) lamps.push({ x, z: -60 })
   for (let z = -60; z <= 90; z += 25) lamps.push({ x: -136, z, r: Math.PI })
   addLampPosts(THREE, scene, lamps, { height: 6 })
   const bins = []
@@ -1179,26 +1736,33 @@ export function buildErasmus(THREE, ctx, { light = 'overcast' } = {}) {
     instBoxes(THREE, scene, towers, towerGlass, { cast: false, geo: unit.clone() })
   }
 
+  // the central hall of the Erasmus Building (photo 2), its glazed end to the south
+  const HALL = { x0: -76, x1: -54, z0: -64, z1: -24, h: 12 }
+  buildHallInterior(THREE, ctx, scene, HALL, seeded(77))
+  // its outside: concrete, a parapet
+  batch.box(ebConcrete, HALL.x1 - HALL.x0 + 1.4, 1.2, HALL.z1 - HALL.z0 + 1, (HALL.x0 + HALL.x1) / 2, HALL.h + 0.6, (HALL.z0 + HALL.z1) / 2, [4, 4])
+
   batch.build(scene)
 
   /* light, the flight in, the viewpoints ---------------------------------------------- */
-  world.focusShadows(V(-8, 0, -18), 85)
+  world.focusShadows(V(-20, 0, -30), 100)
 
+  // One viewpoint per photograph (ayesha-01..07), in photo order; spots[0] is the hero.
   const spots = [
-    // 0 · the statue of Erasmus, the bench row, the hedge and dark trees (photo 1)
-    { pos: V(-45.5, 1.6, 35.5), look: V(-46.5, 4.2, 0) },
-    // 1 · across the pond to the terraces, the steps, Polak and the Erasmus Building (photo 6)
-    { pos: V(-4, 1.65, 11.2), look: V(6, 15, -70) },
-    // 2 · at the foot of the sitting steps, Polak's glass grid above (photo 7)
-    { pos: V(7, 1.6, -7.2), look: V(-16, 10, -34) },
-    // 3 · up on the deck: the Erasmus Building towering above (photo 3)
-    { pos: V(14, 3.6 + 1.65, -50.5), look: V(0, 36, -74) },
-    // 4 · high over the campus heart from the south-east
-    { pos: V(34, 19, 30), look: V(-8, 12, -46) },
-    // 5 · "THE ERASMIAN WAY" across Sanders, yellow flowers in front (photo 5)
-    { pos: V(22, 1.6, 12), look: V(56, 8, -6) },
-    // 6 · from the south across the polygonal paving: pond, steps, the slab beyond (photo 4)
-    { pos: V(2, 1.7, 46), look: V(-4, 18, -60) },
+    // 0 · ayesha-01: square to the bronze Erasmus, the bench row, hedge and dark trees behind
+    { pos: V(-50.0, 1.4, 30.3), look: V(-51.3, 2.2, 22) },
+    // 1 · ayesha-02: inside the Erasmus Building's great hall: red ceiling, balconies left, tall windows right, the Polyhedral Netstructure
+    { pos: V(-64.2, 1.5, -27.0), look: V(-65.4, 6.2, -64) },
+    // 2 · ayesha-03: low on the deck's north edge, the Erasmus Building towering over the parapet
+    { pos: V(-30, 3.6 + 1.25, -53), look: V(-12, 24, -70) },
+    // 3 · ayesha-04: looking down at the polygonal paving and the lawn edge by the statue
+    { pos: V(-43.0, 1.65, 32.0), look: V(-41.9, 0.0, 31.2) },
+    // 4 · ayesha-05: low behind the yellow flowers, "THE ERASMIAN WAY" across Sanders, the slab behind
+    { pos: V(29.0, 1.0, 6.0), look: V(44, 6.5, 0.5) },
+    // 5 · ayesha-06: at the pond's south rim: water, terraces and steps, the brown block, the Erasmus tower
+    { pos: V(0.5, 1.25, 9.6), look: V(0.5, 9.5, -60) },
+    // 6 · ayesha-07: at the foot of the sitting steps, looking up to Polak's glass grid
+    { pos: V(6.0, 1.3, -8.4), look: V(-12, 8.5, -32) },
   ]
   const end = spots[0]
   const path = {
@@ -1220,7 +1784,7 @@ export function buildErasmus(THREE, ctx, { light = 'overcast' } = {}) {
     world,
     path,
     groundAt,
-    clearance: 1.2,
+    clearance: 0.9,
     update(t) {
       water.userData.tick(t)
     },

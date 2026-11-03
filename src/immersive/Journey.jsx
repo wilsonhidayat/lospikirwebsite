@@ -161,7 +161,7 @@ export default function Journey({ items, variant = 'home', landing = null, skip 
   useEffect(() => {
     const v = viewerRef.current
     if (!v) return
-    if (visible && stage === 'place') v.start()
+    if (visible && stage !== 'landing') v.start()
     else v.stop()
   }, [visible, stage, phase])
 
@@ -215,6 +215,34 @@ export default function Journey({ items, variant = 'home', landing = null, skip 
       snd.start()
       snd.setPlace(stage === 'place' ? seq.locs[seq.loc[photo]]?.scene : null)
     }
+  }
+
+  // the memories as a place: a travel map with every shoot pinned on it
+  const mapItem = useMemo(
+    () => ({
+      slug: 'memories',
+      scene: 'memories',
+      hero: items[0]?.hero,
+      photos: [],
+      memories: items.map((it) => ({
+        slug: it.slug,
+        title: it.title || it.caption,
+        hero: it.hero,
+        city: it.city || it.locations?.find((l) => l.city)?.city || it.place || '',
+        lat: it.lat ?? null,
+        lon: it.lon ?? null,
+      })),
+    }),
+    [items]
+  )
+  useEffect(() => {
+    if (stage !== 'memories' || !use3D) return
+    getViewer().then((v) => v?.enter(mapItem, chapter + 1))
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [stage, use3D])
+  const onChapter = (i) => {
+    if (use3D) viewerRef.current?.photo(i + 1)
+    preloadSoon(i)
   }
 
   // the chapter in view gets its place ready, so stepping in is quick
@@ -456,7 +484,7 @@ export default function Journey({ items, variant = 'home', landing = null, skip 
       {/* Memories */}
       <AnimatePresence>
         {stage === 'memories' && (
-          <Memories key="memories" items={items} start={chapter} onOpen={openMemory} onBack={backToLanding} onFinish={finish} onActive={preloadSoon} skipLink={exitPill} noCopy={noCopy} />
+          <Memories key="memories" items={items} start={chapter} onOpen={openMemory} onBack={backToLanding} onFinish={finish} onActive={onChapter} threeD={use3D} skipLink={exitPill} noCopy={noCopy} />
         )}
       </AnimatePresence>
 
@@ -641,7 +669,7 @@ function Chevron({ dir }) {
  */
 const TRAILER = 4.6 // seconds per photo
 
-function Memories({ items, start = 0, onOpen, onBack, onFinish, onActive, skipLink, noCopy }) {
+function Memories({ items, start = 0, onOpen, onBack, onFinish, onActive, threeD = false, skipLink, noCopy }) {
   const rowRef = useRef(null)
   const rootRef = useRef(null)
   const stageRef = useRef(null)
@@ -668,7 +696,7 @@ function Memories({ items, start = 0, onOpen, onBack, onFinish, onActive, skipLi
 
   // the trailer: the shoot's photos, one after another
   useEffect(() => {
-    if (reduced || reel.length < 2) return
+    if (threeD || reduced || reel.length < 2) return
     const t = setInterval(() => setSlide((n) => (n + 1) % reel.length), TRAILER * 1000)
     return () => clearInterval(t)
   }, [reel, reduced])
@@ -682,7 +710,8 @@ function Memories({ items, start = 0, onOpen, onBack, onFinish, onActive, skipLi
 
   const open = () => {
     const card = cardRefs.current[activeRef.current]?.querySelector('img')
-    onOpen(activeRef.current, card, rootRef.current?.getBoundingClientRect())
+    // over the map the photo rises out of its card; over the trailer, out of the screen
+    onOpen(activeRef.current, card, threeD ? null : rootRef.current?.getBoundingClientRect())
   }
   const selectRef = useRef(select)
   selectRef.current = select
@@ -752,7 +781,8 @@ function Memories({ items, start = 0, onOpen, onBack, onFinish, onActive, skipLi
   const src = reel[slide % reel.length] || it.hero
 
   return (
-    <motion.div ref={rootRef} className="mx" initial={{ opacity: 0 }} animate={{ opacity: 1, transition: { duration: 0.7 } }} exit={{ opacity: 0, transition: { duration: 0.6 } }}>
+    <motion.div ref={rootRef} className={`mx${threeD ? ' mx--3d' : ''}`} initial={{ opacity: 0 }} animate={{ opacity: 1, transition: { duration: 0.7 } }} exit={{ opacity: 0, transition: { duration: 0.6 } }}>
+      {!threeD && (
       <div className="mx__stage" ref={stageRef} aria-hidden="true">
         <AnimatePresence initial={false}>
           <motion.img
@@ -767,6 +797,7 @@ function Memories({ items, start = 0, onOpen, onBack, onFinish, onActive, skipLi
           />
         </AnimatePresence>
       </div>
+      )}
       <div className="mx__scrim" aria-hidden="true" />
 
       <button type="button" className="jr__pill jr__back" onClick={onBack}>
@@ -817,7 +848,7 @@ function Memories({ items, start = 0, onOpen, onBack, onFinish, onActive, skipLi
               Finish the experience
             </button>
           )}
-          {reel.length > 1 && (
+          {!threeD && reel.length > 1 && (
             <span className="mx__dots" aria-hidden="true">
               {reel.map((_, k) => (
                 <i key={k} className={k === slide ? 'is-on' : ''} />
@@ -843,7 +874,7 @@ function Memories({ items, start = 0, onOpen, onBack, onFinish, onActive, skipLi
             </span>
             <span className="mx__thumb">
               <img src={m.hero} alt={m.alt || ''} loading={Math.abs(i - start) < 6 ? 'eager' : 'lazy'} decoding="async" {...noCopy} />
-              {i === active && !reduced && reel.length > 1 && <span key={`${slide}`} className="mx__progress" style={{ animationDuration: `${TRAILER}s` }} />}
+              {i === active && !threeD && !reduced && reel.length > 1 && <span key={`${slide}`} className="mx__progress" style={{ animationDuration: `${TRAILER}s` }} />}
             </span>
             <span className="mx__name">{m.title || m.caption}</span>
             <span className="mx__kind">{shootLine(m)}</span>

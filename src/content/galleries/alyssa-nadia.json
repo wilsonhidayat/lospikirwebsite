@@ -6,7 +6,21 @@
   "cover": "/photos/alyssa-nadia-01.jpg",
   "intro": "",
   "scene": "campus",
+  "locations": [
+    {
+      "scene": "campus",
+      "photos": "1-5",
+      "views": [
+        21,
+        22,
+        23,
+        24,
+        25
+      ]
+    }
+  ],
   "place": "A university building",
+  "city": "The Hague",
   "photos": [
     {
       "src": "/photos/alyssa-nadia-01.jpg",

@@ -6,6 +6,20 @@
   "cover": "/photos/owen-06.jpg",
   "intro": "",
   "scene": "hall",
+  "locations": [
+    {
+      "scene": "hall",
+      "photos": "1-6",
+      "views": [
+        1,
+        2,
+        3,
+        4,
+        5,
+        0
+      ]
+    }
+  ],
   "place": "Avans University of Applied Sciences",
   "photos": [
     {

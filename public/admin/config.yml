@@ -199,6 +199,9 @@ collections:
           - { label: "Rotterdam City Hall", value: cityhall }
           - { label: "Inside the Blob, Eindhoven", value: blob }
           - { label: "Amsterdam park in autumn", value: park }
+          - { label: "Stadsloket wedding room, Amsterdam", value: stadsloket }
+          - { label: "Restaurant dinner", value: restaurant }
+          - { label: "Grand staircase (Stadsschouwburg)", value: leidseplein-hotel }
         hint: "Pick the one closest to where it was shot."
       - { name: place, label: "Where it was shot (e.g. “Trocadéro, Paris”)", widget: string, required: false }
       - { name: city, label: "City (shown in the experience, e.g. “Paris”)", widget: string, required: false, hint: "Only the city is shown to visitors — leave empty to show just the type of shoot." }
@@ -229,6 +232,9 @@ collections:
               - { label: "Rotterdam City Hall", value: cityhall }
               - { label: "Inside the Blob, Eindhoven", value: blob }
               - { label: "Amsterdam park in autumn", value: park }
+              - { label: "Stadsloket wedding room, Amsterdam", value: stadsloket }
+              - { label: "Restaurant dinner", value: restaurant }
+              - { label: "Grand staircase (Stadsschouwburg)", value: leidseplein-hotel }
           - { name: photos, label: "Photos (numbers, e.g. 1-7 or 1,3,5)", widget: string }
           - { name: city, label: "City for this part (optional)", widget: string, required: false }
           - { name: views, label: "Viewpoints (set by the developer)", widget: hidden, required: false }

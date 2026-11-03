@@ -6,6 +6,22 @@
   "cover": "/photos/evan-inez-amsterdam-01.jpg",
   "intro": "",
   "scene": "amsterdam",
+  "locations": [
+    {
+      "scene": "amsterdam",
+      "photos": "1-8",
+      "views": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7
+      ]
+    }
+  ],
   "place": "The canal ring, Amsterdam",
   "city": "Amsterdam",
   "hero": "/photos/evan-inez-amsterdam-01.jpg",

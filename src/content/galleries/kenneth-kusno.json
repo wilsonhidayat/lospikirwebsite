@@ -6,6 +6,22 @@
   "cover": "/photos/kenneth-kusno-04.jpg",
   "intro": "",
   "scene": "campus",
+  "locations": [
+    {
+      "scene": "campus",
+      "photos": "1-8",
+      "views": [
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8
+      ]
+    }
+  ],
   "place": "TU/e campus, Eindhoven",
   "city": "Eindhoven",
   "hero": "/photos/kenneth-kusno-04.jpg",

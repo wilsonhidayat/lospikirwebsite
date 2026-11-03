@@ -6,6 +6,27 @@
   "cover": "/photos/keisha-lianto-01.jpg",
   "intro": "",
   "scene": "waterfront-night",
+  "locations": [
+    {
+      "scene": "waterfront-night",
+      "photos": "1-13",
+      "views": [
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10,
+        11,
+        0,
+        12
+      ]
+    }
+  ],
   "place": "The Erasmus Bridge, Rotterdam",
   "city": "Rotterdam",
   "hero": "/photos/keisha-lianto-12.jpg",

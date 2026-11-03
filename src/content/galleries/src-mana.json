@@ -9,11 +9,28 @@
   "locations": [
     {
       "scene": "eindhoven",
-      "photos": "1-7"
+      "photos": "1-7",
+      "views": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6
+      ]
     },
     {
       "scene": "blob",
-      "photos": "8-13"
+      "photos": "8-13",
+      "views": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5
+      ]
     }
   ],
   "place": "Eindhoven city centre",

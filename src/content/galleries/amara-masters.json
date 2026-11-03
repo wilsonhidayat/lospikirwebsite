@@ -6,6 +6,29 @@
   "cover": "/photos/amara-masters-05.jpg",
   "intro": "",
   "scene": "leidseplein",
+  "locations": [
+    {
+      "scene": "leidseplein",
+      "photos": "3-5",
+      "views": [
+        1,
+        2,
+        0
+      ]
+    },
+    {
+      "scene": "leidseplein-hotel",
+      "photos": "1-2,6-9",
+      "views": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5
+      ]
+    }
+  ],
   "place": "Leidseplein, Amsterdam",
   "city": "Amsterdam",
   "hero": "/photos/amara-masters-05.jpg",

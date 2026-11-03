@@ -10,11 +10,29 @@
     {
       "scene": "cityhall",
       "photos": "1-7",
-      "city": "Rotterdam"
+      "city": "Rotterdam",
+      "views": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6
+      ]
     },
     {
       "scene": "coast",
-      "photos": "8-14"
+      "photos": "8-14",
+      "views": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6
+      ]
     }
   ],
   "place": "The dunes and the beach, at sunset",

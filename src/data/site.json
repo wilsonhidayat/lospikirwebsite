@@ -16,6 +16,10 @@
   },
   "nav": [
     {
+      "label": "Experience",
+      "href": "/"
+    },
+    {
       "label": "Work",
       "href": "/work#work"
     },

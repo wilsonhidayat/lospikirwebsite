@@ -35,8 +35,7 @@ html.jr-tour body {
   height: 100%;
   display: block;
 }
-.jr--landing .jr__gl,
-.jr--memories .jr__gl {
+.jr--landing .jr__gl {
   visibility: hidden;
 }
 .jr__flat img {
@@ -186,6 +185,13 @@ html.jr-tour .meter { display: none; }
 }
 /* the chosen shoot's trailer, full screen behind its title — the photos as
    they are, drifting slowly; the whole backdrop leans with the pointer */
+/* over the 3D map the room shows through; only the text gets a soft shade */
+.mx--3d { background: transparent; }
+.mx--3d .mx__scrim {
+  background:
+    linear-gradient(90deg, rgba(10, 10, 11, 0.6) 0%, rgba(10, 10, 11, 0.25) 30%, rgba(10, 10, 11, 0) 50%),
+    linear-gradient(0deg, rgba(23, 19, 16, 0.85) 0%, rgba(23, 19, 16, 0.4) 20%, rgba(23, 19, 16, 0) 38%);
+}
 .mx__stage {
   position: absolute;
   inset: 0;
@@ -722,4 +728,11 @@ html.jr-tour .meter { display: none; }
   }
   .pv__nav--prev { left: 8px; }
   .pv__nav--next { right: 8px; }
+}
+@media (max-width: 820px) {
+  .mx--3d .mx__scrim {
+    background:
+      linear-gradient(0deg, rgba(23, 19, 16, 0.92) 0%, rgba(23, 19, 16, 0.6) 34%, rgba(23, 19, 16, 0) 60%),
+      linear-gradient(180deg, rgba(10, 10, 11, 0.5) 0%, rgba(10, 10, 11, 0) 20%);
+  }
 }

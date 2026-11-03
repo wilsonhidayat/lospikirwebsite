@@ -23,6 +23,9 @@ export const SCENE_LABELS = {
   cityhall: 'Rotterdam City Hall',
   blob: 'Inside the Blob, Eindhoven',
   park: 'Amsterdam park in autumn',
+  stadsloket: 'Stadsloket wedding room, Amsterdam',
+  restaurant: 'Restaurant dinner',
+  'leidseplein-hotel': 'Grand hotel staircase, Amsterdam',
 }
 
 const LOADERS = {
@@ -37,6 +40,11 @@ const LOADERS = {
   cityhall: (T, ctx) => import('./cityhall.js').then((m) => m.buildCityHall(T, ctx, { light: 'golden' })),
   blob: (T, ctx) => import('./blob.js').then((m) => m.buildBlobInterior(T, ctx)),
   park: (T, ctx) => import('./park.js').then((m) => m.buildPark(T, ctx, { light: 'golden' })),
+  stadsloket: (T, ctx) => import('./stadsloket.js').then((m) => m.buildStadsloket(T, ctx, { variant: 'stadsloket' })),
+  restaurant: (T, ctx) => import('./stadsloket.js').then((m) => m.buildStadsloket(T, ctx, { variant: 'restaurant' })),
+  'leidseplein-hotel': (T, ctx) => import('./leidseplein.js').then((m) => m.buildLeidseplein(T, ctx, { variant: 'hotel' })),
+  // the memories themselves, as a place: a travel map with every shoot pinned on it
+  memories: (T, ctx) => import('./memories.js').then((m) => m.buildMemoryMap(T, ctx)),
   'waterfront-sunset': (T, ctx) =>
     import('./waterfront.js').then((m) => m.buildWaterfront(T, ctx, { light: 'sunset', lookout: true })),
   'waterfront-night': (T, ctx) =>

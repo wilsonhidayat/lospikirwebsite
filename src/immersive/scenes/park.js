@@ -28,7 +28,8 @@ const LA = 58 // lawn ellipse, half-length along x
 const LB = 40 // half-width along z
 const PATH_E = 1.1 // the path follows the lawn's ellipse scaled by this
 const PATH_W = 3.6
-const POND = { x: -42, z: -12, rx: 13, rz: 6.5 }
+// the pond lies south-east of the willow, out of every photograph's view
+const POND = { x: 8, z: -30, rx: 13, rz: 6.5 }
 const WILLOW = { x: -20, z: 0 }
 const HOUSE_X = 104 // the townhouses' front line (they face −x, toward the park)
 
@@ -652,7 +653,7 @@ function addWillow(THREE, scene, { x, z, quality }, time) {
     const a = rand() * Math.PI * 2
     const r = 2 + Math.sqrt(rand()) * 4.6
     const top = 10.6 - (r / 6.6) ** 2 * 3.0 + range(rand, -0.5, 0.4)
-    const bottom = range(rand, 2.95, 5.2)
+    const bottom = range(rand, 2.5, 4.9)
     const L = Math.max(1.5, top - bottom)
     const wid = range(rand, 1.0, 1.7)
     const p = new THREE.PlaneGeometry(wid, L)
@@ -706,9 +707,9 @@ function addWillow(THREE, scene, { x, z, quality }, time) {
 }
 
 /** Dark shrubbery at the foot of the tree belt: a leafy shell round a dark core. */
-function addShrubs(THREE, scene, spots) {
+function addShrubs(THREE, scene, spots, { colors = null, core: coreColor = 0x1e2a16, seed = 55 } = {}) {
   if (!spots.length) return
-  const rand = seeded(55)
+  const rand = seeded(seed)
   let core = new THREE.IcosahedronGeometry(1, 1)
   {
     const p = core.attributes.position
@@ -722,7 +723,7 @@ function addShrubs(THREE, scene, spots) {
     core.computeVertexNormals()
   }
   const shell = []
-  for (let i = 0; i < 16; i++) {
+  for (let i = 0; i < 28; i++) {
     const a = rand() * Math.PI * 2
     const y = range(rand, -0.2, 0.95)
     const r = Math.sqrt(1 - y * y)
@@ -734,8 +735,8 @@ function addShrubs(THREE, scene, spots) {
     shell.push(p)
   }
   const shellGeo = radialNormals(mergeGeometries(shell, false), 0, -0.3, 0, 0.2)
-  const tex = clusterTexture(THREE, ['#2e4220', '#3a5226', '#26381b', '#4a5a2a', '#5a4a24', '#6a4a22'], 33, { n: 520, size: [6, 11] })
-  const coreMat = new THREE.MeshStandardMaterial({ color: 0x1e2a16, roughness: 0.95, normalMap: noiseNormalMap(THREE, 128, { cells: 16, strength: 3 }) })
+  const tex = clusterTexture(THREE, colors || ['#2e4220', '#3a5226', '#26381b', '#4a5a2a', '#5a4a24', '#6a4a22'], seed - 22, { n: 520, size: [6, 11] })
+  const coreMat = new THREE.MeshStandardMaterial({ color: coreColor, roughness: 0.95, normalMap: noiseNormalMap(THREE, 128, { cells: 16, strength: 3 }) })
   const shellMat = cardMaterial(THREE, tex, { cut: 0.45 })
   const cores = new THREE.InstancedMesh(core, coreMat, spots.length)
   const shells = new THREE.InstancedMesh(shellGeo, shellMat, spots.length)
@@ -869,7 +870,7 @@ export function buildPark(THREE, ctx, { light = 'golden' } = {}) {
       cloudShade: 0x7c7f98,
       clouds: 0.2,
     },
-    fog: { density: 0.0026 },
+    fog: { density: 0.0019 },
     sunColor: 0xffb46e,
     sunIntensity: 2.7,
     hemi: [0x9dbbe8, 0x3f4d2a, 1.0],
@@ -1040,9 +1041,10 @@ export function buildPark(THREE, ctx, { light = 'golden' } = {}) {
     for (const p of pts) {
       const r = rand()
       let sp
-      if (p.x < -40) sp = r < 0.5 ? 'bare' : r < 0.7 ? 'oak' : r < 0.85 ? 'plane' : 'birch'
-      else if (p.e > 1.55 && r < 0.3) sp = 'poplar'
-      else sp = r < 0.3 ? 'oak' : r < 0.55 ? 'lime' : r < 0.75 ? 'plane' : r < 0.88 ? 'birch' : 'bare'
+      // late in the year: half the trees already bare, the rest in thin gold and rust
+      if (p.x < -40) sp = r < 0.62 ? 'bare' : r < 0.8 ? 'oak' : r < 0.9 ? 'plane' : 'birch'
+      else if (p.e > 1.55 && r < 0.25) sp = 'poplar'
+      else sp = r < 0.22 ? 'oak' : r < 0.36 ? 'lime' : r < 0.5 ? 'plane' : r < 0.6 ? 'birch' : 'bare'
       const h = {
         oak: range(rand, 16, 22),
         lime: range(rand, 15, 21),
@@ -1058,7 +1060,7 @@ export function buildPark(THREE, ctx, { light = 'golden' } = {}) {
     lists.plane.push({ x: 45, z: 35, h: 25 })
     lists.lime.push({ x: 27, z: 36, h: 19 })
     lists.plane.push({ x: -48, z: 27, h: 23 })
-    lists.bare.push({ x: 8, z: -36, h: 17 })
+    lists.bare.push({ x: -2, z: -41, h: 17 })
 
     const tints = {
       oak: [[1.18, 0.78, 0.5], [1.0, 0.86, 0.62], [0.95, 0.95, 0.8], [1.2, 0.68, 0.42]],
@@ -1100,6 +1102,19 @@ export function buildPark(THREE, ctx, { light = 'golden' } = {}) {
       shrubs.push({ x, z, r: range(srand, 1.1, 2.3) })
     }
     addShrubs(THREE, scene, shrubs)
+    // a few shrubs already turned yellow, by the grove (photo 17) and round the lawn
+    addShrubs(
+      THREE,
+      scene,
+      [
+        { x: 36.6, z: 26.6, r: 1.25 },
+        { x: 38.8, z: 24.4, r: 0.95 },
+        { x: 17.5, z: 27.5, r: 1.1 },
+        { x: -40, z: 30, r: 1.3 },
+        { x: -52, z: -26, r: 1.2 },
+      ],
+      { colors: ['#b58a22', '#c99a2a', '#a0761c', '#d4ab3c', '#8a6a1e', '#6f5a1c'], core: 0x5a4518, seed: 77 }
+    )
   }
 
   addWillow(THREE, scene, { x: WILLOW.x, z: WILLOW.z, quality }, time)
@@ -1140,10 +1155,10 @@ export function buildPark(THREE, ctx, { light = 'golden' } = {}) {
   {
     const rand = seeded(17)
     const facades = [
-      M.facade(THREE, { wall: 'brick', color: '#7b3b26', mortar: '#b2a48f', frame: '#efe8da', bay: 2.4, storey: 3.2, night: 0.12, quality, seed: 41 }),
-      M.facade(THREE, { wall: 'brick', color: '#5b3022', mortar: '#a3937d', frame: '#f1ece2', bay: 2.4, storey: 3.2, night: 0.1, quality, seed: 42 }),
-      M.facade(THREE, { wall: 'plaster', color: '#d8c19a', frame: '#f4efe6', bay: 2.6, storey: 3.3, night: 0.12, quality, seed: 43 }),
-      M.facade(THREE, { wall: 'brick', color: '#8e4a2c', mortar: '#c0b29c', frame: '#2f3a32', bay: 2.4, storey: 3.2, night: 0.1, quality, seed: 44 }),
+      M.facade(THREE, { wall: 'brick', color: '#6a3324', mortar: '#8f8272', frame: '#3b2f28', bay: 2.4, storey: 3.2, quality, seed: 41 }),
+      M.facade(THREE, { wall: 'brick', color: '#4f2a1f', mortar: '#857867', frame: '#2c2a26', bay: 2.4, storey: 3.2, quality, seed: 42 }),
+      M.facade(THREE, { wall: 'brick', color: '#5e3324', mortar: '#7d7062', frame: '#3a3631', bay: 2.6, storey: 3.3, quality, seed: 43 }),
+      M.facade(THREE, { wall: 'brick', color: '#7a3e26', mortar: '#a09380', frame: '#2f3a32', bay: 2.4, storey: 3.2, quality, seed: 44 }),
     ]
     const roofMat = M.roof(THREE, { kind: 'slate', tile: 2, quality, seed: 45 })
     const trim = new THREE.MeshStandardMaterial({ color: 0xe9e3d6, roughness: 0.7 })
@@ -1188,7 +1203,7 @@ export function buildPark(THREE, ctx, { light = 'golden' } = {}) {
       benchSpots.push({ x: p.x, z: p.z, ry: Math.atan2(-p.nx, -p.nz) })
     }
     // two by the pond, facing the water
-    benchSpots.push({ x: -47, z: -3.2, ry: Math.PI }, { x: -36.5, z: -3.4, ry: Math.PI })
+    benchSpots.push({ x: POND.x - 5, z: POND.z + 8.8, ry: Math.PI }, { x: POND.x + 5.5, z: POND.z + 8.6, ry: Math.PI })
     const woods = new THREE.InstancedMesh(bench.wood, woodMat, benchSpots.length)
     const irons = new THREE.InstancedMesh(bench.iron, ironMat, benchSpots.length)
     const m = new THREE.Matrix4()
@@ -1227,7 +1242,7 @@ export function buildPark(THREE, ctx, { light = 'golden' } = {}) {
       const p = pathAt((i / (low ? 10 : 16)) * Math.PI * 2 + 0.2, PATH_W / 2 + 0.6)
       lampSpots.push(p)
     }
-    lampSpots.push({ x: -41, z: -2.2 })
+    lampSpots.push({ x: POND.x + 1, z: POND.z + 9.8 })
     const posts = new THREE.InstancedMesh(lamp.post, new THREE.MeshStandardMaterial({ color: 0x1c2a22, roughness: 0.45, metalness: 0.55 }), lampSpots.length)
     const glass = new THREE.InstancedMesh(
       lamp.glass,
@@ -1250,28 +1265,43 @@ export function buildPark(THREE, ctx, { light = 'golden' } = {}) {
 
   /* spots (photos 12–18) --------------------------------------------------- */
   const V = (x, y, z) => new THREE.Vector3(x, y, z)
+  // one viewpoint per photograph (12 … 18), where each was taken from:
+  // x, z, eye height, azimuth (0 → +z, 90 → +x; the sun is at 255), pitch
+  const view = (x, z, eye, az, pitch) => {
+    const a = (az * Math.PI) / 180
+    const p = (pitch * Math.PI) / 180
+    const D = 50
+    return { pos: V(x, eye, z), look: V(x + Math.sin(a) * Math.cos(p) * D, eye + Math.sin(p) * D, z + Math.cos(a) * Math.cos(p) * D) }
+  }
   const spots = [
-    // 12: backlit close portrait under the willow's strands, the sun going down behind the trees
-    { pos: V(-18, 1.65, -5), look: V(-80, 5, -12) },
-    // 13: a step on, turning further into the low sun, the pond glittering
-    { pos: V(-21.5, 1.7, -6), look: V(-80, 7.5, -26) },
-    // 14: back to the sun: the dark northern tree line and its shrubbery, blue sky
-    { pos: V(-25.5, 1.6, 2.5), look: V(-12, 4.5, 60) },
-    // 15: across the lawn eastward, the townhouses glimpsed through the trees
-    { pos: V(-20, 1.7, 6), look: V(60, 5, -2) },
-    // 16: low, looking up into the sky over the sunlit eastern trees
-    { pos: V(-14, 1.25, 4), look: V(40, 13, 14) },
-    // 17: under the big trees of the grove, trunks and the darker woods beyond
-    { pos: V(16, 1.7, 13), look: V(44, 4, 30) },
-    // 18: the whole lawn toward the sunset, bare trees in silhouette
-    { pos: V(40, 1.15, -8), look: V(-70, 5.5, -14) },
+    // 12 · close portrait on the open lawn west of the willow, toward the low
+    // sun: the backlit belt of trees glowing orange left of centre, dark hedge
+    view(-27.5, -7, 1.6, 241, -4),
+    // 13 · a few steps on, in under the willow (its bare strands hanging
+    // across the top of the frame), the same backlit trees, more sky
+    view(-21.5, -1.8, 1.55, 247, 1.5),
+    // 14 · turned north with the sun behind: the dark tree line and hedge, the
+    // tops of the bare trees catching the last light, a pale blue sky
+    view(-21.6, 1.0, 1.55, 18, -1),
+    // 15 · east from under the willow, beside its trunk: bare trees, and behind them the long
+    // dark brick row of townhouses
+    view(-20.3, 2.0, 1.6, 94, -2),
+    // 16 · crouched low out on the open lawn, looking up into the blue over
+    // the far tree line, the sunset glow on the right
+    view(30, 10, 1.05, 300, 13),
+    // 17 · on the lawn by the grove: a big trunk and a yellow shrub to the
+    // left, the darker woods beyond
+    view(21.5, 13.5, 1.75, 30, -7),
+    // 18 · low across the whole lawn toward the sunset sky, the trees black
+    // against it
+    view(42, -4, 1.15, 274, 1),
   ]
 
   /* the floor at the camera's feet: fallen leaves ---------- */
   {
     const rand = seeded(303)
     const nLeaves = low ? 3000 : 9000
-    const centres = spots.map((s) => s.pos).concat([V(34, 0, 24), V(WILLOW.x, 0, WILLOW.z), V(-41, 0, -3)])
+    const centres = spots.map((s) => s.pos).concat([V(34, 0, 24), V(WILLOW.x, 0, WILLOW.z), V(POND.x + 1, 0, POND.z + 9)])
     const leafGeo = new THREE.PlaneGeometry(1, 1).rotateX(-Math.PI / 2)
     const ltex = leafTexture(THREE)
     const leafMat = cardMaterial(THREE, ltex, { size: 64, cut: 0.5, rough: 0.8 })
@@ -1308,8 +1338,8 @@ export function buildPark(THREE, ctx, { light = 'golden' } = {}) {
   world.focusShadows(new THREE.Vector3(-5, 0, 0), 95)
 
   const path = {
-    positions: [V(150, 70, 120), V(80, 34, 60), V(22, 10, 22), V(-8, 3, 2), spots[0].pos.clone()],
-    targets: [V(0, 5, 0), V(-10, 4, 0), V(-30, 4, -6), V(-50, 4.5, -10), spots[0].look.clone()],
+    positions: [V(150, 70, 120), V(80, 34, 60), V(24, 10, 16), V(-12, 3, -12), spots[0].pos.clone()],
+    targets: [V(0, 5, 0), V(-20, 4, -4), V(-40, 4, -14), V(-60, 4, -24), spots[0].look.clone()],
     fov: 50,
     near: 0.2,
     spots,

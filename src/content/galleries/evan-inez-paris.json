@@ -6,6 +6,37 @@
   "cover": "/photos/evan-inez-paris-08.jpg",
   "intro": "",
   "scene": "paris",
+  "locations": [
+    {
+      "scene": "paris",
+      "photos": "1-23",
+      "views": [
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        0,
+        8,
+        9,
+        10,
+        11,
+        12,
+        13,
+        14,
+        15,
+        16,
+        17,
+        18,
+        19,
+        20,
+        21,
+        22
+      ]
+    }
+  ],
   "place": "Trocadéro, Paris",
   "city": "Paris",
   "hero": "/photos/evan-inez-paris-08.jpg",

@@ -176,13 +176,19 @@ function roomCanvas(K, W, H, rand) {
   grd.addColorStop(1, '#5a3a22')
   g.fillStyle = grd
   g.fillRect(0, 0, W, H)
-  // furniture and people-shaped shadows inside
-  for (let i = 0; i < 9; i++) {
-    g.fillStyle = `rgba(30,18,10,${range(rand, 0.3, 0.7)})`
+  // furniture inside: rows of desks and chair backs, a cabinet or two
+  for (let i = 0; i < 7; i++) {
+    g.fillStyle = `rgba(30,18,10,${range(rand, 0.35, 0.6)})`
     const x = rand() * W
-    const w = range(rand, 0.05, 0.18) * W
-    const h = range(rand, 0.15, 0.45) * H
-    g.fillRect(x, H - h, w, h)
+    const w = range(rand, 0.12, 0.3) * W
+    g.fillRect(x, H * 0.66, w, H * 0.04) // a desk top
+    g.fillRect(x + w * 0.05, H * 0.7, W * 0.008, H * 0.3)
+    g.fillRect(x + w * 0.92, H * 0.7, W * 0.008, H * 0.3)
+    g.fillRect(x + w * 0.3, H * 0.58, w * 0.18, H * 0.18) // a chair back
+  }
+  for (let i = 0; i < 2; i++) {
+    g.fillStyle = 'rgba(40,26,14,0.55)'
+    g.fillRect(rand() * W, H * 0.3, W * 0.12, H * 0.7)
   }
   for (let i = 0; i < 4; i++) {
     g.fillStyle = 'rgba(255,248,230,0.9)'
@@ -279,7 +285,8 @@ export function buildHall(THREE, ctx) {
   const GY1 = 4.4 // gallery floor
   const ROOF = 8.5
   const SKY = { z0: -6.5, z1: -2.5 } // skylight strip in the roof
-  const ST = { x0: -10.5, x1: -8.1, z0: -2.5, z1: GZ, n: 23 } // the stair
+  const ST = { x0: 8.6, x1: 11.0, z0: -2.5, z1: GZ, n: 23 } // the stair (owen-05: seen at the end of the hall)
+  const WING = { x1: -9 } // a low wing along the west wall under an upper floor (owen-06 is taken from it)
   const BD = { x0: 0.5, x1: 6.5, z: 2.5, h: 2.6 } // the printed backdrop
   const V = (x, y, z) => new THREE.Vector3(x, y, z)
 
@@ -345,7 +352,7 @@ export function buildHall(THREE, ctx) {
   )
   const darkCeil = std('#26272a', 0.9, 0, { normalMap: K.fine(), normalScale: new THREE.Vector2(0.4, 0.4) })
   const roofTop = std('#2c2c2d', 0.95)
-  const columnMat = std('#ebe9e4', 0.55, 0, { normalMap: K.fine(), normalScale: new THREE.Vector2(0.2, 0.2) })
+  const columnMat = std('#ebe9e4', 0.5, 0, { normalMap: K.fine(), normalScale: new THREE.Vector2(0.05, 0.05) })
   const steel = std('#1d1e20', 0.42, 0.6)
   const tread = K.wood('#b88d62', { rough: 0.5 })
   const doorWood = K.wood('#9a6a44', { rough: 0.55 })
@@ -383,7 +390,38 @@ export function buildHall(THREE, ctx) {
     ),
     false
   )
-  B.add(whiteMat, slab(-HX, HX, GY0 - 0.12, GY1, GZ - 0.04, GZ, 1))
+  B.add(whiteMat, slab(WING.x1, HX, GY0 - 0.12, GY1, GZ - 0.04, GZ, 1))
+  // the west wing: the upper floor continues over it, an L with the gallery
+  B.add(plasterW, slab(-HX, WING.x1, GY0 + 0.02, GY1 - 0.02, -HZ, GZ, 3))
+  B.add(tiles, slab(-HX, WING.x1, GY1 - 0.02, GY1, -HZ, GZ, 1.2))
+  B.add(
+    ceilTiles,
+    K.quad(
+      [
+        [-HX, GY0, -HZ],
+        [WING.x1, GY0, -HZ],
+        [WING.x1, GY0, GZ],
+        [-HX, GY0, GZ],
+      ],
+      [
+        [-HX / 1.2, HZ / 1.2],
+        [WING.x1 / 1.2, HZ / 1.2],
+        [WING.x1 / 1.2, -GZ / 1.2],
+        [-HX / 1.2, -GZ / 1.2],
+      ],
+      V(0, -1, 0)
+    ),
+    false
+  )
+  B.add(whiteMat, slab(WING.x1, WING.x1 + 0.04, GY0 - 0.12, GY1, -HZ, GZ, 1))
+  for (const [x, z] of [
+    [WING.x1 + 0.3, -7.0],
+    [WING.x1 + 0.3, -2.5],
+    [-8.0, -4.6], // a free column off the wing's corner (close at the left of owen-06)
+  ]) {
+    B.add(columnMat, K.planarUV(cyl(0.22, 0.22, x === -8.0 ? ROOF : GY0, 40).translate(x, (x === -8.0 ? ROOF : GY0) / 2, z), 1))
+    B.add(columnMat, cyl(0.25, 0.25, 0.04, 40).translate(x, 0.02, z))
+  }
   // the roof with its skylight strip, and a dark acoustic ceiling
   O.add(roofTop, slab(-HX - T, HX + T, ROOF, ROOF + 0.4, -HZ - T, SKY.z0, 3))
   O.add(roofTop, slab(-HX - T, HX + T, ROOF, ROOF + 0.4, SKY.z1, HZ + T, 3))
@@ -432,7 +470,7 @@ export function buildHall(THREE, ctx) {
     const top = GY1 + 1.05
     const zr = GZ + 0.06
     for (const [a, b] of [
-      [-HX, ST.x0],
+      [WING.x1, ST.x0],
       [ST.x1, HX],
     ]) {
       for (let x = a + 0.06; x < b - 0.02; x += 0.12) iron.add(V(x, y0 + 0.08, zr), V(x, top - 0.04, zr), 0.018, 0.018)
@@ -440,6 +478,12 @@ export function buildHall(THREE, ctx) {
       iron.add(V(a, top - 0.02, zr), V(b, top - 0.02, zr), 0.06, 0.05)
       iron.add(V(a, y0 + 0.08, zr), V(b, y0 + 0.08, zr), 0.04, 0.03)
     }
+    // and along the wing's edge
+    const xr = WING.x1 + 0.06
+    for (let z = -HZ + 0.06; z < GZ - 0.02; z += 0.12) iron.add(V(xr, y0 + 0.08, z), V(xr, top - 0.04, z), 0.018, 0.018)
+    for (let z = -HZ + 0.05; z <= GZ; z += 1.5) iron.add(V(xr, y0, z), V(xr, top, z), 0.05, 0.05)
+    iron.add(V(xr, top - 0.02, -HZ), V(xr, top - 0.02, GZ), 0.05, 0.06)
+    iron.add(V(xr, y0 + 0.08, -HZ), V(xr, y0 + 0.08, GZ), 0.03, 0.04)
   }
 
   /* --- the stair: oak treads on steel stringers, handrails ------------------------ */
@@ -552,7 +596,8 @@ export function buildHall(THREE, ctx) {
   // west wall: the glazed "Serre A" room, a door
   roomWindow('x', -HX, 1, -6.4, -1.6, 0.9, 2.8)
   door('x', -HX, 1, -8.4, 1.0)
-  // east wall: a glass door to a lit corridor
+  // a glass door to a lit corridor in the wing (owen-06, right), and one in the east wall
+  roomWindow('x', -HX, 1, 0.0, 1.2, 0.05, 2.4)
   roomWindow('x', HX, -1, -7.6, -6.4, 0.05, 2.4)
   door('x', HX, -1, 6.5, 1.0)
   // the "SERRE A" plate, a wall clock-like info screen
@@ -601,13 +646,21 @@ export function buildHall(THREE, ctx) {
     f.translate(10.6, 1.0, HZ - 0.553)
     B.add(new THREE.MeshStandardMaterial({ map: lt, roughness: 0.45, metalness: 0.3 }), f, false)
   }
-  // the big red banner on the east wall
+  // the big red banner on the wing's west wall
   {
     const bt = K.texOf(bannerCanvas(K, 512, 768), true)
-    const g = new THREE.PlaneGeometry(2.4, 3.6)
-    g.rotateY(-Math.PI / 2)
-    g.translate(HX - 0.02, 2.4, -3.0)
-    B.add(new THREE.MeshStandardMaterial({ map: bt, roughness: 0.7 }), g, false)
+    const g = new THREE.PlaneGeometry(2.0, 3.0)
+    g.rotateY(Math.PI / 2)
+    g.translate(-HX + 0.02, 1.85, 3.0)
+    const bm = new THREE.MeshStandardMaterial({ map: bt, roughness: 0.7 })
+    B.add(bm, g, false)
+    // and the same print on a roll-up stand in the wing
+    const r = new THREE.PlaneGeometry(0.85, 2.0)
+    r.rotateY(Math.PI - 0.5)
+    r.translate(-12.0, 1.08, 0.9)
+    B.add(bm, r, false)
+    B.add(steel, tf(box(0.9, 0.08, 0.2), [-12.0, 0.04, 0.9], [0, -0.5, 0]))
+    B.add(steel, tf(box(0.88, 0.03, 0.03), [-12.0, 2.09, 0.9], [0, -0.5, 0]))
   }
   // the wayfinding sign on a column
   {
@@ -617,6 +670,13 @@ export function buildHall(THREE, ctx) {
     g.translate(-6, 2.45, GZ + 0.3 - 0.24)
     B.add(new THREE.MeshStandardMaterial({ map: st, roughness: 0.5 }), g, false)
     B.add(steel, slab(-6.42, -5.58, 2.13, 2.77, GZ + 0.3 - 0.235, GZ + 0.3 - 0.215, 1))
+    // the same sign hung on cables in the hall, by the stair (owen-05, top right)
+    const h = new THREE.PlaneGeometry(1.2, 0.9)
+    h.rotateY(Math.PI)
+    h.translate(7.6, 3.1, -4.0)
+    B.add(new THREE.MeshStandardMaterial({ map: st, roughness: 0.5, side: THREE.DoubleSide }), h, false)
+    B.add(steel, slab(6.98, 8.22, 2.63, 3.57, -3.99, -3.97, 1))
+    for (const x of [7.15, 8.05]) iron.add(V(x, 3.55, -3.98), V(x, ROOF, -3.98), 0.006, 0.006)
   }
 
   /* --- the photographer's corner: the printed backdrop, softboxes, flowers ----------- */
@@ -672,12 +732,12 @@ export function buildHall(THREE, ctx) {
     }
     tri.push([black, rbox(0.14, 0.1, 0.08, 0.015, 2).translate(0, 1.4, 0)])
     tri.push([black, cyl(0.04, 0.04, 0.1, 20).rotateX(Math.PI / 2).translate(0, 1.4, 0.09)])
-    B.parts(tri, [2.0, 0, -2.9], [0, 0.2, 0])
+    B.parts(tri, [-0.6, 0, -3.6], [0, 0.2, 0])
   }
   // a high table with bouquets and yearbooks
   {
-    const tx = 8.6
-    const tz = -0.6
+    const tx = -0.7
+    const tz = -0.5
     B.add(whiteMat, cyl(0.38, 0.38, 0.03, 40).translate(tx, 1.08, tz))
     B.add(black, cyl(0.035, 0.035, 1.06, 12).translate(tx, 0.54, tz))
     B.add(black, cyl(0.24, 0.26, 0.02, 32).translate(tx, 0.01, tz))
@@ -756,8 +816,9 @@ export function buildHall(THREE, ctx) {
   /* --- furniture: trees in white planters, bistro tables ----------------------- */
   const trees = [
     { x: -5.0, z: -1.5 },
-    { x: 9.5, z: -5.0 },
-    { x: -13.0, z: 1.5 },
+    { x: 7.3, z: -1.9 },
+    { x: 7.3, z: 0.7 },
+    { x: -1.9, z: 2.9 },
   ]
   for (const t of trees) {
     B.add(whiteMat, K.planarUV(rbox(1.0, 0.9, 1.0, 0.02, 1).translate(t.x, 0.45, t.z), 1))
@@ -781,7 +842,7 @@ export function buildHall(THREE, ctx) {
     for (const [x, z] of [
       [2.5, -7.5],
       [6.5, -8.0],
-      [10.5, -7.4],
+      [-2.6, -7.6],
       [-6.5, -7.8],
     ]) {
       B.parts(table, [x, 0, z])
@@ -798,8 +859,9 @@ export function buildHall(THREE, ctx) {
   {
     const discs = []
     for (let x = -14.1; x <= 14.11; x += 1.8) for (const z of [5.2, 7.0, 8.8]) discs.push([x, GY0 - 0.006, z])
+    for (const x of [-13.6, -11.6, -10.0]) for (let z = -8.8; z < 3.5; z += 1.8) discs.push([x, GY0 - 0.006, z])
     for (let x = -13.2; x <= 13.21; x += 2.4) {
-      for (const z of [-8.6, -7.2, -1.2, 1.4, 5.4, 8.2]) discs.push([x, ROOF - 0.012, z])
+      for (const z of [-8.6, -7.2, -1.2, 1.4, 5.4, 8.2]) if (x > WING.x1 || z > GZ) discs.push([x, ROOF - 0.012, z])
     }
     const discMat = new THREE.MeshBasicMaterial({ color: new THREE.Color(6.5, 4.6, 2.7) })
     const dg = new THREE.CylinderGeometry(0.075, 0.075, 0.01, 20)
@@ -824,9 +886,10 @@ export function buildHall(THREE, ctx) {
     for (let x = -13.5; x <= 13.51; x += 1.8) scallops.push({ p: [x, GY0 - 1.45, HZ - 0.012], ry: Math.PI, w: 1.3, h: 2.9 })
     for (let x = -13.2; x <= 13.21; x += 2.4) scallops.push({ p: [x, ROOF - 1.95, HZ - 0.012], ry: Math.PI, w: 1.7, h: 3.9 })
     for (const z of [-8.6, -7.2, -1.2, 1.4]) {
-      scallops.push({ p: [-HX + 0.012, ROOF - 1.95, z], ry: Math.PI / 2, w: 1.7, h: 3.9 })
+      scallops.push({ p: [-HX + 0.012, ROOF - 1.75, z], ry: Math.PI / 2, w: 1.7, h: 3.3 })
       scallops.push({ p: [HX - 0.012, ROOF - 1.95, z], ry: -Math.PI / 2, w: 1.7, h: 3.9 })
     }
+    for (const z of [-8.8, -5.2, -1.6]) scallops.push({ p: [-HX + 0.012, GY0 - 1.45, z], ry: Math.PI / 2, w: 1.3, h: 2.9 })
     for (const z of [5.2, 7.0, 8.8]) {
       scallops.push({ p: [-HX + 0.012, GY0 - 1.45, z], ry: Math.PI / 2, w: 1.3, h: 2.9 })
       scallops.push({ p: [HX - 0.012, GY0 - 1.45, z], ry: -Math.PI / 2, w: 1.3, h: 2.9 })
@@ -848,6 +911,7 @@ export function buildHall(THREE, ctx) {
     const pg = new THREE.PlaneGeometry(1, 1)
     pg.rotateX(-Math.PI / 2)
     const pools = discs.filter(([, y]) => y < GY1)
+    const onUpper = (x, z) => z > GZ || x < WING.x1
     const pm = new THREE.InstancedMesh(pg, pool(0.16), pools.length)
     pools.forEach(([x, , z], i) => {
       m4.compose(V(x, 0.004, z), q4.identity(), V(2.4, 1, 2.4))
@@ -857,10 +921,10 @@ export function buildHall(THREE, ctx) {
     pm.frustumCulled = false
     inside.add(pm)
     // the gallery floor and the hall floor under the high downlights
-    const high = discs.filter(([, y, z]) => y > GY1)
+    const high = discs.filter(([, y]) => y > GY1)
     const hm = new THREE.InstancedMesh(pg, pool(0.07), high.length)
     high.forEach(([x, , z], i) => {
-      const onGallery = z > GZ
+      const onGallery = onUpper(x, z)
       m4.compose(V(x, onGallery ? GY1 + 0.004 : 0.004, z), q4.identity(), V(4, 1, 4))
       hm.setMatrixAt(i, m4)
     })
@@ -876,6 +940,11 @@ export function buildHall(THREE, ctx) {
     for (const x of under) {
       const p = new THREE.PointLight(warm, 9, 10, 2)
       p.position.set(x, GY0 - 0.3, 7.0)
+      scene.add(p)
+    }
+    for (const z of low ? [-3] : [-6.5, -1.0]) {
+      const p = new THREE.PointLight(warm, 8, 10, 2)
+      p.position.set(-12.2, GY0 - 0.3, z)
       scene.add(p)
     }
     for (const [x, y, z, i] of low
@@ -974,14 +1043,14 @@ export function buildHall(THREE, ctx) {
   }
 
   /* --- viewpoints ---------------------------------------------------------------------- */
+  // One viewpoint per photograph (owen-01..06); spots[0] is the hero (owen-06).
   const spots = [
-    { pos: V(-2.5, 1.5, -4.5), look: V(1.0, 2.5, 8.0) }, // owen-06: columns, the gallery and its balustrade, warm downlights
-    { pos: V(3.5, 1.5, -2.6), look: V(3.5, 1.45, 2.5) }, // owen-01..04: the printed GRADUATED / GESLAAGD backdrop
-    { pos: V(10.5, 1.6, 6.6), look: V(-5, 1.5, 8.2) }, // under the gallery: lockers, doors, scallops on white brick
-    { pos: V(6.0, 1.6, -3.5), look: V(2.0, 2.5, -16) }, // out through the glass facade to the night plaza
-    { pos: V(-9.3, 1.6, -6.2), look: V(-9.3, 4.6, 6) }, // owen-05: at the foot of the wide stair
-    { pos: V(-9.3, 4.45, 1.5), look: V(4, 1.0, -0.5) }, // halfway up the stair, over the hall
-    { pos: V(-4, 6.1, 5.6), look: V(3.5, 0.6, -1) }, // on the gallery, looking down at the backdrop
+    { pos: V(-9.6, 1.5, -6.2), look: V(-6.4, 3.4, 6.5) }, // 0 · owen-06: under the wing's low tiled ceiling, a column close left; the gallery, trees, doors, the banner right
+    { pos: V(3.2, 1.5, -1.5), look: V(3.2, 1.42, 2.5) }, // 1 · owen-01: square to the GRADUATED / GESLAAGD backdrop
+    { pos: V(3.75, 1.5, -1.75), look: V(3.7, 1.42, 2.5) }, // 2 · owen-02: the same, a little right and back
+    { pos: V(3.6, 1.3, 0.55), look: V(3.55, 1.48, 2.5) }, // 3 · owen-03: close, a head-and-shoulders frame on the print
+    { pos: V(2.9, 1.45, -1.0), look: V(3.1, 1.45, 2.5) }, // 4 · owen-04: the left half, the avans logo top left
+    { pos: V(9.8, 1.35, -9.0), look: V(9.8, 2.3, 3.0) }, // 5 · owen-05: down the hall to the open stair, planters right, the zone sign
   ]
   return {
     scene,

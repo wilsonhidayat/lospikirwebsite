@@ -1,25 +1,34 @@
 /**
- * The waterfront — three real places on a big city river, each its own build:
+ * The waterfront — three real places on a big city river, each its own build.
+ * Every photograph has its own spot (`path.spots`, mapped per gallery with a
+ * `views` list); spots are ordered so the camera's glide between consecutive
+ * photos stays in open space. No people anywhere.
  *
- *  • 'waterfront-sunset' — Amsterdam, the south bank of the IJ at sunset: a
- *    concert hall's glass foyer under a huge dark cantilevered canopy, a steel
- *    stair with plate parapets climbing over the water to an upper gallery, a
- *    ferry pontoon, brick and glass blocks with balconies along the quay, and
- *    across the water the A'DAM Toren with its lookout, a white angular film
- *    museum, cranes and new housing. The sun sits low over the IJ.
+ *  • 'waterfront-sunset' — Amsterdam, a late-March sunset on the IJ. The
+ *    Muziekgebouw aan 't IJ: its glass foyer and raised terrace under the great
+ *    dark ribbed canopy, the steel stair standing over the water off the pier
+ *    (plate parapet to the water, open railing to the terrace) climbing south
+ *    from a landing to a gallery, a walkway hung from the canopy above it; the
+ *    A'DAM Toren across the IJ to the north-west, the EYE, Overhoeks, cranes.
+ *    600 m east: Pakhuis de Zwijger on the same quay with the white, folded
+ *    Jan Schaeferbrug running through it north across the IJhaven to the
+ *    Javakade on Java-eiland, river cruise ships moored at the terminal.
  *  • 'waterfront-night' — Rotterdam at night by the Erasmusbrug: the white bent
- *    pylon, the fan of lit stays, the blue-grey deck with trams and traffic, De
- *    Rotterdam and the other Wilhelminapier towers lit across the Maas, quay
- *    lamps and a slanted-bar railing, long broken reflections on the river.
+ *    pylon, the fan of lit stays, the deck with trams and traffic, De Rotterdam
+ *    and the Wilhelminapier towers across the Maas, the slanted-bar railing on
+ *    the north quay; on the Kop van Zuid the red-banded Luxor theatre with its
+ *    glazed foyer (red auditorium wall, oak grandstand steps), the metro
+ *    station's canopy, escalators and hall with the yellow M, the tram stop at
+ *    the bridge's foot, a granite ledge, timber fenders by the south abutment.
  *  • 'party-boat' — a 56 m river cruise boat moored at a timber jetty at
- *    night; its upper deck is a packed party room you can stand in: a low
- *    grey ceiling with downlights, magenta LED strips along both ceiling edges
- *    and blue ones under the sills, big windows on the city, the DJ booth
- *    forward (CDJs, mixer, speaker stacks, a truss of amber bulbs and blue
- *    effect lights, the exit door behind), a red mosaic bar aft with a mirrored,
+ *    night; its upper deck is a party room you can stand in: a low grey
+ *    ceiling with downlights, magenta LED strips along both ceiling edges and
+ *    blue ones under the sills, big windows on the city, the DJ booth forward
+ *    (CDJs, mixer, speaker stacks, a truss of amber bulbs and blue effect
+ *    lights, the exit door behind), a red mosaic bar aft with a mirrored,
  *    back-lit bottle wall and a BAR sign, a lounge with white sofas and
- *    screens, a mirror ball, moving-head beams in haze, and a crowd of
- *    instanced low-poly people with coloured rim light.
+ *    screens, a mirror ball and moving-head beams in haze — the room empty,
+ *    jackets and cups left behind.
  *
  * Metres. Water at y = 0. In every place the river runs along X; the viewer's
  * bank is on +Z.
@@ -523,115 +532,177 @@ const std = (THREE, color, roughness = 0.6, metalness = 0, extra = {}) => new TH
 /* ======================================================================== */
 
 function buildIJ(THREE, ctx) {
+  // the day's own light: a clear late-March evening, the sun just above the
+  // IJ in the west — so the painted sky is ours, not read from one photo
+  ctx.sky = null
   const low = ctx.quality === 'low'
   const q = ctx.quality
-  const world = createWorld(THREE, ctx, 'sunset', { sun: { elevation: 3.2, azimuth: 226 }, fog: { density: 0.00072 } })
+  const world = createWorld(THREE, ctx, 'sunset', {
+    sun: { elevation: 2.6, azimuth: 268 },
+    sky: { zenith: 0x7d9cc6, horizon: 0xf5c08c, ground: 0xb08a72, sun: 0xfff0d0, cloudLit: 0xffc98e, cloudShade: 0xc08a78, clouds: 0.5 },
+    water: { deep: 0x4a5866, shallow: 0x7c8794, stroke: 0xffe2c0 },
+    fog: { density: 0.00055 },
+    sunIntensity: 2.3,
+  })
   const { scene } = world
   const K = toolkit(THREE, scene)
   const building = makeBuilding(THREE, K)
   const rand = seeded(1975)
   const V = (x, y, z) => new THREE.Vector3(x, y, z)
   const QUAY = 1.8
-  const NORTH = -430 // the far bank's quay edge
+  const NORTH = -480 // Amsterdam-Noord's quay edge across the IJ
 
-  /* --- the tour (defined first so props keep out of its way) ----------- */
+  /*
+   * The plan (x east, z south): the Muziekgebouw's pier at the west end of
+   * the Oostelijke Handelskade (quay z = 0), its glass foyer under the great
+   * dark canopy; the steel stair stands over the water off the pier's west
+   * edge (x = −10), climbing south from a landing to a gallery. 600 m east,
+   * Pakhuis de Zwijger on the same quay with the Jan Schaeferbrug running
+   * through it north across the IJhaven to Java-eiland (quay z = −200). The
+   * A'DAM Toren stands across the IJ to the north-west.
+   */
+  const PIER_X = -10
+  const ST = { x0: -19.5, x1: -16.5, zLow: -32, zTop: -16, yTop: 11 }
+  const stairY = (z) => QUAY + ((ST.zLow - z) / (ST.zLow - ST.zTop)) * (ST.yTop - QUAY)
+  const WALK = { x0: -13.4, x1: -10.6, z0: -24, z1: 26, y: 13.4 }
+  const CANOPY = { x0: -36, x1: 90, z0: -52, z1: 32, y: 17.5 }
+  const tower = V(-670, 50, -640)
+  const JAVA = -200
+  const BRIDGE = { xs: 607, xn: 618 } // the Jan Schaeferbrug's centre line at z = 0 and z = JAVA
 
-  const tower = V(-190, 48, -560)
-  const S0 = V(8, 6.2, 6)
+  /* --- the tour: one spot per photograph ------------------------------- */
+
+  const TERR = 4.8 // the raised promenade along the foyer's west side
+  const S0 = V(-4.5, TERR + 1.6, -19)
   const spots = [
-    { pos: S0, look: aim(THREE, S0, tower, 15, 4) }, // under the canopy: the stair over the water, the A'DAM Toren beyond
-    { pos: V(60, 3.4, 4), look: V(-60, 9, -64) }, // along the quay edge toward the stair and the sunset
-    { pos: V(66, 2.7, -14), look: V(-120, 14, -150) }, // on the ferry pontoon, the IJ and the sun
-    { pos: V(-10, 4, -40), look: V(46, 9, 24) }, // from the water: the golden south bank, canopy and stair
-    { pos: V(17.5, 3.5, -3.8), look: aim(THREE, V(17.5, 3.5, -3.8), V(-6, 11.4, -4.6), -8) }, // at the foot of the stair, looking up it
-    { pos: V(-6, 11.6, -4), look: aim(THREE, V(-6, 11.6, -4), V(18, 1.2, -6), 12) }, // from the top: down the stair to the water
-    { pos: V(-95, 3.5, 10), look: V(-170, 7, 46) }, // across the dock: the white footbridge and the warehouse
+    { pos: S0, look: V(-18, 6.7, -24.5) }, // 0 · photo 12: from the raised terrace under the canopy, the stair over the water, the A'DAM Toren right
+    { pos: V(-1.2, TERR + 1.6, -16.8), look: V(-18, 8.1, -23) }, // 1 · photo 09: further back, more soffit, the couple mid-stair
+    { pos: V(-23.2, 3.3, -37), look: V(-17.6, 7.4, -24.5) }, // 2 · photo 08: from the landing, the stair climbing to the right into the sunset
+    { pos: V(-18.4, 3.5, -35.6), look: V(-17.6, 10.2, -20) }, // 3 · photo 10: at the foot of the stair, looking up it, the walkway above left
+    { pos: V(-13.15, 15.1, -20.2), look: V(-18, 7.9, -21.4) }, // 4 · photo 13: from the walkway, straight down onto the treads and the water
+    { pos: V(-8, 2.9, -45), look: V(-16.5, 7.2, -28.5) }, // 5 · photo 07: low on the pier's brick paving, the stair's plate side above right
+    { pos: V(-9.2, 2.8, -46.8), look: V(-42, 1.4, -60) }, // 6 · photo 11: at the pier's edge, the dark water
+    { pos: V(557, 3.35, -207), look: V(548, 8.5, -20) }, // 7 · photo 04: Javakade, Pakhuis de Zwijger across the IJhaven, the bridge at the edge
+    { pos: V(574, 3.3, -206.5), look: V(560, 8, -20) }, // 8 · photo 05: a few steps on, the bridge nearer
+    { pos: V(598, 3.25, -206.5), look: V(584, 7.2, -20) }, // 9 · photo 06: by the bridge, its folded white side overhead
   ]
-  const arrival = [V(300, 150, -520), V(150, 60, -250), V(50, 18, -60), V(19, 7.6, -6), S0.clone()]
-  const clear = clearOfTour(spots, arrival.slice(2))
+  const arrival = [V(-520, 160, -380), V(-240, 60, -170), V(-80, 14, -70), V(-22, 5, -44), V(-6, 6.8, -27), S0.clone()]
 
   /* --- materials -------------------------------------------------------- */
 
   const pave = M.paving(THREE, { kind: 'flags', color: '#8e877c', joint: '#544f48', unit: 0.6, tile: 4, quality: q, seed: 31 })
-  const clinker = M.paving(THREE, { kind: 'herringbone', color: '#7c5446', joint: '#46382f', tile: 3, quality: q, seed: 32 })
+  const clinker = M.paving(THREE, { kind: 'herringbone', color: '#7e4a3c', joint: '#3e302a', tile: 2.5, quality: q, seed: 32 })
+  const clinkerJ = M.paving(THREE, { kind: 'herringbone', color: '#6d4a3e', joint: '#3a2e29', tile: 2.5, quality: q, seed: 39 })
   const quayWall = M.concrete(THREE, { color: '#5a5650', tile: 4, quality: q, seed: 33 })
   const conc = M.concrete(THREE, { color: '#b0a99f', tile: 4, quality: q, seed: 34 })
+  const granite = M.concrete(THREE, { color: '#9a958d', ties: false, tile: 3, quality: q, seed: 38 })
   const asphalt = M.asphalt(THREE, { color: '#3e3f42', tile: 6, quality: q, seed: 35 })
-  const steelDark = std(THREE, 0x25272b, 0.5, 0.75)
-  const steelMid = std(THREE, 0x4a4d52, 0.42, 0.85)
+  const lawn = M.lawn(THREE, { color: '#6a7f3e', worn: 0.25, tile: 3, quality: q, seed: 36 })
+  const steelDark = std(THREE, 0x2a2b2e, 0.5, 0.7)
+  const stairSteel = std(THREE, 0x47484b, 0.45, 0.75)
+  const steelMid = std(THREE, 0x5a5d62, 0.4, 0.85)
+  const railSteel = std(THREE, 0x8d9095, 0.3, 0.9)
+  const soffit = std(THREE, 0x1e1f22, 0.7, 0.3)
   const white = std(THREE, 0xeceae4, 0.4, 0.05)
+  const bridgeWhite = std(THREE, 0xdedfdc, 0.38, 0.25)
   const trim = std(THREE, 0x8d8c88, 0.6, 0.3)
   const glassBal = std(THREE, 0x2c3a42, 0.06, 0.3, { transparent: true, opacity: 0.38, envMapIntensity: 1.3 })
+  K.flags(glassBal, { cast: false, receive: false })
 
   const fBrickRed = M.facade(THREE, { wall: 'brick', color: '#7b4636', mortar: '#9a8d80', frame: '#2a2a2a', glass: '#1c232a', bay: 3, storey: 3.1, window: { w: 0.62, h: 0.66, bars: null, sill: true, lintel: false }, curtains: 0.3, quality: q, seed: 41 })
-  const fBrickDark = M.facade(THREE, { wall: 'brick', color: '#4e3a33', mortar: '#7d736a', frame: '#d8d3c8', glass: '#1d252c', bay: 2.7, storey: 3, window: { w: 0.52, h: 0.62, bars: 'sash', sill: true, lintel: true }, quality: q, seed: 42 })
+  const fBrickDark = M.facade(THREE, { wall: 'brick', color: '#5a3c30', mortar: '#7d736a', frame: '#d8d3c8', glass: '#1d252c', bay: 2.7, storey: 3, window: { w: 0.52, h: 0.62, bars: 'sash', sill: true, lintel: true }, quality: q, seed: 42 })
   const fBrickBuff = M.facade(THREE, { wall: 'brick', color: '#9a8064', mortar: '#b9ad9c', frame: '#333333', glass: '#1e262d', bay: 3.6, storey: 3.1, window: { w: 0.72, h: 0.7, bars: null, sill: false, lintel: false }, curtains: 0.35, quality: q, seed: 43 })
   const fCurtain = M.facade(THREE, { wall: 'curtain', color: '#3a434b', frame: '#c4c6c4', glass: '#24313a', bay: 1.8, storey: 3.6, curtains: 0.1, quality: q, seed: 44 })
   const fWhite = M.facade(THREE, { wall: 'plaster', color: '#d8d2c7', frame: '#3d3d3d', glass: '#1f272e', bay: 3, storey: 3.1, window: { w: 0.66, h: 0.64, bars: null, sill: true, lintel: false }, curtains: 0.3, quality: q, seed: 45 })
   const fTower = M.facade(THREE, { wall: 'concrete', color: '#6e5444', frame: '#3b3430', glass: '#2a2826', bay: 1.8, storey: 3.4, window: { w: 0.8, h: 0.56, bars: null, sill: false, lintel: false }, curtains: 0.05, quality: q, seed: 46 })
   const fWarehouse = M.facade(THREE, { wall: 'brick', color: '#6a3a2a', mortar: '#8f8272', frame: '#e4dccb', glass: '#20262b', bay: 2.6, storey: 3.2, window: { w: 0.42, h: 0.56, bars: 'grid', sill: true, lintel: true }, quality: q, seed: 47 })
-  const shop = M.shopfront(THREE, { color: '#2b2622', frame: '#1b1b1b', fascia: '#262626', bay: 3, storey: 4, warm: 0.7, quality: q, seed: 48 })
+  // Pakhuis de Zwijger: a 1930s concrete-framed warehouse with brick infill and big grid windows
+  const fZwijger = M.facade(THREE, { wall: 'brick', color: '#6f4838', mortar: '#8c7c6c', frame: '#cfc7b8', glass: '#1d252b', bay: 3.4, storey: 3.5, window: { w: 0.6, h: 0.58, bars: 'grid', sill: true, lintel: true }, curtains: 0.15, quality: q, seed: 48 })
+  // Piet Heinkade offices behind: a pale grid slab and darker brick-clad blocks
+  const fGrid = M.facade(THREE, { wall: 'concrete', color: '#b7a58c', frame: '#4a443c', glass: '#28303a', bay: 1.8, storey: 3.3, window: { w: 0.7, h: 0.62, bars: null, sill: false, lintel: false }, curtains: 0.2, quality: q, seed: 49 })
+  const fOffice = M.facade(THREE, { wall: 'brick', color: '#5b3a2e', mortar: '#6f6258', frame: '#2a2522', glass: '#2b2a28', bay: 2.4, storey: 3.5, window: { w: 0.78, h: 0.66, bars: null, sill: false, lintel: false }, curtains: 0.05, quality: q, seed: 50 })
+  const shop = M.shopfront(THREE, { color: '#2b2622', frame: '#1b1b1b', fascia: '#262626', bay: 3, storey: 4, warm: 0.7, quality: q, seed: 51 })
 
   /* --- water and land ---------------------------------------------------- */
 
-  const water = waterMaterial(THREE, { palette: world.light, scale: 1.3 })
+  const water = waterMaterial(THREE, { palette: world.light, scale: 1.25 })
   const sea = new THREE.Mesh(new THREE.PlaneGeometry(9000, 9000), water)
   sea.rotation.x = -Math.PI / 2
   scene.add(sea)
 
-  const land = (x0, x1, z0, z1, top = QUAY, topMat = pave, wall = quayWall) => {
-    const w = x1 - x0
-    const d = z1 - z0
-    K.put(wall, boxGeo(THREE, w, top + 3, d, 4, 4, SIDES), (x0 + x1) / 2, -3, (z0 + z1) / 2)
-    K.put(topMat, boxGeo(THREE, w, top + 3, d, 4, 4, TOP, 4), (x0 + x1) / 2, -3, (z0 + z1) / 2)
+  const land = (x0, x1, z0, z1, top = QUAY, topMat = pave, tile = 4) => {
+    K.put(quayWall, boxGeo(THREE, x1 - x0, top + 3, z1 - z0, 4, 4, SIDES), (x0 + x1) / 2, -3, (z0 + z1) / 2)
+    K.put(topMat, boxGeo(THREE, x1 - x0, top + 3, z1 - z0, 4, 4, TOP, tile), (x0 + x1) / 2, -3, (z0 + z1) / 2)
   }
-  land(-100, 1700, 0, 1300)
-  land(-1700, -150, 0, 1300)
-  land(-150, -100, 230, 1300)
-  land(-1700, 1700, -1800, NORTH)
-  // granite coping along the quay edges
-  for (const [x0, x1, z] of [
-    [-100, 1700, 0.3],
-    [-1700, -150, 0.3],
-    [-1700, 1700, NORTH - 0.3],
-  ]) K.put(conc, new THREE.BoxGeometry(x1 - x0, 0.3, 0.6), (x0 + x1) / 2, QUAY - 0.12, z)
-  for (const x of [-99.7, -150.3]) K.put(conc, new THREE.BoxGeometry(0.6, 0.3, 230), x, QUAY - 0.12, 115)
-  // roads and bike paths behind the quays (clinker brick road, asphalt)
-  K.put(asphalt, flatGeo(THREE, 1800, 10, 6, true), 800, QUAY + 0.04, 64)
-  K.put(clinker, flatGeo(THREE, 1550, 4, 3, true), -925, QUAY + 0.04, 52)
-  K.put(asphalt, flatGeo(THREE, 3400, 12, 6, true), 0, QUAY + 0.04, NORTH - 12)
+  land(PIER_X, 1700, 0, 1300) // Oostelijke Handelskade and the city behind
+  land(PIER_X, 84, -50, 0, QUAY, clinker, 2.5) // the Muziekgebouw's pier
+  land(-28, PIER_X, -42, -32, QUAY, clinker, 2.5) // the landing at the stair's foot
+  land(-1700, PIER_X, 60, 1300) // Oosterdok, the station island
+  land(540, 1700, -330, JAVA, QUAY, clinkerJ, 2.5) // Java-eiland
+  land(-1700, 1700, -1800, NORTH) // Noord
+  // granite coping along every quay edge, with the drainage slots of the IJ quays
+  const coping = [
+    [PIER_X, 1700, -0.3, 'x'],
+    [PIER_X, 84, -49.7, 'x'],
+    [-28, PIER_X, -41.7, 'x'],
+    [-28, PIER_X, -32.3, 'x'],
+    [540, 1700, JAVA + 0.3, 'x'],
+    [-1700, 1700, NORTH - 0.3, 'x'],
+    [-1700, PIER_X, 60.3, 'x'],
+  ]
+  const slots = []
+  for (const [a, b, c] of coping) {
+    K.put(granite, new THREE.BoxGeometry(b - a, 0.3, 0.6), (a + b) / 2, QUAY - 0.12, c)
+    if (Math.abs(c - JAVA) < 2 || Math.abs(c + 49.7) < 1) for (let x = a + 1; x < Math.min(b, a + 420); x += 2.2) slots.push({ x, y: QUAY + 0.035, z: c })
+  }
+  K.put(granite, new THREE.BoxGeometry(0.6, 0.3, 50), PIER_X + 0.3, QUAY - 0.12, -25)
+  K.put(granite, new THREE.BoxGeometry(0.6, 0.3, 130), 540.3, QUAY - 0.12, -265)
+  scatter(THREE, scene, new THREE.BoxGeometry(0.42, 0.012, 0.12), std(THREE, 0x2a2826, 0.6, 0.3), slots, { cast: false })
+  // roads: Piet Heinkade behind the quay buildings, the Noord quay road
+  K.put(asphalt, flatGeo(THREE, 1800, 14, 6, true), 800, QUAY + 0.04, 132)
+  K.put(asphalt, flatGeo(THREE, 3400, 12, 6, true), 0, QUAY + 0.04, NORTH - 14)
+  K.put(lawn, flatGeo(THREE, 3400, 6, 3, true), 0, QUAY + 0.03, NORTH - 4)
 
-  /* --- the concert hall: glass foyer, hall box, the great canopy ---------- */
+  /* --- the Muziekgebouw: glass foyer, the great canopy ------------------- */
 
-  building({ x: 15, z: 33, w: 90, d: 38, h: 12.6, y: QUAY, fac: fCurtain, roof: asphalt })
-  building({ x: 25, z: 37, w: 50, d: 30, h: 16, y: QUAY + 12.6, fac: fCurtain, roof: asphalt, trim })
-  // the canopy: a deep dark slab with a ribbed underside and a fascia
-  K.put(steelDark, boxGeo(THREE, 120, 1.2, 71, 4, 4), 15, 15.0, 19.5)
-  for (let x = -44; x <= 74; x += 4) K.put(steelDark, new THREE.BoxGeometry(0.3, 0.8, 70), x, 14.6, 19.5)
-  for (let z = -14; z <= 54; z += 8) K.put(steelDark, new THREE.BoxGeometry(119, 0.5, 0.35), 15, 14.75, z)
-  K.put(steelMid, new THREE.BoxGeometry(120.4, 1.8, 0.35), 15, 15.3, -16)
-  // slender round columns (in the water at the front, on the quay behind)
+  // the raised promenade along the foyer's west side, steps down to the pier at its north end
+  K.put(conc, boxGeo(THREE, 2 - PIER_X, TERR - QUAY, 50, 4, 4, SIDES), (PIER_X + 2) / 2, QUAY, -5)
+  K.put(clinker, boxGeo(THREE, 2 - PIER_X, TERR - QUAY, 50, 2.5, 2.5, TOP), (PIER_X + 2) / 2, QUAY, -5)
+  for (let i = 0; i < 17; i++) {
+    const top = TERR - (i + 1) * ((TERR - QUAY) / 17)
+    K.put(conc, boxGeo(THREE, 2 - PIER_X, top - QUAY + 0.001, 0.3, 4, 4), (PIER_X + 2) / 2, QUAY, -30.15 - i * 0.3)
+  }
+  // the foyer: a glass box raised on the pier, the hall's dark box inside
+  building({ x: 38, z: 3, w: 72, d: 34, h: CANOPY.y - QUAY, y: QUAY, fac: fCurtain, roof: asphalt })
+  K.put(soffit, boxGeo(THREE, 34, 13, 20, 4, 4), 40, QUAY + 1, 6)
+  // the canopy: a deep slab, ribbed beams below running north–south, a fascia
+  const cw = CANOPY.x1 - CANOPY.x0
+  const cd = CANOPY.z1 - CANOPY.z0
+  const ccx = (CANOPY.x0 + CANOPY.x1) / 2
+  const ccz = (CANOPY.z0 + CANOPY.z1) / 2
+  K.put(soffit, boxGeo(THREE, cw, 1.5, cd, 4, 4), ccx, CANOPY.y, ccz)
+  for (let x = CANOPY.x0 + 1.5; x < CANOPY.x1; x += 3) K.put(soffit, new THREE.BoxGeometry(0.35, 0.85, cd - 0.4), x, CANOPY.y - 0.42, ccz)
+  for (let z = CANOPY.z0 + 6; z < CANOPY.z1; z += 12) K.put(soffit, new THREE.BoxGeometry(cw - 0.4, 1.1, 0.5), ccx, CANOPY.y - 0.55, z)
+  K.put(steelMid, new THREE.BoxGeometry(cw + 0.4, 1.9, 0.35), ccx, CANOPY.y + 0.75, CANOPY.z0)
+  K.put(steelMid, new THREE.BoxGeometry(0.35, 1.9, cd + 0.4), CANOPY.x0, CANOPY.y + 0.75, ccz)
+  // slender columns: in the water along the canopy's west edge, on the pier's north edge
   for (const [x, z, y0] of [
-    [-35, -14, -1],
-    [-10, -14, -1],
-    [40, -14, -1],
-    [65, -14, -1],
-    [-35, 10, QUAY],
-    [-10, 10, QUAY],
-    [40, 10, QUAY],
-  ]) K.put(steelMid, new THREE.CylinderGeometry(0.32, 0.32, 14.2 - y0, 14).translate(0, (14.2 - y0) / 2, 0), x, y0, z)
-  // downlights in the canopy's soffit, just switched on
+    [CANOPY.x0 + 1, -44, -1],
+    [CANOPY.x0 + 1, -6, -1],
+    [CANOPY.x0 + 1, 24, -1],
+    [-24, -50, -1],
+    [12, -48, QUAY],
+    [48, -48, QUAY],
+    [80, -48, QUAY],
+  ])
+    K.put(steelMid, new THREE.CylinderGeometry(0.3, 0.3, CANOPY.y - y0, 14).translate(0, (CANOPY.y - y0) / 2, 0), x, y0, z)
+  // downlights in the soffit, just switched on
   const downlights = []
-  for (let x = -40; x <= 70; x += 10) for (let z = -12; z <= 8; z += 10) downlights.push({ x, y: 14.15, z })
-  scatter(THREE, scene, new THREE.CylinderGeometry(0.22, 0.22, 0.06, 12), new THREE.MeshBasicMaterial({ color: new THREE.Color(0xffd7a0).multiplyScalar(2.2) }), downlights, { cast: false, receive: false })
+  for (let x = CANOPY.x0 + 4; x < CANOPY.x1; x += 9) for (let z = CANOPY.z0 + 4; z < -12; z += 9) downlights.push({ x, y: CANOPY.y - 0.04, z })
+  scatter(THREE, scene, new THREE.CylinderGeometry(0.2, 0.2, 0.05, 12), new THREE.MeshBasicMaterial({ color: new THREE.Color(0xffd7a0).multiplyScalar(2.0) }), downlights, { cast: false, receive: false })
 
-  // the raised terrace the hero view is taken from, with steps down to the quay
-  K.put(conc, boxGeo(THREE, 20, 4.5 - QUAY, 10, 4, 4, SIDES), 12, QUAY, 5)
-  K.put(pave, boxGeo(THREE, 20, 4.5 - QUAY, 10, 4, 4, TOP, 4), 12, QUAY, 5)
-  for (let i = 0; i < 15; i++) {
-    const top = 4.5 - (i + 1) * 0.169
-    K.put(conc, boxGeo(THREE, 0.34, top - QUAY, 10, 2, 2), 22.17 + i * 0.34, QUAY, 5)
-  }
+  /* --- the stair over the water, its gallery, the upper walkway ------------ */
+
   const rails = beamBatch(THREE)
   const railRun = (a, b, h = 1.1, step = 1.5, mids = 2) => {
     const len = a.distanceTo(b)
@@ -643,157 +714,203 @@ function buildIJ(THREE, ctx) {
     rails.add(a.clone().add(V(0, h, 0)), b.clone().add(V(0, h, 0)), 0.07, 0.05)
     for (let k = 1; k <= mids; k++) rails.add(a.clone().add(V(0, (h * k) / (mids + 1), 0)), b.clone().add(V(0, (h * k) / (mids + 1), 0)), 0.025, 0.025)
   }
-  railRun(V(2.1, 4.5, 0.1), V(21.9, 4.5, 0.1))
-  railRun(V(2.1, 4.5, 0.1), V(2.1, 4.5, 9.9))
-
-  /* --- the stair over the water and the upper gallery -------------------- */
-
-  const sTop = { x: -4, y: 10 }
-  const sBot = { x: 14, y: QUAY }
-  const zOut = -5.4
-  const zIn = -2.6
-  // the gallery it climbs to, on columns, and a bridge back to the foyer
-  K.put(steelDark, boxGeo(THREE, 26, 0.6, 8, 4, 4), -17, 9.4, -2)
-  K.put(steelDark, boxGeo(THREE, 4, 0.6, 12, 4, 4), -6, 9.4, 8)
-  for (const z of [-5.6, 1.6]) K.put(steelDark, new THREE.BoxGeometry(26, 0.8, 0.45), -17, 9.0, z)
-  for (const [x, z] of [
-    [-28, -5.6],
-    [-16, -5.6],
-    [-28, 1.6],
-    [-16, 1.6],
-  ]) K.put(steelMid, new THREE.CylinderGeometry(0.22, 0.22, 10, 10).translate(0, 5, 0), x, -1, z)
-  K.put(pave, flatGeo(THREE, 26, 8, 4), -17, 10.01, -2)
-  railRun(V(-29.9, 10, -5.9), V(-5.4, 10, -5.9))
-  railRun(V(-29.9, 10, -5.9), V(-29.9, 10, 1.9))
-  railRun(V(-29.9, 10, 1.9), V(-8.1, 10, 1.9))
-  railRun(V(-4.1, 10, -2.4), V(-4.1, 10, 1.9))
-  // stair: deep plate girders, a solid plate parapet on the water side, an
-  // open railing on the other, treads with dark nosings, a soffit
-  K.slopeX(steelDark, sTop.x, sTop.y, sBot.x, sBot.y, zOut, 1.75, 0.06, 0.15)
-  K.slopeX(steelDark, sTop.x, sTop.y, sBot.x, sBot.y, zIn, 0.85, 0.06, -0.3)
-  K.slopeX(steelDark, sTop.x, sTop.y, sBot.x, sBot.y, (zIn + zOut) / 2, 0.06, zIn - zOut, -0.68)
-  const steps = 50
-  for (let i = 0; i < steps; i++) {
-    const t = (i + 0.5) / steps
-    const x = sTop.x + (sBot.x - sTop.x) * t
-    const y = sTop.y + (sBot.y - sTop.y) * t
-    K.put(steelMid, new THREE.BoxGeometry(0.34, 0.05, zIn - zOut - 0.1), x, y - 0.06, (zIn + zOut) / 2)
-    K.put(steelDark, new THREE.BoxGeometry(0.05, 0.16, zIn - zOut - 0.1), x - 0.17, y - 0.12, (zIn + zOut) / 2)
+  {
+    const xm = (ST.x0 + ST.x1) / 2
+    const sw = ST.x1 - ST.x0
+    const len = Math.hypot(ST.zTop - ST.zLow, ST.yTop - QUAY)
+    const pitch = -Math.atan2(ST.yTop - QUAY, ST.zTop - ST.zLow)
+    const zc = (ST.zLow + ST.zTop) / 2
+    const yc = (QUAY + ST.yTop) / 2
+    const along = (mat, x, w, h, yOff) => K.put(mat, new THREE.BoxGeometry(w, h, len), x, yc + yOff, zc, 0, pitch)
+    // deep plate stringers: a solid plate parapet on the water (west) side, a girder on the east
+    along(stairSteel, ST.x0 - 0.04, 0.06, 1.9, 0.25)
+    along(stairSteel, ST.x1 + 0.04, 0.06, 0.9, -0.42)
+    along(stairSteel, xm, sw, 0.06, -0.82)
+    K.put(railSteel, new THREE.BoxGeometry(0.14, 0.05, len), ST.x0 + 0.03, yc + 1.18, zc, 0, pitch)
+    // treads with light nosings
+    const steps = Math.round((ST.yTop - QUAY) / 0.18)
+    const run = (ST.zTop - ST.zLow) / steps
+    for (let i = 0; i < steps; i++) {
+      const z = ST.zLow + (i + 0.5) * run
+      const y = QUAY + (i + 1) * ((ST.yTop - QUAY) / steps)
+      K.put(stairSteel, new THREE.BoxGeometry(sw - 0.1, 0.05, run + 0.02), xm, y - 0.025, z)
+      K.put(railSteel, new THREE.BoxGeometry(sw - 0.12, 0.03, 0.05), xm, y + 0.005, z + run / 2 - 0.03)
+    }
+    // the open railing on the east side: posts, two rails, a handrail
+    for (let i = 0; i <= 10; i++) {
+      const z = ST.zLow + ((ST.zTop - ST.zLow) * i) / 10
+      const y = stairY(z)
+      rails.add(V(ST.x1 - 0.06, y - 0.4, z), V(ST.x1 - 0.06, y + 1.0, z), 0.045, 0.03)
+    }
+    for (const h of [1.0, 0.66, 0.33]) K.rod(railSteel, V(ST.x1 - 0.06, QUAY + h, ST.zLow), V(ST.x1 - 0.06, ST.yTop + h, ST.zTop), h === 1.0 ? 0.03 : 0.015)
+    // the top landing and the gallery bridge back to the foyer's upper level
+    K.put(stairSteel, boxGeo(THREE, ST.x1 - ST.x0 + 3, 0.6, 9, 4, 4), xm + 1.5, ST.yTop - 0.6, ST.zTop + 4.5)
+    K.put(stairSteel, boxGeo(THREE, 2 - ST.x1, 0.6, 5, 4, 4), (ST.x1 + 2) / 2, ST.yTop - 0.6, ST.zTop + 5)
+    K.put(pave, flatGeo(THREE, 2 - ST.x0, 5, 4), (ST.x0 + 2) / 2, ST.yTop + 0.01, ST.zTop + 5)
+    railRun(V(ST.x0, ST.yTop, ST.zTop), V(ST.x0, ST.yTop, ST.zTop + 9))
+    railRun(V(ST.x0, ST.yTop, ST.zTop + 9), V(ST.x1 + 3, ST.yTop, ST.zTop + 9))
+    railRun(V(ST.x1 + 3, ST.yTop, ST.zTop + 7.5), V(2, ST.yTop, ST.zTop + 7.5))
+    railRun(V(ST.x1, ST.yTop, ST.zTop), V(ST.x1 + 3, ST.yTop, ST.zTop))
+    railRun(V(ST.x1 + 3, ST.yTop, ST.zTop), V(ST.x1 + 3, ST.yTop, ST.zTop + 2.5))
+    railRun(V(ST.x1 + 3, ST.yTop, ST.zTop + 2.5), V(2, ST.yTop, ST.zTop + 2.5))
+    for (const [x, z] of [
+      [ST.x0 + 0.3, ST.zTop + 8.5],
+      [ST.x1 + 2, ST.zTop + 8.5],
+      [-6, ST.zTop + 8],
+    ])
+      K.put(steelMid, new THREE.CylinderGeometry(0.2, 0.2, ST.yTop + 1, 10).translate(0, (ST.yTop + 1) / 2, 0), x, -1, z)
+    // a pair of slim legs under the flight
+    for (const z of [-26, -20.5]) for (const x of [ST.x0 + 0.2, ST.x1 - 0.2]) K.put(steelMid, new THREE.CylinderGeometry(0.13, 0.13, stairY(z) + 0.2, 8).translate(0, (stairY(z) + 0.2) / 2, 0), x, -1.1, z)
+    // the railing round the landing at the foot
+    railRun(V(-28, QUAY, -41.7), V(-20, QUAY, -41.7), 1.05, 1.6, 2)
+    // the terrace's edge over the water
+    railRun(V(PIER_X + 0.12, TERR, -29.9), V(PIER_X + 0.12, TERR, 19.5), 1.1, 1.5, 2)
+    railRun(V(-27.7, QUAY, -41.7), V(-27.7, QUAY, -32.3), 1.05, 1.6, 2)
   }
-  const stairRail = (z, h) => {
-    const a = V(sTop.x, sTop.y + h, z)
-    const b = V(sBot.x, sBot.y + h, z)
-    K.rod(steelMid, a, b, 0.03)
+  // the upper walkway, hung from the canopy, along the foyer and into it
+  {
+    const wx = (WALK.x0 + WALK.x1) / 2
+    const ww = WALK.x1 - WALK.x0
+    const wl = WALK.z1 - WALK.z0
+    const wz = (WALK.z0 + WALK.z1) / 2
+    K.put(steelDark, boxGeo(THREE, ww, 0.55, wl, 4, 4), wx, WALK.y - 0.55, wz)
+    // its ribbed underside (photo 10)
+    for (let z = WALK.z0 + 0.6; z < WALK.z1; z += 1.2) K.put(steelDark, new THREE.BoxGeometry(ww - 0.1, 0.22, 0.09), wx, WALK.y - 0.66, z)
+    K.put(pave, flatGeo(THREE, ww, wl, 4), wx, WALK.y + 0.01, wz)
+    railRun(V(WALK.x0, WALK.y, WALK.z0), V(WALK.x0, WALK.y, WALK.z1), 1.1, 1.4, 2)
+    railRun(V(WALK.x1, WALK.y, WALK.z0), V(WALK.x1, WALK.y, WALK.z1 - 6), 1.1, 1.4, 2)
+    railRun(V(WALK.x0, WALK.y, WALK.z0), V(WALK.x1, WALK.y, WALK.z0), 1.1, 1.4, 2)
+    K.put(steelDark, boxGeo(THREE, 2 - WALK.x1, 0.55, 5, 4, 4), (WALK.x1 + 2) / 2, WALK.y - 0.55, WALK.z1 - 2.5)
+    for (let z = WALK.z0 + 2; z < WALK.z1; z += 8) for (const x of [WALK.x0 + 0.1, WALK.x1 - 0.1]) rails.add(V(x, WALK.y, z), V(x, CANOPY.y - 0.8, z), 0.06, 0.06)
   }
-  stairRail(zIn - 0.05, 1.0)
-  stairRail(zIn - 0.05, 0.55)
-  stairRail(zOut + 0.08, 0.95)
-  for (let i = 0; i <= 12; i++) {
-    const t = i / 12
-    const x = sTop.x + (sBot.x - sTop.x) * t
-    const y = sTop.y + (sBot.y - sTop.y) * t
-    rails.add(V(x, y - 0.1, zIn - 0.05), V(x, y + 1.0, zIn - 0.05), 0.045, 0.02)
-  }
-  // the landing at the foot of the stair, a concrete pier off the quay
-  K.put(conc, boxGeo(THREE, 6, QUAY + 1, 6, 4, 4), 17, -1, -3)
-  railRun(V(20, QUAY, -5.9), V(20, QUAY, -0.1), 1.05)
 
-  /* --- the ferry pontoon (with a shelter) and a gangway ----------------- */
-
-  K.put(steelMid, boxGeo(THREE, 30, 1.1, 9, 4, 4, SIDES), 70, -0.1, -15)
-  K.put(pave, boxGeo(THREE, 30, 1.0, 9, 4, 4, TOP, 4), 70, 0, -15)
-  K.put(steelMid, new THREE.BoxGeometry(10.5, 0.18, 4.6), 79, 3.6, -16.5)
-  for (const [x, z] of [
-    [74.2, -18.5],
-    [83.8, -18.5],
-    [74.2, -14.5],
-    [83.8, -14.5],
-  ]) K.put(steelDark, new THREE.CylinderGeometry(0.07, 0.07, 2.6, 8).translate(0, 1.3, 0), x, 1.0, z)
-  K.put(glassBal, new THREE.BoxGeometry(9.6, 2.2, 0.03).translate(0, 1.1, 0), 79, 1.1, -18.7)
-  K.put(steelMid, new THREE.BoxGeometry(2.2, 0.12, 10.6), 61.5, (QUAY + 1.0) / 2, -5.25, 0, -Math.atan2(QUAY - 1.0, 10.5))
-  railRun(V(60.4, 1.05, -10.5), V(60.4, QUAY, 0.2), 1.0, 1.6, 1)
-  railRun(V(55.2, 1.0, -19.4), V(84.8, 1.0, -19.4), 1.0, 2, 1)
-
-  /* --- buildings along the south bank -------------------------------- */
+  /* --- the hotel and the passenger terminal along the quay ---------------- */
 
   const bal = balconySet()
-  // the hotel tower next to the hall, and its low wing
-  building({ x: 103, z: 32, w: 30, d: 27, h: 62, y: QUAY, fac: fBrickRed, roof: asphalt, trim, shop })
+  building({ x: 103, z: 31, w: 30, d: 27, h: 62, y: QUAY, fac: fBrickRed, roof: asphalt, trim, shop })
   building({ x: 135, z: 30, w: 33, d: 24, h: 15.5, y: QUAY, fac: fBrickRed, roof: asphalt, trim })
-  // the old black jazz box on its legs
-  K.put(steelDark, boxGeo(THREE, 26, 10, 22, 4, 4), -62, 9, 27)
-  for (const [x, z] of [
-    [-74, 17],
-    [-50, 17],
-    [-74, 37],
-    [-50, 37],
-  ]) K.put(steelMid, new THREE.CylinderGeometry(0.35, 0.35, 9 - QUAY, 10).translate(0, (9 - QUAY) / 2, 0), x, QUAY, z)
-  // IJ-oevers housing: brick and white blocks with balconies to the water
-  const eastFacs = [fBrickBuff, fWhite, fBrickRed, fBrickDark, fBrickBuff, fCurtain]
-  for (let x = 160, i = 0; x < 900; i++) {
-    const fac = eastFacs[i % eastFacs.length]
-    const bay = fac.tile[0]
-    const n = Math.round(range(rand, 11, 20))
-    const w = n * bay
-    const storeys = Math.round(range(rand, 5, 10))
-    const h = storeys * fac.tile[1]
-    const cx = x + w / 2
-    building({ x: cx, z: 34, w, d: 24, h, y: QUAY, fac, roof: asphalt, trim, shop: i % 2 ? shop : null })
-    if (fac !== fCurtain && x < 520) bal.rows({ x: cx, z: 34, w, d: 24, y: QUAY, bay, storey: fac.tile[1], from: i % 2 ? 2 : 1, to: storeys, every: 2, phase: i % 2 })
-    x += w + range(rand, 6, 14)
-  }
-  // second row, taller, behind
-  for (let x = 140; x < 1000; ) {
-    const fac = pick(rand, eastFacs)
-    const w = Math.round(range(rand, 30, 60) / fac.tile[0]) * fac.tile[0]
-    const h = Math.round(range(rand, 8, 16)) * fac.tile[1]
-    building({ x: x + w / 2, z: range(rand, 95, 130), w, d: range(rand, 22, 36), h, y: QUAY, fac, roof: asphalt, trim })
-    x += w + range(rand, 8, 30)
-  }
-  // west across the dock: the old warehouse, the library-like block, housing
-  building({ x: -205, z: 32, w: 91, d: 24, h: 19.2, y: QUAY, fac: fWarehouse, roof: asphalt, trim })
-  building({ x: -215, z: 92, w: 72, d: 50, h: 36, y: QUAY, fac: fCurtain, roof: asphalt, trim })
-  for (let x = -280, i = 0; x > -1100; i++) {
-    const fac = pick(rand, [fBrickDark, fWhite, fBrickRed, fBrickBuff])
-    const w = Math.round(range(rand, 30, 55) / fac.tile[0]) * fac.tile[0]
-    const storeys = Math.round(range(rand, 5, 9))
-    building({ x: x - w / 2, z: 34, w, d: 24, h: storeys * fac.tile[1], y: QUAY, fac, roof: asphalt, trim })
-    if (x > -600) bal.rows({ x: x - w / 2, z: 34, w, d: 24, y: QUAY, bay: fac.tile[0], storey: fac.tile[1], from: 1, to: storeys, every: 3, phase: i % 3 })
-    x -= w + range(rand, 8, 18)
-  }
-  for (let x = -260; x > -1200; ) {
-    const fac = pick(rand, [fBrickDark, fWhite, fCurtain, fBrickRed])
-    const w = Math.round(range(rand, 30, 60) / fac.tile[0]) * fac.tile[0]
-    building({ x: x - w / 2, z: range(rand, 100, 160), w, d: 30, h: Math.round(range(rand, 6, 14)) * fac.tile[1], y: QUAY, fac, roof: asphalt })
-    x -= w + range(rand, 10, 40)
-  }
+  // the cruise terminal: a long low glass hall with a wave of a roof
+  building({ x: 310, z: 26, w: 320, d: 34, h: 13, y: QUAY, fac: fCurtain, roof: asphalt })
+  for (let x = 155; x < 466; x += 10) K.put(white, new THREE.BoxGeometry(10.2, 0.6, 36), x + 5, QUAY + 13 + Math.sin(x * 0.03) * 1.6, 26, 0, 0, Math.cos(x * 0.03) * 0.05)
 
-  /* --- the white footbridge over the dock --------------------------- */
+  /* --- Pakhuis de Zwijger and the Jan Schaeferbrug ------------------------- */
 
   {
-    const z = 46
-    const y = QUAY + 0.5
-    K.put(steelMid, new THREE.BoxGeometry(56, 0.5, 4.4), -125, y - 0.25, z)
-    K.put(pave, flatGeo(THREE, 56, 4, 4, true), -125, y + 0.01, z)
-    // folded white plate sides: a zigzag of inclined panels
-    for (const side of [-1, 1]) {
-      for (let i = 0; i < 14; i++) {
-        const x0 = -153 + i * 4
-        const up = i % 2 === 0
-        const a = V(x0, y + (up ? 0 : 2.4), z + side * 2.3)
-        const b = V(x0 + 4, y + (up ? 2.4 : 0), z + side * 2.3)
-        K.strut(white, a, b, 0.5, 0.12)
+    // the warehouse: brick and concrete grid, a glass storey on top, the
+    // bridge passing through its east end with the building spanning over it
+    const zc = 16
+    building({ x: 548, z: zc, w: 98, d: 24, h: 21, y: QUAY, fac: fZwijger, roof: asphalt, trim: conc })
+    const teal = std(THREE, 0x3e6f7a, 0.08, 0.6, { envMapIntensity: 1.4 })
+    K.put(teal, boxGeo(THREE, 92, 3, 21, 4, 4), 546, QUAY + 21, zc)
+    K.put(conc, boxGeo(THREE, 94, 0.5, 22, 4, 4), 546, QUAY + 24, zc)
+    K.put(fZwijger.material, boxGeo(THREE, 18, 12, 24, fZwijger.tile[0] * 2, fZwijger.tile[1] * 2, SIDES), 607, QUAY + 12, zc)
+    building({ x: 628, z: zc, w: 24, d: 24, h: 24, y: QUAY, fac: fZwijger, roof: asphalt, trim: conc })
+    K.put(steelDark, boxGeo(THREE, 18, 0.8, 24, 4, 4), 607, QUAY + 11.2, zc)
+    // the white folded bridge, low over the IJhaven, on V legs
+    const deckY = 7.2
+    const bw = 13
+    const zA = 40
+    const zB = JAVA - 50
+    const cx = (z) => BRIDGE.xs + ((BRIDGE.xn - BRIDGE.xs) * z) / JAVA
+    const yAt = (z) => (z > 4 ? deckY - Math.max(0, z - 24) * (deckY - QUAY) / (zA + 40 - 24) : z < JAVA - 4 ? Math.max(QUAY, deckY - (JAVA - 4 - z) * ((deckY - QUAY) / 44)) : deckY)
+    const segs = 28
+    for (let i = 0; i < segs; i++) {
+      const z0 = zA + 40 - ((zA + 40 - zB) * i) / segs
+      const z1 = zA + 40 - ((zA + 40 - zB) * (i + 1)) / segs
+      const a = V(cx(z0), yAt(z0), z0)
+      const b = V(cx(z1), yAt(z1), z1)
+      const mid = a.clone().add(b).multiplyScalar(0.5)
+      const len = a.distanceTo(b)
+      const ry = Math.atan2(b.x - a.x, b.z - a.z)
+      const rx = -Math.atan2(b.y - a.y, Math.hypot(b.x - a.x, b.z - a.z))
+      K.put(steelDark, new THREE.BoxGeometry(bw - 1.6, 0.9, len + 0.05).translate(0, -0.6, 0), mid.x, mid.y, mid.z, ry, rx)
+      K.put(asphalt, new THREE.BoxGeometry(bw - 4, 0.06, len + 0.05), mid.x, mid.y + 0.02, mid.z, ry, rx)
+      K.put(clinkerJ, new THREE.BoxGeometry(2, 0.06, len + 0.05).translate(-(bw / 2 - 1.1), 0, 0), mid.x, mid.y + 0.04, mid.z, ry, rx)
+      K.put(clinkerJ, new THREE.BoxGeometry(2, 0.06, len + 0.05).translate(bw / 2 - 1.1, 0, 0), mid.x, mid.y + 0.04, mid.z, ry, rx)
+      // the folded fascia plates on both sides: a lower plate leaning in, an upper leaning out
+      for (const s of [-1, 1]) {
+        K.put(bridgeWhite, new THREE.BoxGeometry(0.08, 1.15, len + 0.06).translate(s * (bw / 2 - 0.25), -0.75, 0).rotateZ(s * 0.42), mid.x, mid.y, mid.z, ry, rx)
+        K.put(bridgeWhite, new THREE.BoxGeometry(0.08, 0.7, len + 0.06).translate(s * (bw / 2 + 0.1), 0.05, 0).rotateZ(-s * 0.3), mid.x, mid.y, mid.z, ry, rx)
       }
-      K.put(white, new THREE.BoxGeometry(56, 0.35, 0.5), -125, y + 2.4, z + side * 2.3)
-      K.put(white, new THREE.BoxGeometry(56, 0.5, 0.6), -125, y - 0.1, z + side * 2.3)
+      // railing: posts and three rails each side
+      for (const s of [-1, 1]) {
+        const o = V(Math.cos(ry) * s * (bw / 2 - 0.05), 0, -Math.sin(ry) * s * (bw / 2 - 0.05))
+        rails.add(a.clone().add(o), a.clone().add(o).add(V(0, 1.15, 0)), 0.06, 0.06)
+        for (const h of [0.4, 0.78, 1.15]) rails.add(a.clone().add(o).add(V(0, h, 0)), b.clone().add(o).add(V(0, h, 0)), h === 1.15 ? 0.07 : 0.03, 0.03)
+      }
     }
-    for (const x of [-140, -110]) K.put(white, new THREE.BoxGeometry(1.2, y + 1, 3), x, -1, z)
+    // V legs on pile caps across the water
+    for (let z = -30; z > JAVA + 10; z -= 34) {
+      const x = cx(z)
+      K.put(conc, boxGeo(THREE, bw - 2, 1.4, 4, 4, 4), x, -0.6, z)
+      for (const s of [-1, 1]) for (const dz of [-5.5, 5.5]) K.strut(bridgeWhite, V(x + s * 3.8, 0.8, z), V(x + s * 4.6, deckY - 1.2, z + dz), 0.42, 0.42)
+    }
   }
+  // the offices of the Piet Heinkade behind: a pale grid slab over the warehouse, darker blocks either side
+  building({ x: 520, z: 66, w: 108, d: 22, h: 33, y: QUAY, fac: fGrid, roof: asphalt, trim })
+  building({ x: 445, z: 62, w: 48, d: 24, h: 26.2, y: QUAY, fac: fOffice, roof: asphalt, trim })
+  building({ x: 690, z: 64, w: 72, d: 26, h: 28, y: QUAY, fac: fOffice, roof: asphalt, trim })
+  building({ x: 380, z: 70, w: 50, d: 26, h: 31.5, y: QUAY, fac: fGrid, roof: asphalt })
+  building({ x: 780, z: 70, w: 60, d: 26, h: 35, y: QUAY, fac: fCurtain, roof: asphalt })
+  for (let x = 140; x < 1100; ) {
+    const fac = pick(rand, [fBrickBuff, fWhite, fBrickRed, fOffice, fCurtain])
+    const w = Math.round(range(rand, 30, 60) / fac.tile[0]) * fac.tile[0]
+    building({ x: x + w / 2, z: range(rand, 150, 190), w, d: 28, h: Math.round(range(rand, 8, 16)) * fac.tile[1], y: QUAY, fac, roof: asphalt, trim })
+    x += w + range(rand, 8, 26)
+  }
+  // a timber pontoon and a dolphin in front of the warehouse
+  K.put(std(THREE, 0x4a3b2c, 0.85), boxGeo(THREE, 34, 0.5, 4, 4, 4), 560, 0.2, -16)
+  for (const x of [545, 560, 575]) K.put(steelDark, new THREE.CylinderGeometry(0.3, 0.3, 4, 10).translate(0, 2, 0), x, -1, -18.4)
 
-  /* --- the far bank: A'DAM Toren, the film museum, Overhoeks, cranes ----- */
+  /* --- river cruise ships moored along the quay ---------------------------- */
 
   {
-    // the tower: a 1970s office shaft, a projecting double-storey crown, the lookout
+    const hullBlue = std(THREE, 0x1f2b3e, 0.5, 0.3)
+    const hullWhite = std(THREE, 0xf1efe9, 0.42, 0.08)
+    const darkGlass = std(THREE, 0x151c22, 0.05, 0.9, { envMapIntensity: 1.6 })
+    for (const [sx, half] of [
+      [232, 55],
+      [366, 55],
+    ]) {
+      const z = -8
+      const shape = hullShape(THREE, -half, half, 5.7, half - 9)
+      K.put(hullBlue, planExtrude(THREE, shape, -1.5, 1.0), sx, 0, z)
+      K.put(hullWhite, planExtrude(THREE, shape, 1.0, 3.3), sx, 0, z)
+      K.put(darkGlass, planExtrude(THREE, hullShape(THREE, -half + 0.2, half - 0.4, 5.75, half - 9.2), 1.7, 2.5), sx, 0, z)
+      for (let d = 0; d < 2; d++) {
+        const y0 = 3.3 + d * 2.6
+        K.put(hullWhite, boxGeo(THREE, half * 2 - 16, 0.5, 11, 4, 4), sx - 4, y0, z)
+        K.put(darkGlass, boxGeo(THREE, half * 2 - 18, 1.7, 10.6, 4, 4), sx - 4, y0 + 0.5, z)
+        K.put(hullWhite, boxGeo(THREE, half * 2 - 16, 0.4, 11, 4, 4), sx - 4, y0 + 2.2, z)
+      }
+      K.put(hullWhite, boxGeo(THREE, 6, 2.2, 6, 4, 4), sx + half - 16, 8.5, z)
+      K.put(darkGlass, boxGeo(THREE, 6.1, 1, 6.1, 4, 4), sx + half - 16, 9.4, z)
+      for (const s of [-1, 1]) rails.add(V(sx - half + 6, 9.4, z + s * 5.4), V(sx + half - 12, 9.4, z + s * 5.4), 0.05, 0.05)
+    }
+  }
+
+  /* --- Java-eiland: the quay we stand on, the housing behind --------------- */
+
+  for (let x = 552, i = 0; x < 1150; i++) {
+    const fac = [fBrickRed, fWhite, fBrickDark, fBrickBuff, fCurtain, fBrickRed][i % 6]
+    const w = Math.round(range(rand, 20, 42) / fac.tile[0]) * fac.tile[0]
+    // leave the bridge's ramp a street of its own
+    if (x + w > BRIDGE.xn - 10 && x < BRIDGE.xn + 12) {
+      x = BRIDGE.xn + 12
+      continue
+    }
+    const storeys = Math.round(range(rand, 5, 7))
+    const h = storeys * fac.tile[1]
+    building({ x: x + w / 2, z: -262, w, d: 50, h, y: QUAY, fac, roof: asphalt, trim, shop: i % 3 === 0 ? shop : null })
+    if (fac !== fCurtain) bal.rows({ x: x + w / 2, z: -262, w, d: 50, y: QUAY, bay: fac.tile[0], storey: fac.tile[1], from: 1, to: storeys, every: 2, phase: i % 2, faces: [1] })
+    x += w + range(rand, 6, 12)
+  }
+  // the Javakade road and the bridge's ramp down onto the island
+  K.put(asphalt, flatGeo(THREE, 620, 7, 6, true), 850, QUAY + 0.03, -228)
+
+  /* --- across the IJ: the A'DAM Toren, the EYE, Overhoeks, cranes --------- */
+
+  {
     const tx = tower.x
     const tz = tower.z
     building({ x: tx, z: tz, w: 30.6, d: 30.6, h: 71.4, y: QUAY, fac: fTower, roof: asphalt })
@@ -807,13 +924,14 @@ function buildIJ(THREE, ctx) {
       rails.add(V(tx - 13, top + 1.2, tz + s * 13), V(tx + 13, top + 1.2, tz + s * 13), 0.08, 0.08)
       rails.add(V(tx + s * 13, top + 1.2, tz - 13), V(tx + s * 13, top + 1.2, tz + 13), 0.08, 0.08)
     }
-    // the swing's A-frame and a mast
     for (const s of [-1, 1]) {
       K.strut(steelMid, V(tx + 9, top, tz + s * 4), V(tx + 15, top + 9, tz), 0.5)
       K.strut(steelMid, V(tx + 21, top - 4, tz + s * 4), V(tx + 15, top + 9, tz), 0.5)
     }
     K.put(steelMid, new THREE.CylinderGeometry(0.25, 0.4, 14, 8).translate(0, 7, 0), tx - 6, top, tz - 6)
-    // the film museum: white, angular, cantilevered toward the water
+    // its low white podium
+    building({ x: tx + 30, z: tz + 40, w: 60, d: 30, h: 9, y: QUAY, fac: fWhite, roof: asphalt })
+    // the EYE film museum: white, angular, leaning out over the water
     const s = new THREE.Shape()
     s.moveTo(-50, 0)
     s.lineTo(42, 0)
@@ -826,142 +944,153 @@ function buildIJ(THREE, ctx) {
     eye.translate(0, 0, -22)
     const uv = eye.attributes.uv
     for (let i = 0; i < uv.count; i++) uv.setXY(i, uv.getX(i) / 3, uv.getY(i) / 3)
-    const eyeMat = M.plaster(THREE, { color: '#ecebe6', dirt: 0.05, tile: 3, quality: q, seed: 49 })
-    K.put(eyeMat, eye, -82, QUAY, -482, 0.18)
+    const eyeMat = M.plaster(THREE, { color: '#ecebe6', dirt: 0.05, tile: 3, quality: q, seed: 52 })
+    K.put(eyeMat, eye, -840, QUAY, NORTH - 30, 0.18)
   }
-  // Overhoeks housing towers and slabs behind
+  // Overhoeks towers and slabs, kept clear of the tower and the EYE
   for (const [x, z, w, d, h, fac] of [
-    [-300, -520, 24, 24, 74, fWhite],
-    [-345, -560, 30, 22, 52, fBrickRed],
-    [-270, -600, 40, 26, 40, fCurtain],
-    [-410, -515, 48, 24, 28, fBrickBuff],
-    [-460, -580, 26, 26, 62, fBrickDark],
-    [-120, -560, 54, 24, 22, fBrickRed],
-    [-40, -545, 42, 24, 34, fWhite],
+    [-560, -600, 24, 24, 74, fWhite],
+    [-600, -660, 30, 22, 52, fBrickRed],
+    [-520, -700, 40, 26, 40, fCurtain],
+    [-470, -560, 48, 24, 28, fBrickBuff],
+    [-760, -640, 26, 26, 62, fBrickDark],
+    [-380, -560, 54, 24, 22, fBrickRed],
+    [-300, -540, 42, 24, 34, fWhite],
+    [-220, -545, 50, 24, 25, fBrickDark],
+    [-140, -540, 40, 22, 19, fWhite],
   ]) {
     const hh = Math.round(h / fac.tile[1]) * fac.tile[1]
     const ww = Math.round(w / fac.tile[0]) * fac.tile[0]
     building({ x, z, w: ww, d, h: hh, y: QUAY, fac, roof: asphalt, trim })
     if (fac !== fCurtain) bal.rows({ x, z, w: ww, d, y: QUAY, bay: fac.tile[0], storey: fac.tile[1], from: 1, to: Math.round(hh / fac.tile[1]), every: 2, faces: [1] })
   }
-  // the east side of Noord: sheds, new blocks, cranes
-  for (let x = 10; x < 1100; ) {
-    const shed = rand() < 0.35
+  for (let x = -80; x < 1200; ) {
+    const shed = rand() < 0.3
     const fac = shed ? fWarehouse : pick(rand, [fBrickBuff, fWhite, fBrickRed, fBrickDark, fCurtain])
     const w = Math.round(range(rand, 26, 60) / fac.tile[0]) * fac.tile[0]
     const h = (shed ? Math.round(range(rand, 3, 5)) : Math.round(range(rand, 5, 13))) * fac.tile[1]
-    const z = NORTH - 30 - range(rand, 20, 60)
-    const d = range(rand, 20, 34)
-    building({ x: x + w / 2, z, w, d, h, y: QUAY, fac, roof: asphalt, trim })
-    if (!shed && fac !== fCurtain && x < 500) bal.rows({ x: x + w / 2, z, w, d, y: QUAY, bay: fac.tile[0], storey: fac.tile[1], from: 1, to: Math.round(h / fac.tile[1]), every: 2, faces: [1] })
+    building({ x: x + w / 2, z: NORTH - 40 - range(rand, 10, 50), w, d: range(rand, 20, 34), h, y: QUAY, fac, roof: asphalt, trim })
     x += w + range(rand, 8, 26)
   }
-  for (let x = -1100; x < 1200; ) {
+  for (let x = -1300; x < 1300; ) {
     const fac = pick(rand, [fBrickBuff, fWhite, fBrickRed, fBrickDark, fCurtain])
     const w = Math.round(range(rand, 30, 70) / fac.tile[0]) * fac.tile[0]
-    building({ x: x + w / 2, z: range(rand, -700, -820), w, d: 30, h: Math.round(range(rand, 5, 18)) * fac.tile[1], y: QUAY, fac, roof: asphalt })
+    if (Math.abs(x + w / 2 - tower.x) > 40) building({ x: x + w / 2, z: range(rand, -760, -880), w, d: 30, h: Math.round(range(rand, 5, 18)) * fac.tile[1], y: QUAY, fac, roof: asphalt })
     x += w + range(rand, 20, 70)
   }
-  for (let x = -1100; x < -500; ) {
-    const fac = pick(rand, [fBrickDark, fWhite, fBrickRed])
-    const w = Math.round(range(rand, 30, 60) / fac.tile[0]) * fac.tile[0]
-    building({ x: x + w / 2, z: NORTH - 45, w, d: 28, h: Math.round(range(rand, 4, 9)) * fac.tile[1], y: QUAY, fac, roof: asphalt })
-    x += w + range(rand, 10, 30)
-  }
-  bal.build(THREE, scene, conc, glassBal)
-
-  // tower cranes over the building sites
+  // cranes over the Noord building sites
   const crane = beamBatch(THREE)
   const addCrane = (cx, cz, H, jib, rot) => {
     const c = Math.cos(rot)
     const s = Math.sin(rot)
     const P = (lx, y, lz) => V(cx + lx * c + lz * s, y, cz - lx * s + lz * c)
-    const m = 1
     for (let y = QUAY; y < QUAY + H; y += 2.4) {
       const y2 = Math.min(QUAY + H, y + 2.4)
       for (const [ax, az, bx, bz] of [
-        [-m, -m, m, -m],
-        [m, -m, m, m],
-        [m, m, -m, m],
-        [-m, m, -m, -m],
+        [-1, -1, 1, -1],
+        [1, -1, 1, 1],
+        [1, 1, -1, 1],
+        [-1, 1, -1, -1],
       ]) {
         crane.add(P(ax, y, az), P(ax, y2, az), 0.14)
         crane.add(P(ax, y, az), P(bx, y2, bz), 0.07)
       }
     }
     const top = QUAY + H
-    for (const [l0, l1] of [
-      [-jib * 0.28, jib],
-    ]) {
-      for (const lz of [-0.8, 0.8]) crane.add(P(l0, top, lz), P(l1, top, lz), 0.14)
-      crane.add(P(l0, top + 1.6, 0), P(l1, top + 1.6, 0), 0.12)
-      for (let x = l0; x < l1; x += 2.5) {
-        crane.add(P(x, top, -0.8), P(x + 1.25, top + 1.6, 0), 0.06)
-        crane.add(P(x, top, 0.8), P(x + 1.25, top + 1.6, 0), 0.06)
-      }
+    for (const lz of [-0.8, 0.8]) crane.add(P(-jib * 0.28, top, lz), P(jib, top, lz), 0.14)
+    crane.add(P(-jib * 0.28, top + 1.6, 0), P(jib, top + 1.6, 0), 0.12)
+    for (let x = -jib * 0.28; x < jib; x += 2.5) {
+      crane.add(P(x, top, -0.8), P(x + 1.25, top + 1.6, 0), 0.06)
+      crane.add(P(x, top, 0.8), P(x + 1.25, top + 1.6, 0), 0.06)
     }
     crane.add(P(0, top, 0), P(0, top + 7, 0), 0.3)
     crane.add(P(0, top + 7, 0), P(jib * 0.7, top + 1.6, 0), 0.05)
     crane.add(P(0, top + 7, 0), P(-jib * 0.28, top + 1.6, 0), 0.05)
     crane.add(P(-jib * 0.24, top - 1.4, 0), P(-jib * 0.24, top, 0), 2.2, 2.4)
-    crane.add(P(jib * 0.55, top - 12, 0), P(jib * 0.55, top, 0), 0.03)
   }
-  addCrane(60, -515, 52, 48, 0.4)
-  addCrane(190, -500, 60, 55, -0.6)
-  addCrane(330, -540, 46, 42, 1.2)
+  addCrane(60, -560, 52, 48, 0.4)
+  addCrane(240, -545, 60, 55, -0.6)
+  addCrane(-420, -620, 46, 42, 1.2)
   scene.add(crane.build(std(THREE, 0xd9b23a, 0.5, 0.4)))
 
-  /* --- quayside props ------------------------------------------------- */
+  // the west side across the Zouthaven: the station island's blocks, a library-like slab
+  building({ x: -120, z: 100, w: 90, d: 50, h: 34, y: QUAY, fac: fCurtain, roof: asphalt, trim })
+  building({ x: -60, z: 92, w: 40, d: 34, h: 18.6, y: QUAY, fac: fWarehouse, roof: asphalt, trim })
+  for (let x = -180, i = 0; x > -1200; i++) {
+    const fac = pick(rand, [fBrickDark, fWhite, fBrickRed, fBrickBuff, fCurtain])
+    const w = Math.round(range(rand, 30, 60) / fac.tile[0]) * fac.tile[0]
+    const storeys = Math.round(range(rand, 5, 10))
+    building({ x: x - w / 2, z: 90 + range(rand, -6, 30), w, d: 34, h: storeys * fac.tile[1], y: QUAY, fac, roof: asphalt, trim })
+    x -= w + range(rand, 8, 24)
+  }
+  bal.build(THREE, scene, conc, glassBal)
 
-  // bollards on both quays
+  /* --- quayside furniture ------------------------------------------------ */
+
+  // bollards
   const bollards = []
-  for (let x = -96; x < 420; x += 13) if ((x < 1 || x > 23) && (x < 54 || x > 88)) bollards.push({ x, y: QUAY, z: 0.85 })
-  for (let x = -400; x < 600; x += 16) bollards.push({ x, y: QUAY, z: NORTH - 0.85 })
+  for (let x = PIER_X + 1; x < 84; x += 9) bollards.push({ x, y: QUAY, z: -49.1 })
+  for (let x = 545; x < 900; x += 14) if (Math.abs(x - BRIDGE.xn) > 9) bollards.push({ x, y: QUAY, z: JAVA - 0.9 })
+  for (let x = 90; x < 520; x += 15) bollards.push({ x, y: QUAY, z: -0.9 })
+  for (let x = -600; x < 600; x += 16) bollards.push({ x, y: QUAY, z: NORTH - 0.85 })
   scatter(THREE, scene, mergeParts(THREE, [new THREE.CylinderGeometry(0.17, 0.21, 0.6, 12).translate(0, 0.3, 0), new THREE.CylinderGeometry(0.24, 0.24, 0.08, 12).translate(0, 0.62, 0)]), std(THREE, 0x2b2b2d, 0.5, 0.6), bollards)
 
-  // tall slim lamp posts (heads just coming on)
-  const lampSpots = []
-  for (let x = -95; x < 600; x += 24) if ((x < -48 || x > 80) && clear(x, 12, 1.5)) lampSpots.push({ x, y: QUAY, z: 12 })
-  for (let x = -420; x < 620; x += 30) lampSpots.push({ x, y: QUAY, z: NORTH - 4, ry: Math.PI })
+  // tall slim lamp posts (heads just coming on): the pier, the Javakade, Noord
+  const lampSpots = [
+    { x: -6, y: QUAY, z: -48.6 },
+    { x: 16, y: QUAY, z: -48.6 },
+    { x: 40, y: QUAY, z: -48.6 },
+    { x: 64, y: QUAY, z: -48.6 },
+    { x: 563.5, y: QUAY, z: JAVA - 2.6 },
+  ]
+  for (let x = 640; x < 900; x += 26) lampSpots.push({ x, y: QUAY, z: JAVA - 2.6 })
+  for (let x = -900; x < 620; x += 30) lampSpots.push({ x, y: QUAY, z: NORTH - 4, ry: Math.PI })
   const lampGeo = mergeParts(THREE, [new THREE.CylinderGeometry(0.07, 0.11, 8, 8).translate(0, 4, 0), new THREE.BoxGeometry(1.1, 0.14, 0.32).translate(0.4, 8, 0)])
   scatter(THREE, scene, lampGeo, std(THREE, 0x3a3c3f, 0.45, 0.7), lampSpots.map((l) => ({ ...l, ry: (l.ry || 0) + Math.PI / 2 })))
-  scatter(THREE, scene, new THREE.BoxGeometry(0.8, 0.04, 0.22).translate(0.45, 7.91, 0), new THREE.MeshBasicMaterial({ color: new THREE.Color(0xffcf96).multiplyScalar(2.4) }), lampSpots.map((l) => ({ ...l, ry: (l.ry || 0) + Math.PI / 2 })), { cast: false, receive: false })
+  scatter(THREE, scene, new THREE.BoxGeometry(0.8, 0.04, 0.22).translate(0.45, 7.91, 0), new THREE.MeshBasicMaterial({ color: new THREE.Color(0xffcf96).multiplyScalar(2.2) }), lampSpots.map((l) => ({ ...l, ry: (l.ry || 0) + Math.PI / 2 })), { cast: false, receive: false })
 
-  // Dutch bikes: racks by the hall, a few by the dock
+  // Dutch bikes: by the Muziekgebouw, along the Javakade
   const bikes = []
   const bikeCols = [0x1b1c1e, 0x2a3b4c, 0x5a1e1e, 0x1e3a2a, 0xd9d4c8, 0x2b2b2b, 0x7a6a50]
-  for (let i = 0; i < (low ? 10 : 22); i++) bikes.push({ x: 64 + i * 0.75, y: QUAY, z: 10.6 + (i % 2) * 0.25, ry: Math.PI / 2 + range(rand, -0.08, 0.08), color: pick(rand, bikeCols) })
-  for (let i = 0; i < (low ? 6 : 12); i++) bikes.push({ x: -92 + i * 0.8, y: QUAY, z: 15.2, ry: Math.PI / 2 + range(rand, -0.1, 0.1), color: pick(rand, bikeCols) })
-  for (let i = 0; i < 4; i++) bikes.push({ x: 128 + i * 9, y: QUAY, z: 13.5, ry: range(rand, -0.3, 0.3), color: pick(rand, bikeCols) })
+  for (let i = 0; i < (low ? 10 : 20); i++) bikes.push({ x: 20 + i * 0.75, y: QUAY, z: -36 + (i % 2) * 0.25, ry: Math.PI / 2 + range(rand, -0.08, 0.08), color: pick(rand, bikeCols) })
+  for (let i = 0; i < (low ? 8 : 16); i++) bikes.push({ x: 640 + i * 0.8, y: QUAY, z: -233, ry: Math.PI / 2 + range(rand, -0.1, 0.1), color: pick(rand, bikeCols) })
   scatter(THREE, scene, bikeGeometry(THREE), std(THREE, 0xffffff, 0.45, 0.5), bikes)
-  // bike racks (steel hoops)
-  K.put(steelMid, new THREE.BoxGeometry(18, 0.05, 0.05), 72, QUAY + 0.65, 10.75)
+  K.put(steelMid, new THREE.BoxGeometry(16, 0.05, 0.05), 27.5, QUAY + 0.65, -35.85)
 
-  // benches and bins
+  // benches on the pier and the Javakade
   const benchGeo = mergeParts(THREE, [
     new THREE.BoxGeometry(1.9, 0.07, 0.48).translate(0, 0.46, 0),
     new THREE.BoxGeometry(1.9, 0.42, 0.06).translate(0, 0.75, -0.22),
     new THREE.BoxGeometry(0.08, 0.45, 0.45).translate(-0.8, 0.22, 0),
     new THREE.BoxGeometry(0.08, 0.45, 0.45).translate(0.8, 0.22, 0),
   ])
-  const benches = []
-  for (const x of [-75, -62, 95, 112, 150, 190]) if (clear(x, 8.5, 1.5)) benches.push({ x, y: QUAY, z: 8.5, ry: Math.PI })
+  const benches = [
+    { x: 28, y: QUAY, z: -46, ry: Math.PI },
+    { x: 52, y: QUAY, z: -46, ry: Math.PI },
+    { x: 620 + 30, y: QUAY, z: JAVA - 4, ry: Math.PI },
+    { x: 700, y: QUAY, z: JAVA - 4, ry: Math.PI },
+  ]
   scatter(THREE, scene, benchGeo, std(THREE, 0x5d4632, 0.7, 0.05), benches)
 
-  // trees: limes along the quay roads
+  // trees, still bare in late March: along Piet Heinkade, the Javakade, the Noord quay
   const treeSpots = []
-  for (let x = 162; x < 520; x += 13) treeSpots.push({ x: x + range(rand, -1, 1), y: QUAY, z: 14.5, h: range(rand, 9, 12) })
-  for (let x = -1000; x < 900; x += range(rand, 30, 70)) treeSpots.push({ x, y: QUAY, z: NORTH - 24, h: range(rand, 9, 14) })
-  addForest(THREE, scene, low ? treeSpots.filter((_, i) => i % 2 === 0) : treeSpots, { species: 'lime', season: 'summer', seed: 7, quality: q })
+  for (let x = 640; x < 1100; x += 12) treeSpots.push({ x: x + range(rand, -1, 1), y: QUAY, z: -234.5, h: range(rand, 9, 12) })
+  for (let x = 150; x < 900; x += 14) treeSpots.push({ x: x + range(rand, -1, 1), y: QUAY, z: 122, h: range(rand, 10, 13) })
+  for (let x = -1000; x < 900; x += range(rand, 30, 60)) if (Math.abs(x - tower.x) > 30) treeSpots.push({ x, y: QUAY, z: NORTH - 26, h: range(rand, 9, 14) })
+  addForest(THREE, scene, low ? treeSpots.filter((_, i) => i % 2 === 0) : treeSpots, { species: 'lime', season: 'winter', seed: 7, quality: q })
 
-  // a flag by the tower
-  const flag = makeFlag(THREE, 'amsterdam', { pole: 9, w: 2.4, h: 1.6 })
-  flag.group.position.set(-150, QUAY, NORTH - 6)
+  // flags: by the Muziekgebouw (photo 12's flagpole) and by the tower
+  const flag = makeFlag(THREE, 'amsterdam', { pole: 9, w: 2.2, h: 1.45 })
+  flag.group.position.set(2, QUAY, -48.8)
+  flag.group.rotation.y = Math.PI * 0.9
   scene.add(flag.group)
+  const flag2 = makeFlag(THREE, 'nl', { pole: 9, w: 2.2, h: 1.45 })
+  flag2.group.position.set(tower.x + 30, QUAY, NORTH - 8)
+  scene.add(flag2.group)
 
-  /* --- boats -------------------------------------------------------------- */
+  /* --- boats ------------------------------------------------------------ */
 
-  // the IJ ferry: a white double-ended pontoon ferry with a raised wheelhouse
+  // the IJ ferry: a white double-ended pontoon ferry, shuttling off to the west
   const ferry = new THREE.Group()
   {
     const F = toolkit(THREE, ferry)
@@ -981,7 +1110,6 @@ function buildIJ(THREE, ctx) {
     F.put(blue, planExtrude(THREE, s, 0.2, 0.75))
     F.put(hullW, planExtrude(THREE, s, 0.75, 1.5))
     F.put(std(THREE, 0x6d7074, 0.8, 0.1), new THREE.BoxGeometry(34, 0.05, 10.6), 0, 1.5, 0)
-    // wheelhouse on a bridge across the middle
     F.put(hullW, new THREE.BoxGeometry(3, 2.6, 11.6).translate(0, 1.3, 0), 0, 1.5, 0)
     F.put(hullW, new THREE.BoxGeometry(4.4, 2.4, 3.4).translate(0, 1.2, 0), 0, 4.1, 0)
     F.put(std(THREE, 0x162027, 0.06, 0.9), new THREE.BoxGeometry(4.5, 1.0, 3.5), 0, 5.6, 0)
@@ -995,26 +1123,18 @@ function buildIJ(THREE, ctx) {
     F.flush()
   }
   ferry.rotation.y = Math.PI / 2
-  ferry.position.set(150, 0, -26)
-  // it moves, and the sun's shadow map is drawn only once: no shadow from it
   ferry.traverse((o) => {
     if (o.isMesh) o.castShadow = false
   })
   scene.add(ferry)
-  // a glass-roofed canal cruiser at the pontoon, and barges on the far bank
+  // barges on the Noord bank
   {
-    const boatK = K
-    const s = hullShape(THREE, -10, 10.5, 2.15, 6)
-    boatK.put(std(THREE, 0x1a2433, 0.4, 0.3), planExtrude(THREE, s, -0.6, 0.9), 96, 0, -15)
-    boatK.put(std(THREE, 0xd8d6cf, 0.5, 0.1), planExtrude(THREE, hullShape(THREE, -9.6, 9.6, 2.0, 6), 0.9, 1.05), 96, 0, -15)
-    boatK.put(std(THREE, 0x0e1418, 0.04, 0.95, { envMapIntensity: 1.4 }), new THREE.BoxGeometry(15, 1.15, 3.6).translate(0, 0.58, 0), 95, 1.05, -15)
-    boatK.put(white, new THREE.BoxGeometry(15.2, 0.08, 3.7), 95, 2.24, -15)
     const bargeHull = std(THREE, 0x22262a, 0.6, 0.3)
     const bargeHold = std(THREE, 0x6a2a22, 0.7, 0.2)
     for (const [bx, len] of [
       [150, 80],
-      [250, 110],
-      [-320, 70],
+      [300, 110],
+      [-380, 70],
     ]) {
       const b = hullShape(THREE, -len / 2, len / 2, 4.6, len / 2 - 8)
       K.put(bargeHull, planExtrude(THREE, b, -1.5, 1.6), bx, 0, NORTH + 6)
@@ -1023,21 +1143,23 @@ function buildIJ(THREE, ctx) {
     }
   }
 
-  scene.add(rails.build(steelMid))
+  scene.add(rails.build(railSteel))
   K.flags(asphalt, { cast: false })
   K.flags(pave, { cast: false })
   K.flags(clinker, { cast: false })
+  K.flags(clinkerJ, { cast: false })
+  K.flags(lawn, { cast: false })
   K.flags(quayWall, { cast: false })
   K.flush()
 
-  world.focusShadows(V(10, 4, -2), low ? 60 : 85)
+  world.focusShadows(V(-10, 6, -26), low ? 50 : 70)
 
   return {
     scene,
     world,
     path: {
       positions: arrival,
-      targets: [V(-40, 10, -200), V(-90, 22, -330), V(-140, 40, -480), aim(THREE, V(19, 7.6, -6), tower, 12, 4), spots[0].look.clone()],
+      targets: [V(-660, 60, -620), V(-500, 50, -560), V(-60, 12, -60), V(-30, 7, -36), V(-18, 6.5, -27), spots[0].look.clone()],
       fov: 50,
       near: 0.3,
       spots,
@@ -1045,12 +1167,13 @@ function buildIJ(THREE, ctx) {
     update(t) {
       water.userData.tick(t)
       flag.tick(t)
-      // the ferry shuttles across the IJ, dwelling at each bank
+      flag2.tick(t + 0.7)
+      // the ferry plies the IJ well west of the stair, dwelling at each bank
       const ph = (t * 0.011) % 2
       const leg = ph < 1 ? ph : 2 - ph
       const k = Math.min(1, Math.max(0, (leg - 0.08) / 0.84))
       const e = k * k * (3 - 2 * k)
-      ferry.position.set(150, 0, -26 - e * 378)
+      ferry.position.set(-330, 0, 50 - e * (50 - NORTH - 18))
     },
   }
 }
@@ -1072,7 +1195,15 @@ function buildRotterdam(THREE, ctx) {
   const low = ctx.quality === 'low'
   const q = ctx.quality
   const world = createWorld(THREE, ctx, 'night', { fog: { density: 0.0011 } })
-  const { scene } = world
+  const { scene: stage } = world
+  // Built with x = east and z = north; that is a mirror image in three.js's
+  // right-handed frame, so the whole place hangs from a group flipped in x —
+  // De Rotterdam then really stands west of the bridge, as in the photos.
+  // Spots are written in the same build coordinates and flipped on the way out.
+  const scene = new THREE.Group()
+  scene.scale.x = -1
+  stage.add(scene)
+  const W = (v) => new THREE.Vector3(-v.x, v.y, v.z)
   const K = toolkit(THREE, scene)
   const building = makeBuilding(THREE, K)
   const rand = seeded(2024)
@@ -1084,17 +1215,25 @@ function buildRotterdam(THREE, ctx) {
   /* --- the tour --------------------------------------------------------- */
 
   const deRotterdam = V(-118, 62, -425)
-  const S0 = V(-70, 4.7, 2.5)
+  // one spot per photograph (build coordinates: x east, z north)
+  const step = (x) => QUAY + 0.18 * Math.min(30, Math.floor((x - 58) / (40 / 30)) + 1)
+  const S0 = V(112, QUAY + 1.62, 2.4)
   const spots = [
-    { pos: S0, look: aim(THREE, S0, deRotterdam, -13, 6) }, // the quay railing, De Rotterdam lit across the Maas
-    { pos: V(-262, 4.7, 7), look: aim(THREE, V(-262, 4.7, 7), V(0, 62, -300), 13) }, // Boompjes: the whole bridge from the west
-    { pos: V(-15.6, 16.2, -248), look: aim(THREE, V(-15.6, 16.2, -248), V(2, 64, -305), -12) }, // on the bridge by the pylon, the stays overhead
-    { pos: V(-15.6, 16.2, -140), look: aim(THREE, V(-15.6, 16.2, -140), deRotterdam, 10) }, // mid-span: the towers of the Kop van Zuid
-    { pos: V(-150, 26, 20), look: V(10, 28, -330) }, // up high over the boulevard: bridge and skyline
-    { pos: V(-30, 4.7, 150), look: V(10, 5.2, 146) }, // the tram stop at the bridge's north end
-    { pos: V(-40, 4.7, -392), look: aim(THREE, V(-40, 4.7, -392), V(0, 40, -150), -12, 6) }, // Wilhelminapier, back to the bridge
+    { pos: S0, look: V(-95, 48, -425) }, // 0 · photo 12: the slanted-bar railing on the north quay, De Rotterdam lit across the Maas, the bridge to the right
+    { pos: V(60.5, step(60.5) + 1.55, -407.6), look: V(100, 7.9, -409.6) }, // 1 · photo 01: the Luxor foyer, up the oak steps along the red wall
+    { pos: V(72.2, step(72.2) + 1.85, -407.4), look: V(72.9, step(72.9), -408.3) }, // 2 · photo 02: looking down onto the oak steps
+    { pos: V(76.8, step(76.8) + 1.85, -407.0), look: V(77.6, step(77.6), -408.4) }, // 3 · photo 03: a step higher, straight down
+    { pos: V(81.5, step(81.5) + 1.8, -406.6), look: V(83.4, step(83.4), -408.8) }, // 4 · photo 04: down the steps at an angle
+    { pos: V(30, QUAY + 1.6, -394.5), look: V(8, 42, -300) }, // 5 · photo 05: on the quay by the Luxor, the pylon's legs ahead, the towers left
+    { pos: V(25.4, QUAY + 1.3, -466), look: V(15, QUAY + 2.4, -458.5) }, // 6 · photo 06: the granite ledge, the ramp and a tram behind
+    { pos: V(40, QUAY + 1.6, -503), look: V(64, 13, -440) }, // 7 · photo 07: walking up to the Luxor's red bands
+    { pos: V(43, QUAY + 1.5, -441), look: V(70, QUAY + 2.2, -437) }, // 8 · photo 08: through the foyer glass
+    { pos: V(18.4, QUAY + 1.55, -511.6), look: V(17.8, QUAY + 0.4, -522) }, // 9 · photo 09: the metro's escalators going down, the M overhead
+    { pos: V(29.5, -2.45, -540), look: V(18, -1.2, -526) }, // 10 · photo 10: in the station hall by the escalators
+    { pos: V(-9.6, QUAY + 1.55, -536), look: V(-1, QUAY + 1.35, -540.5) }, // 11 · photo 11: the tram stop, a tram passing
+    { pos: V(-38, QUAY + 1.25, -385.5), look: V(-4, 44, -303) }, // 12 · photo 13: the south quay by the timber fenders, the pylon and its stays
   ]
-  const arrival = [V(-520, 160, -260), V(-330, 70, -170), V(-160, 20, -60), V(-90, 7, -8), S0.clone()]
+  const arrival = [V(-200, 150, -300), V(-60, 85, -150), V(60, 30, -40), V(100, 8, -6), S0.clone()]
   const clear = clearOfTour(spots, arrival.slice(2))
 
   /* --- materials -------------------------------------------------------- */
@@ -1135,24 +1274,30 @@ function buildRotterdam(THREE, ctx) {
   /* --- water and land ----------------------------------------------------- */
 
   const water = waterMaterial(THREE, { palette: world.light, scale: 1.2, strokes: 1.2 })
-  const river = new THREE.Mesh(new THREE.PlaneGeometry(9000, 9000), water)
+  // the river only: the metro hall south of it lies below the water line
+  const river = new THREE.Mesh(new THREE.PlaneGeometry(9000, 430), water)
   river.rotation.x = -Math.PI / 2
+  river.position.z = -190
   scene.add(river)
   const land = (x0, x1, z0, z1, top = QUAY) => {
     K.put(quayWall, boxGeo(THREE, x1 - x0, top + 3, z1 - z0, 4, 4, SIDES), (x0 + x1) / 2, -3, (z0 + z1) / 2)
     K.put(pave, boxGeo(THREE, x1 - x0, top + 3, z1 - z0, 4, 4, TOP, 4), (x0 + x1) / 2, -3, (z0 + z1) / 2)
   }
   land(-2000, 2000, 0, 1400)
-  land(-2000, 2000, -2000, SOUTH)
+  // the south bank, open over the metro station's hall (x 6…40, z −560…−505)
+  land(-2000, 2000, -2000, -560)
+  land(-2000, 2000, -505, SOUTH)
+  land(-2000, 6, -560, -505)
+  land(40, 2000, -560, -505)
   for (const z of [0.3, SOUTH - 0.3]) K.put(conc, new THREE.BoxGeometry(4000, 0.3, 0.6), 0, QUAY - 0.12, z)
   // the Boompjes boulevard and the road along the pier
   K.put(asphalt, flatGeo(THREE, 4000, 12, 6, true), 0, QUAY + 0.04, 22)
-  K.put(asphalt, flatGeo(THREE, 4000, 12, 6, true), 0, QUAY + 0.04, SOUTH - 60)
+  K.put(asphalt, flatGeo(THREE, 4000, 12, 6, true), 0, QUAY + 0.04, SOUTH - 225)
   const marks = []
   for (let x = -1200; x < 1200; x += 9) {
     if (Math.abs(x) < 22) continue
     marks.push({ x, y: QUAY + 0.06, z: 22 })
-    marks.push({ x, y: QUAY + 0.06, z: SOUTH - 60 })
+    marks.push({ x, y: QUAY + 0.06, z: SOUTH - 225 })
   }
   scatter(THREE, scene, new THREE.BoxGeometry(4, 0.02, 0.14), std(THREE, 0xcfcfc8, 0.7), marks, { cast: false })
 
@@ -1320,7 +1465,7 @@ function buildRotterdam(THREE, ctx) {
     building({ x: x + dx, z: -424 + dx, w: 34, d: 32, h: 62, y: QUAY + 85.6, fac: tGlassA, roof: asphalt })
   }
   // KPN tower with its leaning, light-dotted screen facade and the strut
-  building({ x: 58, z: -440, w: 40, d: 30, h: 96, y: QUAY, fac: tGlassC, roof: asphalt })
+  building({ x: -48, z: -455, w: 24, d: 30, h: 96, y: QUAY, fac: tGlassC, roof: asphalt })
   {
     const dots = paintTexture(
       THREE,
@@ -1341,11 +1486,11 @@ function buildRotterdam(THREE, ctx) {
       },
       { kind: 'color' }
     )
-    const screen = new THREE.Mesh(new THREE.PlaneGeometry(40, 98), new THREE.MeshStandardMaterial({ color: 0x15181a, emissiveMap: dots, emissive: 0xffffff, emissiveIntensity: 1.8, roughness: 0.3, metalness: 0.6 }))
-    screen.position.set(58, QUAY + 49, -419)
+    const screen = new THREE.Mesh(new THREE.PlaneGeometry(24, 98), new THREE.MeshStandardMaterial({ color: 0x15181a, emissiveMap: dots, emissive: 0xffffff, emissiveIntensity: 1.8, roughness: 0.3, metalness: 0.6 }))
+    screen.position.set(-48, QUAY + 49, -434)
     screen.rotation.x = 0.12
     scene.add(screen)
-    K.strut(steel, V(58, QUAY, -395), V(58, QUAY + 60, -417.8), 1.2)
+    K.strut(steel, V(-48, QUAY, -412), V(-48, QUAY + 60, -432.8), 1.2)
   }
   // Maastoren, New Orleans, Montevideo, World Port Center, Hotel New York
   const pier = [
@@ -1370,7 +1515,7 @@ function buildRotterdam(THREE, ctx) {
     const w = Math.round(range(rand, 30, 60) / fac.tile[0]) * fac.tile[0]
     const cx = x + w / 2
     const z = range(rand, -510, -560)
-    if (Math.abs(cx - 0) > 30) building({ x: cx, z, w, d: 30, h: Math.round(range(rand, 6, 16)) * 3.2, y: QUAY, fac, roof: asphalt, trim: darkSteel })
+    if (cx < -80 || cx > 150) building({ x: cx, z, w, d: 30, h: Math.round(range(rand, 6, 16)) * 3.2, y: QUAY, fac, roof: asphalt, trim: darkSteel })
     x += w + range(rand, 10, 30)
   }
   for (let x = -1500; x < 1500; ) {
@@ -1474,6 +1619,369 @@ function buildRotterdam(THREE, ctx) {
   for (let x = -560; x < 450; x += 37) if (Math.abs(x) > 30 && clear(x, 6.5, 1.5)) benches.push({ x, y: QUAY, z: 6.5 })
   scatter(THREE, scene, mergeParts(THREE, [new THREE.BoxGeometry(1.9, 0.07, 0.48).translate(0, 0.46, 0), new THREE.BoxGeometry(1.9, 0.42, 0.06).translate(0, 0.75, 0.22), new THREE.BoxGeometry(0.1, 0.45, 0.45).translate(-0.8, 0.22, 0), new THREE.BoxGeometry(0.1, 0.45, 0.45).translate(0.8, 0.22, 0)]), std(THREE, 0x4a3a2c, 0.6), benches)
 
+  /* --- Kop van Zuid: the Luxor theatre, its foyer, the metro, the tram stop -- */
+
+  {
+    const LX0 = 50
+    const LX1 = 120
+    const LZN = -400 // the Luxor's river front
+    const LZS = -482
+    const FH = 11 // the glazed foyer's height
+    const BODY = 30
+    const CORE = { x0: 62, z1: -412 } // the auditorium's walls inside the foyer
+    // the banded red skin: cladding stripes and ribbon windows, lit offices behind
+    const band = (() => {
+      const W = 256
+      const H = 230
+      const c = document.createElement('canvas')
+      c.width = W
+      c.height = H
+      const e = document.createElement('canvas')
+      e.width = W
+      e.height = H
+      const g = c.getContext('2d')
+      const ge = e.getContext('2d')
+      const r = seeded(17)
+      ge.fillStyle = '#000'
+      ge.fillRect(0, 0, W, H)
+      g.fillStyle = '#9e2a22'
+      g.fillRect(0, 0, W, H)
+      for (let y = 0; y < H * 0.62; y += 5) {
+        g.fillStyle = r() < 0.5 ? 'rgba(220,90,60,0.35)' : 'rgba(70,10,8,0.3)'
+        g.fillRect(0, y, W, 2)
+      }
+      g.fillStyle = '#c4462e'
+      g.fillRect(0, H * 0.04, W, H * 0.05)
+      // the ribbon window
+      const wy = H * 0.64
+      const wh = H * 0.3
+      g.fillStyle = '#16191c'
+      g.fillRect(0, wy, W, wh)
+      for (let x = 0; x < W; x += 32) {
+        g.fillStyle = '#2b2b2b'
+        g.fillRect(x, wy, 3, wh)
+        if (r() < 0.62) {
+          ge.fillStyle = r() < 0.75 ? '#ffd9a0' : '#e8f0ff'
+          ge.globalAlpha = 0.55 + r() * 0.45
+          ge.fillRect(x + 3, wy + 2, 29, wh - 4)
+          ge.globalAlpha = 1
+          ge.fillStyle = 'rgba(0,0,0,0.5)'
+          ge.fillRect(x + 6 + r() * 14, wy + wh * 0.55, 8, wh * 0.4)
+        }
+      }
+      const tex = (cv, srgb) => {
+        const t = new THREE.CanvasTexture(cv)
+        t.wrapS = t.wrapT = THREE.RepeatWrapping
+        if (srgb) t.colorSpace = THREE.SRGBColorSpace
+        t.anisotropy = 4
+        return t
+      }
+      return new THREE.MeshStandardMaterial({ map: tex(c, true), emissiveMap: tex(e, true), emissive: 0xffffff, emissiveIntensity: 1.5, roughness: 0.5, metalness: 0.1 })
+    })()
+    const redPanels = new THREE.MeshStandardMaterial({
+      map: paintTexture(
+        THREE,
+        256,
+        256,
+        (g, w, h) => {
+          g.fillStyle = '#a3261d'
+          g.fillRect(0, 0, w, h)
+          const r = seeded(23)
+          for (let i = 0; i < 4; i++) {
+            g.fillStyle = `rgba(${150 + r() * 40},${20 + r() * 20},${15 + r() * 10},0.35)`
+            g.fillRect((i * w) / 4, 0, w / 4, h)
+          }
+          g.fillStyle = 'rgba(40,5,4,0.85)'
+          for (let i = 0; i < 4; i++) g.fillRect((i * w) / 4, 0, 2, h)
+          g.fillRect(0, h / 2, w, 2)
+        },
+        { kind: 'color' }
+      ),
+      emissive: 0x6a120c,
+      emissiveIntensity: 0.35,
+      roughness: 0.42,
+      metalness: 0.05,
+    })
+    const oakFloor = M.planks(THREE, { color: '#b7834e', width: 0.16, varnish: 1, tile: 2, quality: q, seed: 76 })
+    const ceilBrown = std(THREE, 0x4a2a1a, 0.7, 0, { side: THREE.DoubleSide, emissive: new THREE.Color(0x3a1a0c), emissiveIntensity: 0.4 })
+    const foyerGlass = new THREE.MeshStandardMaterial({ color: 0x1c2a33, roughness: 0.04, metalness: 0.7, transparent: true, opacity: 0.26, envMapIntensity: 1.5, depthWrite: false, side: THREE.DoubleSide })
+    const downMat = new THREE.MeshBasicMaterial({ color: new THREE.Color(0xffe2b8).multiplyScalar(2.6) })
+    for (const m of [foyerGlass, downMat]) K.flags(m, { cast: false, receive: false })
+    K.flags(oakFloor, { cast: false })
+
+    // the plan: a rounded rectangle, the big curve at the corner facing the bridge
+    const R = 22
+    const r = 8
+    const footprint = new THREE.Shape()
+    // shape y = −z (planExtrude's convention): the river front is y = 400
+    footprint.moveTo(LX0 + R, -LZN)
+    footprint.lineTo(LX1 - r, -LZN)
+    footprint.quadraticCurveTo(LX1, -LZN, LX1, -LZN + r)
+    footprint.lineTo(LX1, -LZS - r)
+    footprint.quadraticCurveTo(LX1, -LZS, LX1 - r, -LZS)
+    footprint.lineTo(LX0 + r, -LZS)
+    footprint.quadraticCurveTo(LX0, -LZS, LX0, -LZS - r)
+    footprint.lineTo(LX0, -LZN + R)
+    footprint.absarc(LX0 + R, -LZN + R, R, Math.PI, Math.PI * 1.5, false)
+    const sides = (shape, y0, y1, tu, tv, segs = 16) => {
+      const ex = new THREE.ExtrudeGeometry(shape, { depth: y1 - y0, bevelEnabled: false, curveSegments: segs })
+      const grp = ex.groups[1] || { start: 0, count: ex.attributes.position.count }
+      const g = new THREE.BufferGeometry()
+      for (const name of ['position', 'normal', 'uv']) {
+        const a = ex.attributes[name]
+        g.setAttribute(name, new THREE.Float32BufferAttribute(a.array.slice(grp.start * a.itemSize, (grp.start + grp.count) * a.itemSize), a.itemSize))
+      }
+      const uv = g.attributes.uv
+      for (let i = 0; i < uv.count; i++) uv.setXY(i, uv.getX(i) / tu, uv.getY(i) / tv)
+      g.rotateX(-Math.PI / 2)
+      g.translate(0, y0, 0)
+      return g
+    }
+    const flatShape = (shape, y, tile) => {
+      const g = new THREE.ShapeGeometry(shape, 16)
+      const uv = g.attributes.uv
+      for (let i = 0; i < uv.count; i++) uv.setXY(i, uv.getX(i) / tile, uv.getY(i) / tile)
+      g.rotateX(-Math.PI / 2)
+      g.translate(0, y, 0)
+      return g
+    }
+    // the banded body above, cantilevered over the glass; its roof and soffit
+    K.put(band, sides(footprint, QUAY + FH, QUAY + BODY, 4, 3.6))
+    K.put(asphalt, flatShape(footprint, QUAY + BODY, 6))
+    K.put(ceilBrown, flatShape(footprint, QUAY + FH - 0.02, 4))
+    K.put(oakFloor, flatShape(footprint, QUAY + 0.02, 2))
+    // the auditorium core: red panels to the foyer, banded outside
+    {
+      const w = LX1 - CORE.x0
+      const d = CORE.z1 - LZS
+      const xc = (CORE.x0 + LX1) / 2
+      const zc = (CORE.z1 + LZS) / 2
+      K.put(redPanels, boxGeo(THREE, w, FH, d, 2.4, 2.4, [1, 4]), xc, QUAY, zc)
+      K.put(band, boxGeo(THREE, w - 0.02, FH, d - 0.02, 4, 3.6, [0, 5]), xc, QUAY, zc)
+      // recessed dark slots in the red wall (photo 01)
+      for (let x = CORE.x0 + 6; x < LX1 - 4; x += 9) K.put(std(THREE, 0x1a0c0a, 0.6), new THREE.BoxGeometry(2.6, 1.1, 0.06), x, QUAY + 7.6, CORE.z1 + 0.02)
+    }
+    // glass: the river front, the plein side and the big curved corner, with mullions
+    K.put(foyerGlass, new THREE.PlaneGeometry(LX1 - r - (LX0 + R), FH).translate(0, FH / 2, 0), (LX1 - r + LX0 + R) / 2, QUAY, LZN)
+    K.put(foyerGlass, new THREE.PlaneGeometry(LZN - R - (LZS + r), FH).translate(0, FH / 2, 0).rotateY(Math.PI / 2), LX0, QUAY, (LZN - R + LZS + r) / 2)
+    K.put(foyerGlass, new THREE.CylinderGeometry(R, R, FH, 20, 1, true, -Math.PI / 2, Math.PI / 2).translate(0, FH / 2, 0), LX0 + R, QUAY, LZN - R)
+    const mull = beamBatch(THREE)
+    for (let x = LX0 + R; x < LX1 - r; x += 2.2) mull.add(V(x, QUAY, LZN), V(x, QUAY + FH, LZN), 0.08, 0.14)
+    for (let z = LZN - R; z > LZS + r; z -= 2.2) mull.add(V(LX0, QUAY, z), V(LX0, QUAY + FH, z), 0.14, 0.08)
+    for (let k = 0; k <= 10; k++) {
+      const a = -Math.PI / 2 + (k / 10) * (Math.PI / 2)
+      const x = LX0 + R + Math.sin(a) * R
+      const z = LZN - R + Math.cos(a) * R
+      mull.add(V(x, QUAY, z), V(x, QUAY + FH, z), 0.1, 0.1)
+    }
+    for (const y of [QUAY + 0.05, QUAY + 5.6, QUAY + FH - 0.1]) {
+      mull.add(V(LX0 + R, y, LZN), V(LX1 - r, y, LZN), 0.1, 0.1)
+      mull.add(V(LX0, y, LZN - R), V(LX0, y, LZS + r), 0.1, 0.1)
+    }
+    scene.add(mull.build(darkSteel, { castShadow: false }))
+    // the grandstand stair: deep oak steps up along the red wall to a mezzanine
+    const SX0 = 58
+    const SX1 = 98
+    const N = 30
+    const run = (SX1 - SX0) / N
+    const rise = 0.18
+    for (let i = 0; i < N; i++) K.put(oakFloor, boxGeo(THREE, run + 0.01, (i + 1) * rise, 8, 2, 2), SX0 + (i + 0.5) * run, QUAY, CORE.z1 + 4)
+    K.put(oakFloor, boxGeo(THREE, LX1 - SX1, N * rise, LZN - CORE.z1, 2, 2), (SX1 + LX1) / 2, QUAY, (LZN + CORE.z1) / 2)
+    const glassRail = beamBatch(THREE)
+    for (let i = 0; i <= N; i += 3) {
+      const x = SX0 + i * run
+      const y = QUAY + Math.min(N, i + 1) * rise
+      glassRail.add(V(x, y, CORE.z1 + 8), V(x, y + 1.05, CORE.z1 + 8), 0.04, 0.04)
+    }
+    glassRail.add(V(SX0, QUAY + rise + 1.05, CORE.z1 + 8), V(SX1, QUAY + N * rise + 1.05, CORE.z1 + 8), 0.06, 0.06)
+    scene.add(glassRail.build(std(THREE, 0xc9ccd0, 0.25, 0.9), { castShadow: false }))
+    {
+      const len = Math.hypot(SX1 - SX0, N * rise)
+      K.put(foyerGlass, new THREE.PlaneGeometry(len, 1.0).translate(0, 0.55, 0).rotateZ(Math.atan2(N * rise, SX1 - SX0)), (SX0 + SX1) / 2, QUAY + rise + (N * rise) / 2, CORE.z1 + 8)
+    }
+    // downlights in a line along the red wall, and over the foyer
+    const downs = []
+    for (let x = LX0 + 6; x < LX1 - 2; x += 3) downs.push({ x, y: QUAY + FH - 0.04, z: CORE.z1 + 1.2 })
+    for (let x = LX0 + 6; x < LX1 - 2; x += 6) downs.push({ x, y: QUAY + FH - 0.04, z: LZN - 6 })
+    for (let z = CORE.z1 - 4; z > LZS + 4; z -= 5) downs.push({ x: LX0 + 6, y: QUAY + FH - 0.04, z })
+    scatter(THREE, scene, new THREE.CircleGeometry(0.11, 14).rotateX(Math.PI / 2), downMat, downs, { cast: false, receive: false })
+    for (const [x, z, i] of [
+      [62, -405, 30],
+      [80, -405, 30],
+      [100, -405, 26],
+      [56, -432, 22],
+      [56, -460, 22],
+    ]) {
+      const l = new THREE.PointLight(0xffc791, i, 24, 2)
+      l.position.set(x, QUAY + FH - 1.2, z)
+      scene.add(l)
+    }
+
+    // the plein: a granite ledge by the ramp (photo 06), a blue route sign
+    const ledge = M.concrete(THREE, { color: '#a59b8a', ties: false, tile: 2, quality: q, seed: 77 })
+    K.put(ledge, boxGeo(THREE, 1.0, 0.5, 34, 2, 2), 20.5, QUAY, -461)
+    K.put(darkSteel, new THREE.CylinderGeometry(0.05, 0.05, 3.2, 8).translate(0, 1.6, 0), 19.8, QUAY, -452)
+    K.put(new THREE.MeshBasicMaterial({ color: new THREE.Color(0x2a6fd6).multiplyScalar(1.3) }), new THREE.BoxGeometry(0.05, 0.9, 0.7), 19.8, QUAY + 3.0, -452)
+
+    // the metro station: an open canopy over a void, escalators down to the hall
+    const PIT = { x0: 12, x1: 32, z0: -546, z1: -514 }
+    const HALL = { x0: 6, x1: 40, z0: -560, z1: -505, y0: -4, y1: 0.5 }
+    const pitWall = M.concrete(THREE, { color: '#c9c6bf', ties: false, tile: 3, quality: q, seed: 81 })
+    const slab = (x0, x1, z0, z1) => {
+      K.put(pitWall, boxGeo(THREE, x1 - x0, QUAY - HALL.y1, z1 - z0, 4, 4, [0, 1, 3, 4, 5]), (x0 + x1) / 2, HALL.y1, (z0 + z1) / 2)
+      K.put(pave, boxGeo(THREE, x1 - x0, QUAY - HALL.y1, z1 - z0, 4, 4, TOP), (x0 + x1) / 2, HALL.y1, (z0 + z1) / 2)
+    }
+    slab(HALL.x0, HALL.x1, HALL.z0, PIT.z0)
+    slab(HALL.x0, HALL.x1, PIT.z1, HALL.z1)
+    slab(HALL.x0, PIT.x0, PIT.z0, PIT.z1)
+    slab(PIT.x1, HALL.x1, PIT.z0, PIT.z1)
+    const tiles = M.floor(THREE, { kind: 'tile', color: '#e9e7e1', tileSize: 0.3, polish: 0.9, tile: 2, quality: q, seed: 78 })
+    const terrazzo = M.floor(THREE, { kind: 'terrazzo', color: '#8d8b86', polish: 0.85, tile: 3, quality: q, seed: 79 })
+    const hw = HALL.x1 - HALL.x0
+    const hd = HALL.z1 - HALL.z0
+    K.put(terrazzo, flatGeo(THREE, hw, hd, 3), (HALL.x0 + HALL.x1) / 2, HALL.y0, (HALL.z0 + HALL.z1) / 2)
+    K.put(tiles, boxGeo(THREE, hw, HALL.y1 - HALL.y0, 0.2, 2, 2, [4]), (HALL.x0 + HALL.x1) / 2, HALL.y0, HALL.z0 - 0.1)
+    K.put(tiles, boxGeo(THREE, hw, HALL.y1 - HALL.y0, 0.2, 2, 2, [5]), (HALL.x0 + HALL.x1) / 2, HALL.y0, HALL.z1 + 0.1)
+    K.put(tiles, boxGeo(THREE, 0.2, HALL.y1 - HALL.y0, hd, 2, 2, [0]), HALL.x0 - 0.1, HALL.y0, (HALL.z0 + HALL.z1) / 2)
+    K.put(tiles, boxGeo(THREE, 0.2, HALL.y1 - HALL.y0, hd, 2, 2, [1]), HALL.x1 + 0.1, HALL.y0, (HALL.z0 + HALL.z1) / 2)
+    // linear lights under the slab, cool white
+    const strip = new THREE.MeshBasicMaterial({ color: new THREE.Color(0xeef4ff).multiplyScalar(2.2) })
+    K.flags(strip, { cast: false, receive: false })
+    for (const z of [HALL.z0 + 3, HALL.z0 + 7, HALL.z0 + 11, HALL.z1 - 3, HALL.z1 - 6.5]) K.put(strip, new THREE.BoxGeometry(hw - 4, 0.05, 0.3), (HALL.x0 + HALL.x1) / 2, HALL.y1 - 0.03, z)
+    for (const x of [HALL.x0 + 3, HALL.x1 - 3]) K.put(strip, new THREE.BoxGeometry(0.16, 0.05, hd - 6), x, HALL.y1 - 0.03, (HALL.z0 + HALL.z1) / 2)
+    for (const [x, z] of [
+      [20, -535],
+      [33, -525],
+      [12, -552],
+    ]) {
+      const l = new THREE.PointLight(0xe8f0ff, 45, 26, 2)
+      l.position.set(x, HALL.y1 - 0.6, z)
+      scene.add(l)
+    }
+    // the escalators and a fixed stair, top at the street (z −516), foot in the hall
+    const ezTop = -516
+    const ezBot = ezTop - (QUAY - HALL.y0) / Math.tan(Math.PI / 6)
+    const eLen = Math.hypot(ezTop - ezBot, QUAY - HALL.y0)
+    const ePitch = -Math.atan2(QUAY - HALL.y0, ezTop - ezBot)
+    const eMid = (ezTop + ezBot) / 2
+    const eY = (QUAY + HALL.y0) / 2
+    const escSteel = std(THREE, 0x8e9196, 0.3, 0.9)
+    const treadMat = std(THREE, 0x3a3c40, 0.5, 0.6)
+    for (const xc of [16.6, 18.2]) {
+      K.put(treadMat, new THREE.BoxGeometry(1.0, 0.25, eLen), xc, eY + 0.05, eMid, 0, ePitch)
+      K.put(escSteel, new THREE.BoxGeometry(1.5, 0.9, eLen), xc, eY - 0.55, eMid, 0, ePitch)
+      for (const s of [-1, 1]) {
+        K.put(foyerGlass, new THREE.BoxGeometry(0.03, 0.9, eLen), xc + s * 0.62, eY + 0.65, eMid, 0, ePitch)
+        K.put(std(THREE, 0x0d0d0e, 0.4), new THREE.BoxGeometry(0.09, 0.06, eLen + 1.2), xc + s * 0.62, eY + 1.12, eMid, 0, ePitch)
+      }
+      K.put(escSteel, boxGeo(THREE, 1.4, 0.06, 1.8, 2, 2), xc, QUAY, ezTop + 0.9)
+      K.put(escSteel, boxGeo(THREE, 1.4, 0.06, 1.8, 2, 2), xc, HALL.y0, ezBot - 0.9)
+    }
+    for (let i = 0; i < 39; i++) {
+      const t = (i + 0.5) / 39
+      K.put(conc, new THREE.BoxGeometry(2.6, 0.18, (ezTop - ezBot) / 39 + 0.02), 20.9, QUAY - t * (QUAY - HALL.y0), ezTop - t * (ezTop - ezBot))
+    }
+    // glass balustrade round the void
+    const pitRail = beamBatch(THREE)
+    const pitEdge = [
+      [V(PIT.x0, QUAY, PIT.z1), V(15.6, QUAY, PIT.z1)],
+      [V(22.4, QUAY, PIT.z1), V(PIT.x1, QUAY, PIT.z1)],
+      [V(PIT.x1, QUAY, PIT.z1), V(PIT.x1, QUAY, PIT.z0)],
+      [V(PIT.x1, QUAY, PIT.z0), V(PIT.x0, QUAY, PIT.z0)],
+      [V(PIT.x0, QUAY, PIT.z0), V(PIT.x0, QUAY, PIT.z1)],
+    ]
+    for (const [a, b] of pitEdge) {
+      pitRail.add(a.clone().add(V(0, 1.05, 0)), b.clone().add(V(0, 1.05, 0)), 0.06, 0.06)
+      const len = a.distanceTo(b)
+      const mid = a.clone().add(b).multiplyScalar(0.5)
+      K.put(foyerGlass, new THREE.PlaneGeometry(len, 1.0).translate(0, 0.5, 0), mid.x, QUAY, mid.z, Math.abs(a.x - b.x) < 0.01 ? Math.PI / 2 : 0)
+    }
+    scene.add(pitRail.build(escSteel, { castShadow: false }))
+    // the canopy on slim columns, glazed to the east and south, open to the plein
+    const CAN = { x0: 10, x1: 34, z0: -550, z1: -508, y: QUAY + 5.4 }
+    K.put(std(THREE, 0x2b2d31, 0.5, 0.5), boxGeo(THREE, CAN.x1 - CAN.x0, 0.45, CAN.z1 - CAN.z0, 4, 4), (CAN.x0 + CAN.x1) / 2, CAN.y, (CAN.z0 + CAN.z1) / 2)
+    for (const [x, z] of [
+      [CAN.x0 + 0.4, CAN.z1 - 0.4],
+      [CAN.x1 - 0.4, CAN.z1 - 0.4],
+      [CAN.x0 + 0.4, CAN.z0 + 0.4],
+      [CAN.x1 - 0.4, CAN.z0 + 0.4],
+    ])
+      K.put(darkSteel, new THREE.CylinderGeometry(0.16, 0.16, CAN.y - QUAY, 10).translate(0, (CAN.y - QUAY) / 2, 0), x, QUAY, z)
+    K.put(foyerGlass, new THREE.PlaneGeometry(CAN.z1 - CAN.z0, CAN.y - QUAY).translate(0, (CAN.y - QUAY) / 2, 0).rotateY(Math.PI / 2), CAN.x1, QUAY, (CAN.z0 + CAN.z1) / 2)
+    K.put(foyerGlass, new THREE.PlaneGeometry(CAN.x1 - CAN.x0, CAN.y - QUAY).translate(0, (CAN.y - QUAY) / 2, 0), (CAN.x0 + CAN.x1) / 2, QUAY, CAN.z0)
+    const canDowns = []
+    for (let x = CAN.x0 + 2; x < CAN.x1; x += 4) for (let z = CAN.z0 + 3; z < CAN.z1; z += 6) canDowns.push({ x, y: CAN.y - 0.01, z })
+    scatter(THREE, scene, new THREE.CircleGeometry(0.12, 12).rotateX(Math.PI / 2), strip, canDowns, { cast: false, receive: false })
+    {
+      for (const [x, z] of [
+        [19, -517],
+        [27, -536],
+      ]) {
+        const l = new THREE.PointLight(0xeef3ff, 50, 24, 2)
+        l.position.set(x, CAN.y - 0.8, z)
+        scene.add(l)
+      }
+    }
+    // the yellow M, on the canopy's edge and hung in the hall
+    const mTex = paintTexture(
+      THREE,
+      128,
+      128,
+      (g, w, h) => {
+        g.clearRect(0, 0, w, h)
+        g.fillStyle = '#ffc21a'
+        g.beginPath()
+        g.moveTo(w * 0.08, h * 0.9)
+        g.lineTo(w * 0.08, h * 0.12)
+        g.lineTo(w * 0.3, h * 0.12)
+        g.lineTo(w * 0.5, h * 0.52)
+        g.lineTo(w * 0.7, h * 0.12)
+        g.lineTo(w * 0.92, h * 0.12)
+        g.lineTo(w * 0.92, h * 0.9)
+        g.lineTo(w * 0.74, h * 0.9)
+        g.lineTo(w * 0.74, h * 0.45)
+        g.lineTo(w * 0.56, h * 0.82)
+        g.lineTo(w * 0.44, h * 0.82)
+        g.lineTo(w * 0.26, h * 0.45)
+        g.lineTo(w * 0.26, h * 0.9)
+        g.closePath()
+        g.fill()
+      },
+      { kind: 'color' }
+    )
+    mTex.wrapS = mTex.wrapT = THREE.ClampToEdgeWrapping
+    const mSign = new THREE.MeshBasicMaterial({ map: mTex, transparent: true, alphaTest: 0.4, color: new THREE.Color(2.2, 2.0, 1.6), side: THREE.DoubleSide, depthWrite: false })
+    K.flags(mSign, { cast: false, receive: false })
+    K.put(mSign, new THREE.PlaneGeometry(1.8, 1.8), 21, CAN.y + 1.3, CAN.z1 + 0.1)
+    K.put(mSign, new THREE.PlaneGeometry(1.8, 1.8).rotateY(Math.PI / 2), CAN.x0 - 0.1, CAN.y + 1.3, -520)
+    K.put(mSign, new THREE.PlaneGeometry(1.4, 1.4), 18.4, CAN.y - 1.5, -523)
+    K.put(mSign, new THREE.PlaneGeometry(1.3, 1.3), 24, HALL.y1 - 1.0, -531)
+    K.put(mSign, new THREE.PlaneGeometry(1.3, 1.3), 34, HALL.y1 - 1.0, -526)
+    K.put(std(THREE, 0x1c1c1e, 0.4, 0.5), boxGeo(THREE, 2.4, 0.3, 0.3, 1, 1), 21, CAN.y + 0.45, CAN.z1 + 0.15)
+
+    // the tram stop at the bridge's foot: two platforms, shelters, a route sign
+    const shelterGlass = new THREE.MeshStandardMaterial({ color: 0x223040, transparent: true, opacity: 0.3, roughness: 0.05, metalness: 0.3, depthWrite: false })
+    K.flags(shelterGlass, { cast: false, receive: false })
+    K.put(asphalt, flatGeo(THREE, 34, 240, 6), 0, QUAY + 0.02, -600)
+    K.put(conc, flatGeo(THREE, 6.4, 240, 4), 0, QUAY + 0.035, -600)
+    for (const s of [-1, 1]) {
+      K.put(conc, boxGeo(THREE, 1.8, 0.3, 40, 4, 4), s * 5.4, QUAY, -540)
+      K.put(darkSteel, new THREE.BoxGeometry(1.9, 0.12, 12), s * 5.6, QUAY + 2.95, -545)
+      K.put(shelterGlass, new THREE.BoxGeometry(0.04, 2.3, 11), s * 6.25, QUAY + 1.5, -545)
+      for (const z of [-550.8, -539.2]) K.put(darkSteel, new THREE.BoxGeometry(0.08, 2.65, 0.08), s * 6.25, QUAY + 1.62, z)
+      K.put(new THREE.MeshBasicMaterial({ color: new THREE.Color(0xfff2dc).multiplyScalar(1.25) }), new THREE.BoxGeometry(0.1, 1.5, 0.9), s * 6.2, QUAY + 1.25, -551.6)
+    }
+
+    // timber fenders by the bridge's south abutment (photo 13)
+    const fenderWood = M.planks(THREE, { color: '#5a4636', width: 0.25, tile: 2, quality: q, seed: 80 })
+    for (let x = -46; x <= -20; x += 2.6) K.put(fenderWood, boxGeo(THREE, 0.42, QUAY + 4.5, 0.42, 1, 1), x, -1.5, SOUTH + 6)
+    for (const y of [0.6, 1.6, 2.6, 3.6]) K.put(fenderWood, boxGeo(THREE, 26.6, 0.3, 0.25, 2, 2), -33, y, SOUTH + 5.7)
+    for (let x = -44.7; x < -20; x += 5.2) K.strut(fenderWood, V(x, 0.4, SOUTH + 5.7), V(x + 2.6, 3.9, SOUTH + 5.7), 0.22, 0.22)
+    K.put(darkSteel, new THREE.CylinderGeometry(0.75, 0.75, 6.5, 14).translate(0, 3.25, 0), -50, -1.5, SOUTH + 7)
+    K.put(fenderWood, new THREE.CylinderGeometry(0.85, 0.85, 0.4, 14), -50, 5.2, SOUTH + 7)
+    K.flags(fenderWood, { cast: true })
+  }
+
   /* --- lights: glows, pools, and their long reflections ---------------- */
 
   const glow = []
@@ -1488,7 +1996,8 @@ function buildRotterdam(THREE, ctx) {
   const refl = []
   for (const [x, , w, , h] of pier) refl.push({ x, z: SOUTH, len: Math.min(240, h * 1.6), w: w * 0.5, color: 0xffcf96, k: 0.55 })
   for (const x of [-160, -118, -76]) refl.push({ x, z: SOUTH, len: 300, w: 22, color: 0xffd6a0, k: 0.75 })
-  refl.push({ x: 58, z: SOUTH, len: 200, w: 18, color: 0x8dffb0, k: 0.4 })
+  refl.push({ x: -48, z: SOUTH, len: 200, w: 18, color: 0x8dffb0, k: 0.4 })
+  refl.push({ x: 85, z: SOUTH, len: 120, w: 40, color: 0xff7a50, k: 0.45 })
   for (let i = 0; i < violet.length; i += 4) refl.push({ x: violet[i].x, z: SOUTH, len: range(rand, 40, 90), w: 2.2, color: 0x9a4dff, k: 0.9 })
   for (const l of quayLampsS) refl.push({ x: l.x, z: SOUTH, len: 70, w: 1.6, color: 0xffc07a, k: 0.9 })
   for (const l of quayLampsN) refl.push({ x: l.x, z: 0, len: 60, w: 1.4, color: 0xffc07a, k: 0.8, dir: -1 })
@@ -1503,18 +2012,18 @@ function buildRotterdam(THREE, ctx) {
   K.flags(ledViolet, { cast: false, receive: false })
   K.flush()
 
-  world.focusShadows(V(-40, 6, -40), low ? 70 : 90)
+  world.focusShadows(V(-40, 6, -440), low ? 70 : 90)
 
   const dummy = new THREE.Object3D()
   return {
-    scene,
+    scene: stage,
     world,
     path: {
-      positions: arrival,
-      targets: [V(0, 60, -300), V(-60, 58, -390), V(-110, 58, -420), aim(THREE, V(-90, 7, -8), deRotterdam, -10, 6), spots[0].look.clone()],
+      positions: arrival.map(W),
+      targets: [V(-118, 62, -425), V(-110, 58, -420), V(-90, 50, -420), V(-60, 40, -425), spots[0].look].map(W),
       fov: 48,
       near: 0.3,
-      spots,
+      spots: spots.map((sp) => ({ pos: W(sp.pos), look: W(sp.look) })),
     },
     update(t) {
       water.userData.tick(t)
@@ -1723,243 +2232,6 @@ function washTexture(THREE, falloff = 2.2) {
     },
     { kind: 'color' }
   )
-}
-
-/**
- * Low-poly people, a handful of body/pose variants. Every vertex carries a
- * `part` id (0 skin, 1 top, 2 bottom, 3 hair, 4 shoes, 5 bottle, 6 phone,
- * 7 forearm — sleeve or skin) so one material can dress each instance.
- * Local frame: feet on y = 0, facing +Z, ~1.76 m (men) / 1.68 m (women).
- */
-function personVariants(THREE) {
-  const yA = new THREE.Vector3(0, 1, 0)
-  const one = new THREE.Vector3(1, 1, 1)
-  const m4 = new THREE.Matrix4()
-  const q = new THREE.Quaternion()
-  const v3 = (a) => new THREE.Vector3(a[0], a[1], a[2])
-
-  function build({ female = false, R = 'down', L = 'down', hair = 'short', prop = null, stance = 0.1 }) {
-    const parts = []
-    const add = (geo, part) => {
-      const g = geo.index ? geo.toNonIndexed() : geo
-      for (const k of Object.keys(g.attributes)) if (k !== 'position' && k !== 'normal') g.deleteAttribute(k)
-      if (!g.attributes.normal) g.computeVertexNormals()
-      g.setAttribute('part', new THREE.Float32BufferAttribute(new Float32Array(g.attributes.position.count).fill(part), 1))
-      parts.push(g)
-    }
-    const limb = (a, b, ra, rb, part, seg = 7) => {
-      const A = v3(a)
-      const B = v3(b)
-      const d = B.clone().sub(A)
-      const len = d.length() || 0.001
-      q.setFromUnitVectors(yA, d.normalize())
-      m4.compose(A.clone().add(B).multiplyScalar(0.5), q, one)
-      add(new THREE.CylinderGeometry(rb, ra, len, seg, 1, true).applyMatrix4(m4), part)
-    }
-    const ball = (c, r, part, s = [1, 1, 1], w = 7, h = 5) => add(new THREE.SphereGeometry(r, w, h).scale(s[0], s[1], s[2]).translate(c[0], c[1], c[2]), part)
-
-    const k = female ? 0.955 : 1 // vertical scale of the joints
-    const Y = (y) => y * k
-    const hipX = female ? 0.088 : 0.095
-    // legs: baggy trousers / jeans, a little apart
-    for (const s of [-1, 1]) {
-      const hip = [s * hipX, Y(0.93), 0]
-      const knee = [s * (hipX + stance * 0.25), Y(0.5), 0.015]
-      const ankle = [s * (hipX + stance * 0.4), Y(0.085), 0]
-      limb(hip, knee, female ? 0.082 : 0.094, female ? 0.058 : 0.072, 2)
-      ball(knee, female ? 0.058 : 0.07, 2, [1, 1, 1], 6, 4)
-      limb(knee, ankle, female ? 0.056 : 0.07, female ? 0.044 : 0.064, 2)
-      add(new THREE.BoxGeometry(female ? 0.08 : 0.1, 0.07, female ? 0.22 : 0.25).translate(ankle[0], 0.035, 0.04), 4)
-    }
-    // pelvis and torso (an elliptical lathe)
-    ball([0, Y(0.94), 0], female ? 0.178 : 0.168, 2, [1, 0.62, female ? 0.78 : 0.72], 8, 5)
-    const prof = female
-      ? [[0.0, 0.92], [0.168, 0.94], [0.148, 1.04], [0.128, 1.12], [0.148, 1.22], [0.166, 1.3], [0.168, 1.37], [0.14, 1.42], [0.05, 1.45], [0.0, 1.455]]
-      : [[0.0, 0.84], [0.178, 0.86], [0.172, 0.95], [0.166, 1.08], [0.176, 1.2], [0.192, 1.32], [0.196, 1.39], [0.16, 1.45], [0.07, 1.48], [0.0, 1.485]]
-    add(new THREE.LatheGeometry(prof.map(([r, y]) => new THREE.Vector2(r, female ? y : y)), 10).scale(1, 1, female ? 0.68 : 0.62), 1)
-    // neck, head, hair
-    const neckTop = female ? 1.5 : 1.54
-    limb([0, female ? 1.4 : 1.44, 0], [0, neckTop, 0.008], female ? 0.046 : 0.056, female ? 0.042 : 0.052, 0, 6)
-    const hc = [0, female ? 1.565 : 1.625, 0.014]
-    const hr = female ? 0.098 : 0.104
-    ball(hc, hr, 0, [0.84, 1.1, 1.0], 10, 8)
-    // nose and ears, so a head reads as a face
-    add(new THREE.BoxGeometry(0.024, 0.042, 0.03).translate(0, hc[1] - 0.012, hc[2] + hr * 0.98), 0)
-    for (const s of [-1, 1]) ball([s * hr * 0.84, hc[1] - 0.005, hc[2] - 0.01], 0.022, 0, [0.5, 1, 0.8], 5, 4)
-    if (hair !== 'none') {
-      add(new THREE.SphereGeometry(hr * 1.08, 10, 5, 0, Math.PI * 2, 0, Math.PI * 0.56).rotateX(-0.42).scale(0.9, 1.06, 1.02).translate(hc[0], hc[1] + 0.012, hc[2] - 0.004), 3)
-    }
-    if (hair === 'long') {
-      add(new THREE.CylinderGeometry(0.088, 0.072, 0.34, 10, 1, false).scale(1, 1, 0.62).translate(0, hc[1] - 0.18, -0.07), 3)
-    } else if (hair === 'bun') {
-      ball([0, hc[1] + 0.07, -0.085], 0.05, 3, [1, 1, 1], 6, 5)
-    }
-    // arms
-    const shY = female ? 1.37 : 1.415
-    const shX = female ? 0.172 : 0.2
-    const pose = (name, s) => {
-      const S = [s * shX, shY, 0]
-      const off = (p, d) => [p[0] + d[0], p[1] + d[1], p[2] + d[2]]
-      let E
-      let Wr
-      switch (name) {
-        case 'drink':
-          E = off(S, [s * 0.04, -0.26, 0.05])
-          Wr = off(E, [-s * 0.07, 0.07, 0.23])
-          break
-        case 'raise':
-          E = off(S, [s * 0.1, 0.25, 0.05])
-          Wr = off(E, [s * 0.02, 0.26, 0.05])
-          break
-        case 'up':
-          E = off(S, [s * 0.14, 0.24, 0.0])
-          Wr = off(E, [s * 0.08, 0.24, 0.04])
-          break
-        case 'phone':
-          E = off(S, [s * 0.02, -0.14, 0.2])
-          Wr = off(E, [-s * 0.08, 0.18, 0.14])
-          break
-        case 'dance':
-          E = off(S, [s * 0.13, -0.2, 0.06])
-          Wr = off(E, [-s * 0.06, 0.13, 0.21])
-          break
-        case 'hip':
-          E = off(S, [s * 0.17, -0.2, -0.05])
-          Wr = off(E, [-s * 0.09, -0.19, 0.06])
-          break
-        case 'decks':
-          E = off(S, [s * 0.05, -0.27, 0.1])
-          Wr = off(E, [-s * 0.02, -0.05, 0.27])
-          break
-        default:
-          E = off(S, [s * 0.04, -0.28, -0.02])
-          Wr = off(E, [s * 0.01, -0.25, 0.05])
-      }
-      ball(S, female ? 0.052 : 0.058, 1, [1, 1, 1], 6, 4)
-      limb(S, E, female ? 0.047 : 0.053, female ? 0.04 : 0.045, 7)
-      ball(E, female ? 0.039 : 0.044, 7, [1, 1, 1], 5, 4)
-      limb(E, Wr, female ? 0.037 : 0.042, female ? 0.03 : 0.034, 7)
-      const dir = v3(Wr).sub(v3(E)).normalize()
-      const H = v3(Wr).addScaledVector(dir, 0.05)
-      ball([H.x, H.y, H.z], female ? 0.036 : 0.042, 0, [0.85, 1.15, 0.75], 6, 4)
-      return H
-    }
-    const hR = pose(R, -1)
-    pose(L, 1)
-    if (prop === 'bottle') {
-      add(new THREE.CylinderGeometry(0.03, 0.032, 0.17, 7).translate(hR.x, hR.y + 0.02, hR.z), 5)
-      add(new THREE.CylinderGeometry(0.012, 0.026, 0.08, 6).translate(hR.x, hR.y + 0.145, hR.z), 5)
-    } else if (prop === 'phone') {
-      add(new THREE.BoxGeometry(0.075, 0.15, 0.012).rotateX(0.25).translate(hR.x, hR.y + 0.05, hR.z + 0.02), 6)
-    }
-    const geo = mergeGeometries(parts, false)
-    geo.computeBoundingSphere()
-    return geo
-  }
-
-  return {
-    A: build({ R: 'drink', L: 'down', hair: 'short', prop: 'bottle', stance: 0.12 }),
-    B: build({ female: true, R: 'drink', L: 'hip', hair: 'long', prop: 'bottle', stance: 0.05 }),
-    C: build({ R: 'raise', L: 'dance', hair: 'short', stance: 0.25 }),
-    D: build({ female: true, R: 'up', L: 'up', hair: 'long', stance: 0.12 }),
-    E: build({ R: 'phone', L: 'down', hair: 'short', prop: 'phone', stance: 0.1 }),
-    F: build({ female: true, R: 'dance', L: 'dance', hair: 'bun', stance: 0.15 }),
-    G: build({ R: 'decks', L: 'decks', hair: 'short', stance: 0.2 }),
-  }
-}
-
-/**
- * The crowd's material: per-instance clothes / skin / hair colours, a bounce
- * on the beat, and a coloured rim light picked from where the person stands
- * (magenta by the side LED strips, blue mid-room, red at the bar and the
- * decks, warm lamp light outside).
- */
-function crowdMaterial(THREE, uTime, uBeat, floorY) {
-  const mat = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.74, metalness: 0 })
-  mat.onBeforeCompile = (sh) => {
-    sh.uniforms.uTime = uTime
-    sh.uniforms.uBeat = uBeat
-    sh.vertexShader = sh.vertexShader
-      .replace(
-        '#include <common>',
-        `#include <common>
-attribute float part;
-attribute vec4 aTop;
-attribute vec4 aBot;
-attribute vec4 aSkin;
-attribute vec3 aHair;
-uniform float uTime;
-varying vec3 vPCol;
-varying vec3 vPW;
-varying float vGlow;
-varying float vLY;`
-      )
-      .replace(
-        '#include <begin_vertex>',
-        `#include <begin_vertex>
-{
-  float ph = aSkin.w;
-  float en = aBot.w;
-  float bt = uTime * 13.0 + ph;
-  float bob = 0.5 + 0.5 * sin(bt);
-  transformed.y -= en * 0.045 * bob * smoothstep(0.25, 0.95, position.y);
-  transformed.x += en * 0.035 * sin(bt * 0.5) * smoothstep(0.7, 1.7, position.y);
-  float arm = step(1.52, position.y) * step(0.13, abs(position.x));
-  transformed.x += arm * en * 0.07 * sin(bt * 0.5 + 0.8);
-  transformed.z += arm * en * 0.05 * cos(bt);
-  vec3 pc = aSkin.rgb;
-  vGlow = 0.0;
-  if (part > 0.5 && part < 1.5) pc = aTop.rgb;
-  else if (part > 1.5 && part < 2.5) pc = aBot.rgb;
-  else if (part > 2.5 && part < 3.5) pc = aHair;
-  else if (part > 3.5 && part < 4.5) pc = fract(ph * 3.17) > 0.75 ? vec3(0.62) : vec3(0.035);
-  else if (part > 4.5 && part < 5.5) pc = vec3(0.2, 0.09, 0.025);
-  else if (part > 5.5 && part < 6.5) { pc = vec3(0.03); vGlow = 1.0; }
-  else if (part > 6.5) pc = aTop.w > 0.5 ? aTop.rgb : aSkin.rgb;
-  vPCol = pc;
-  vLY = position.y;
-  vec4 pw = vec4(transformed, 1.0);
-  #ifdef USE_INSTANCING
-  pw = instanceMatrix * pw;
-  #endif
-  vPW = (modelMatrix * pw).xyz;
-}`
-      )
-    sh.fragmentShader = sh.fragmentShader
-      .replace(
-        '#include <common>',
-        `#include <common>
-uniform float uBeat;
-varying vec3 vPCol;
-varying vec3 vPW;
-varying float vGlow;
-varying float vLY;
-vec3 rimTint(vec3 p) {
-  if (p.y < ${(floorY - 0.6).toFixed(2)}) return vec3(1.0, 0.62, 0.3) * 0.12;
-  float side = smoothstep(1.4, 3.5, abs(p.z));
-  vec3 c = mix(vec3(0.2, 0.32, 1.0), vec3(1.0, 0.16, 0.86), side * 0.85);
-  c = mix(c, vec3(1.0, 0.05, 0.05), 1.0 - smoothstep(-10.5, -6.5, p.x));
-  c = mix(c, vec3(1.0, 0.18, 0.12), smoothstep(9.0, 12.5, p.x) * 0.65);
-  return c;
-}`
-      )
-      .replace(
-        '#include <color_fragment>',
-        `#include <color_fragment>
-diffuseColor.rgb *= vPCol * mix(0.32, 0.8, smoothstep(0.2, 1.55, vLY));`
-      )
-      .replace(
-        '#include <emissivemap_fragment>',
-        `#include <emissivemap_fragment>
-{
-  float fr = 1.0 - abs(dot(normalize(normal), normalize(vViewPosition)));
-  fr = fr * fr * fr;
-  totalEmissiveRadiance += rimTint(vPW) * fr * (0.55 + 0.45 * uBeat) * smoothstep(0.3, 1.2, vLY);
-  totalEmissiveRadiance += vec3(0.7, 0.82, 1.0) * 1.1 * vGlow;
-}`
-      )
-  }
-  return mat
 }
 
 /** Additive light shafts (open cones, apex at the origin, along +Y), instanced. */
@@ -2497,6 +2769,23 @@ function buildPartyBoat(THREE, ctx) {
     tableSpots.flatMap((t) => [0, 1, 2].map((k) => ({ x: t.x + Math.cos(k * 2.1) * 0.14, y: E(1.1), z: t.z + Math.sin(k * 2.1) * 0.14, s: 0.85 }))),
     { cast: false }
   )
+  // the party's things left behind: jackets and a bag on the sofas, plastic cups on the sills
+  scatter(
+    THREE,
+    scene,
+    mergeParts(THREE, [new THREE.BoxGeometry(0.55, 0.06, 0.42).translate(0, 0.03, 0), new THREE.BoxGeometry(0.5, 0.36, 0.05).translate(0, 0.2, -0.2).rotateX(-0.35)]),
+    std(THREE, 0xffffff, 0.9),
+    [
+      { x: -9.1, y: E(0.34), z: -(IN - 0.36), ry: 0.25, color: 0x1a1b20 },
+      { x: -5.2, y: E(0.34), z: -(IN - 0.38), ry: -0.15, color: 0x5b3a26 },
+      { x: -7.9, y: E(0.34), z: IN - 0.36, ry: Math.PI + 0.2, color: 0x2a3446 },
+    ],
+    { cast: false }
+  )
+  K.put(std(THREE, 0x2a1a14, 0.45), new THREE.BoxGeometry(0.3, 0.22, 0.12).translate(0, 0.11, 0), -4.3, E(0.34), IN - 0.4, 0.5)
+  const cups = []
+  for (const t of tableSpots) for (let k = 0; k < 3; k++) cups.push({ x: t.x + Math.cos(k * 2.1 + 1) * 0.19, y: E(1.1), z: t.z + Math.sin(k * 2.1 + 1) * 0.19, color: pick(rand, [0xe8e4dc, 0xd62a2a, 0x2a5ad6]) })
+  scatter(THREE, scene, new THREE.CylinderGeometry(0.042, 0.03, 0.11, 10, 1, true).translate(0, 0.055, 0), std(THREE, 0xffffff, 0.45, 0, { side: THREE.DoubleSide }), cups, { cast: false })
 
   /* --- the DJ booth (forward), speaker stacks, truss, effect lights ------ */
 
@@ -2643,167 +2932,6 @@ function buildPartyBoat(THREE, ctx) {
   sternFlag.group.position.set(-28.1, MAIN, -2.9)
   sternFlag.group.rotation.y = Math.PI * 0.9
   scene.add(bowFlag.group, sternFlag.group)
-
-  /* --- the crowd ------------------------------------------------------------ */
-
-  const variants = personVariants(THREE)
-  const insideSegs = []
-  for (let i = 0; i + 1 < INSIDE; i++) insideSegs.push([spots[i].pos, spots[i + 1].pos])
-  const corridor = [2.7, 3.6, 3.2, 1.3, 2.4, 2.0, 4.4]
-  const guests = []
-  const near = (x, z, r) => guests.some((g) => (g.x - x) * (g.x - x) + (g.z - z) * (g.z - z) < r * r)
-  function free(x, z) {
-    for (let i = 0; i < INSIDE; i++) {
-      const s = spots[i]
-      const dx = x - s.pos.x
-      const dz = z - s.pos.z
-      if (dx * dx + dz * dz < 1.15 * 1.15) return false
-      let fx = s.look.x - s.pos.x
-      let fz = s.look.z - s.pos.z
-      const fl = Math.hypot(fx, fz) || 1
-      fx /= fl
-      fz /= fl
-      const along = dx * fx + dz * fz
-      if (along > 0 && along < corridor[i] && Math.abs(dx * fz - dz * fx) < 0.5 + along * 0.2) return false
-    }
-    for (const [a, b] of insideSegs) {
-      const ex = b.x - a.x
-      const ez = b.z - a.z
-      const L = ex * ex + ez * ez || 1
-      const t = Math.max(0, Math.min(1, ((x - a.x) * ex + (z - a.z) * ez) / L))
-      if (Math.hypot(a.x + ex * t - x, a.z + ez * t - z) < 0.36) return false
-    }
-    for (const t of tableSpots) if (Math.hypot(t.x - x, t.z - z) < 0.5) return false
-    return true
-  }
-  const TOPS = [
-    [0x101012, 40],
-    [0xc9c6c0, 13],
-    [0x3a3b3f, 10],
-    [0x1d2740, 8],
-    [0x4a3326, 6],
-    [0x8a1c22, 5],
-    [0x7b9cc8, 6],
-    [0xc8b89a, 5],
-    [0x3e4a2c, 4],
-    [0x5a2a5a, 4],
-  ]
-  const BOTTOMS = [
-    [0x111114, 34],
-    [0x2c3e5e, 26],
-    [0x6d86a8, 10],
-    [0xcdbf9f, 10],
-    [0x55575c, 10],
-    [0x2a2420, 6],
-  ]
-  const SKIN = [0xf1c8a8, 0xe0b090, 0xc98e66, 0xa36a45, 0x7a4a2e, 0x4e2f1e]
-  const HAIR = [0x0e0b09, 0x1f140d, 0x3a2414, 0x5c3a1e, 0xb08a52, 0xd8c08a, 0x6a2a14]
-  const weighted = (list) => {
-    const tot = list.reduce((a, [, w]) => a + w, 0)
-    let r = rand() * tot
-    for (const [v, w] of list) if ((r -= w) <= 0) return v
-    return list[0][0]
-  }
-  const female = { B: true, D: true, F: true }
-  function guest(x, z, ry, v, en, y = UP) {
-    guests.push({ x, z, y, ry, v, en })
-  }
-  // the dance floor: packed, mostly facing the decks
-  const step = low ? 0.86 : 0.64
-  for (let x = -3.0; x < DECK_X - 0.55; x += step) {
-    for (let z = -IN + 0.35; z < IN - 0.3; z += step) {
-      const px = x + range(rand, -0.2, 0.2)
-      const pz = z + range(rand, -0.2, 0.2)
-      if (Math.abs(pz) > IN - 0.32 || px > DECK_X - 0.45) continue
-      if (rand() > 0.9 || !free(px, pz) || near(px, pz, 0.43)) continue
-      const social = rand() < 0.22
-      const toward = Math.atan2(12.4 - px, pz * -0.6)
-      const ry = social ? rand() * Math.PI * 2 : toward + range(rand, -0.75, 0.75)
-      const v = weighted([
-        ['A', 15],
-        ['B', 15],
-        ['C', 20],
-        ['D', 13],
-        ['E', 14],
-        ['F', 23],
-      ])
-      guest(px, pz, ry, v, range(rand, 0.55, 1))
-    }
-  }
-  // the lounge: looser, drinks in hand, talking
-  const lstep = low ? 1.15 : 0.85
-  for (let x = -10.2; x < -3.0; x += lstep) {
-    for (let z = -IN + 0.95; z < IN - 0.9; z += lstep) {
-      const px = x + range(rand, -0.25, 0.25)
-      const pz = z + range(rand, -0.25, 0.25)
-      if (px < BAR_X + 0.75 || rand() > 0.62 || !free(px, pz) || near(px, pz, 0.5)) continue
-      const v = weighted([
-        ['A', 30],
-        ['B', 30],
-        ['E', 15],
-        ['F', 20],
-        ['C', 5],
-      ])
-      guest(px, pz, rand() * Math.PI * 2, v, range(rand, 0.05, 0.35))
-    }
-  }
-  // queueing at the bar, the bar staff, the two DJs
-  for (let z = BZ0 + 0.9; z < BZ1 - 0.2; z += (low ? 1.1 : 0.55) + rand() * 0.35) {
-    const px = BAR_X + range(rand, 0.32, 0.75)
-    if (!free(px, z) || near(px, z, 0.45)) continue
-    const chat = rand() < 0.3
-    guest(px, z, chat ? (rand() < 0.5 ? 0 : Math.PI) + range(rand, -0.5, 0.5) : -Math.PI / 2 + range(rand, -0.45, 0.45), pick(rand, ['A', 'B', 'B', 'E', 'F']), range(rand, 0.05, 0.25))
-  }
-  guest(-12.9, -2.4, Math.PI / 2 + 0.2, 'A', 0.05)
-  guest(-12.7, 0.1, Math.PI / 2 - 0.3, 'F', 0.08)
-  guest(12.55, 0.72, -Math.PI / 2 + 0.1, 'G', 0.45)
-  guest(12.45, -1.3, -Math.PI / 2 - 0.25, 'C', 0.8)
-  // out on the jetty: a few people smoking and talking by the gangway (photo 01)
-  for (const [cx, cz, n] of [
-    [6, 9.6, 4],
-    [12.5, 10.8, 3],
-    [-4, 10.2, 3],
-    [19, 11.2, 2],
-  ]) {
-    for (let i = 0; i < (low ? Math.ceil(n / 2) : n); i++) {
-      const a = (i / n) * Math.PI * 2 + rand()
-      const px = cx + Math.cos(a) * 0.55
-      const pz = cz + Math.sin(a) * 0.55
-      guest(px, pz, Math.atan2(cx - px, cz - pz), pick(rand, ['A', 'B', 'E', 'F']), 0.03, JETTY)
-    }
-  }
-  const crowdTime = { value: 0 }
-  const crowdBeat = { value: 0 }
-  const crowdMat = crowdMaterial(THREE, crowdTime, crowdBeat, UP)
-  const tint = new THREE.Color()
-  const dark = (hex, k = 1) => tint.set(hex).multiplyScalar(k * range(rand, 0.82, 1.08))
-  for (const key of Object.keys(variants)) {
-    const list = guests.filter((g) => g.v === key)
-    if (!list.length) continue
-    const geo = variants[key]
-    const n = list.length
-    const aTop = new Float32Array(n * 4)
-    const aBot = new Float32Array(n * 4)
-    const aSkin = new Float32Array(n * 4)
-    const aHair = new Float32Array(n * 3)
-    const items = list.map((g, i) => {
-      let c = dark(weighted(TOPS))
-      aTop.set([c.r, c.g, c.b, rand() < 0.55 ? 1 : 0], i * 4)
-      c = dark(weighted(BOTTOMS))
-      aBot.set([c.r, c.g, c.b, g.en], i * 4)
-      c = dark(pick(rand, SKIN))
-      aSkin.set([c.r, c.g, c.b, rand() * 6.283], i * 4)
-      c = dark(pick(rand, HAIR))
-      aHair.set([c.r, c.g, c.b], i * 3)
-      const s = female[key] ? range(rand, 0.94, 1.05) : range(rand, 0.95, 1.08)
-      return { x: g.x, y: g.y, z: g.z, ry: g.ry, rx: range(rand, -0.04, 0.05), rz: range(rand, -0.04, 0.04), s }
-    })
-    geo.setAttribute('aTop', new THREE.InstancedBufferAttribute(aTop, 4))
-    geo.setAttribute('aBot', new THREE.InstancedBufferAttribute(aBot, 4))
-    geo.setAttribute('aSkin', new THREE.InstancedBufferAttribute(aSkin, 4))
-    geo.setAttribute('aHair', new THREE.InstancedBufferAttribute(aHair, 3))
-    scatter(THREE, scene, geo, crowdMat, items, { cast: false, receive: false })
-  }
 
   /* --- lights in the room ------------------------------------------------- */
 
@@ -3049,8 +3177,6 @@ function buildPartyBoat(THREE, ctx) {
       lights.forEach((l, i) => {
         l.pl.intensity = l.base * (0.8 + 0.35 * (i % 2 ? beat : 1 - beat))
       })
-      crowdTime.value = t
-      crowdBeat.value = beat
       aimBeams(t)
       spinSpecks(t)
     },

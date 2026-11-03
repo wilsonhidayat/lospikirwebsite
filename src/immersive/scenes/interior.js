@@ -635,7 +635,7 @@ function buildVilla(THREE, ctx) {
   const q = ctx.quality
   const rand = seeded(2024)
   const world = createWorld(THREE, ctx, 'interior', {
-    sun: { elevation: 16, azimuth: 205 },
+    sun: { elevation: 15, azimuth: 232 },
     sunIntensity: 7,
     sunColor: 0xffe9cf,
     exposure: 1.2,
@@ -664,7 +664,7 @@ function buildVilla(THREE, ctx) {
   // openings (a = position along the wall, y = height)
   const GLAZE = { a0: -10.6, a1: 4.0, y0: 0, y1: 3.05 }
   const S_WIN = { a0: 7.2, a1: 8.2, y0: 0.5, y1: 3.0 }
-  const N_OPEN = { a0: -4.2, a1: -1.4, y0: 0, y1: 2.7 }
+  const N_OPEN = { a0: -4.2, a1: 0.4, y0: 0, y1: 2.7 } // the oak-and-glass screen: passage, then the glazed den
   const N_WIN = { a0: 5.2, a1: 8.4, y0: 1.1, y1: 2.0 }
   // gables: a = z
   const E_WINS = [
@@ -673,7 +673,8 @@ function buildVilla(THREE, ctx) {
     { a0: 2.6, a1: 3.4, y0: 0.45, y1: 3.9 },
   ]
   const W_WINS = [
-    { a0: -3.8, a1: -2.6, y0: 0.3, y1: 3.8 },
+    { a0: 1.15, a1: 2.45, y0: 0.05, y1: 3.2 }, // floor-to-ceiling, left of the sofa (laura-01/02)
+    { a0: -3.75, a1: -3.2, y0: 0.45, y1: 3.0 }, // the slit behind the olive tree
     { a0: -0.6, a1: 0.6, y0: 4.0, y1: 5.6 },
   ]
   const PANELS = [-10.6, -8.167, -5.733, -3.3, -0.867, 1.567, 4.0] // sliding-door mullions
@@ -757,6 +758,73 @@ function buildVilla(THREE, ctx) {
     { normal: 0.3, physical: true, clearcoat: 0.7, clearcoatRoughness: 0.08 }
   )
   const boucle = K.fabric('boucle', '#e7dfd2', '#ffffff')
+  const velvetBrown = K.fabric('velvet', '#5a3b27', '#b98a62')
+  const forsythia = std('#f2b51e', 0.7, 0, { emissive: new THREE.Color('#3a2400'), emissiveIntensity: 0.4 })
+  // travertine: warm cream stone, soft horizontal banding, small open pores
+  const travertine = pbr(
+    (a, h, r, S) => {
+      a.fillStyle = '#e3d3b9'
+      a.fillRect(0, 0, S, S)
+      for (let i = 0; i < 34; i++) {
+        const y = rand() * S
+        const hh = range(rand, 2, 16)
+        const tone = rand() < 0.5 ? `rgba(190,160,120,${range(rand, 0.08, 0.22)})` : `rgba(255,248,232,${range(rand, 0.1, 0.3)})`
+        a.fillStyle = tone
+        for (const oy of [-S, 0, S]) a.fillRect(0, y + oy, S, hh)
+      }
+      for (let i = 0; i < S * 1.6; i++) {
+        const x = rand() * S
+        const y = rand() * S
+        const w = range(rand, 1.5, 7)
+        const hh = range(rand, 0.8, 2.2)
+        a.fillStyle = `rgba(150,120,85,${range(rand, 0.3, 0.6)})`
+        h.fillStyle = 'rgba(0,0,0,0.7)'
+        for (const g of [a, h]) {
+          g.beginPath()
+          g.ellipse(x, y, w, hh, 0, 0, Math.PI * 2)
+          g.fill()
+        }
+      }
+      K.grit(a, S, 6, rand)
+      r.fillStyle = '#5a5a5a'
+      r.fillRect(0, 0, S, S)
+      K.grit(r, S, 14, rand)
+    },
+    { normal: 0.9, physical: true, clearcoat: 0.35, clearcoatRoughness: 0.25 }
+  )
+  // limewash / tadelakt: big soft trowel clouds in warm sand and cream (laura-08)
+  const limewash = pbr(
+    (a, h, r, S) => {
+      a.fillStyle = '#e2cfb8'
+      a.fillRect(0, 0, S, S)
+      K.blots(a, S, 26, 'rgba(246,236,220,0.38)', 0.1, 0.32, rand)
+      K.blots(a, S, 18, 'rgba(190,156,122,0.18)', 0.08, 0.28, rand)
+      // trowel strokes: short wide arcs, light and dark, wrapped so it tiles
+      for (let i = 0; i < 70; i++) {
+        const x = rand() * S
+        const y = rand() * S
+        const len = range(rand, 0.15, 0.4) * S
+        const ang = range(rand, -0.9, 0.9) + (rand() < 0.5 ? Math.PI / 2 : 0)
+        const light = rand() < 0.6
+        const al = range(rand, 0.03, 0.08)
+        K.wrapped(a, S, (g) => {
+          g.strokeStyle = light ? `rgba(250,242,228,${al})` : `rgba(170,138,104,${al * 0.5})`
+          g.lineWidth = range(rand, 30, 70) * (S / 512)
+          g.lineCap = 'round'
+          g.beginPath()
+          g.moveTo(x, y)
+          g.quadraticCurveTo(x + Math.cos(ang) * len * 0.5 + range(rand, -8, 8), y + Math.sin(ang) * len * 0.5 + range(rand, -8, 8), x + Math.cos(ang) * len, y + Math.sin(ang) * len)
+          g.stroke()
+        })
+      }
+      K.blots(h, S, 40, 'rgba(255,255,255,0.12)', 0.03, 0.12, rand)
+      K.grit(a, S, 5, rand)
+      r.fillStyle = '#d4d4d4'
+      r.fillRect(0, 0, S, S)
+      K.blots(r, S, 26, 'rgba(120,120,120,0.35)', 0.04, 0.14, rand)
+    },
+    { normal: 1.2 }
+  )
   const velvet = K.fabric('velvet', '#7b4729', '#d49a6a')
   const linen = K.fabric('linen', '#d9cfbf', '#fff6ea')
   const linenRust = K.fabric('linen', '#a8653a', '#f0b080')
@@ -804,7 +872,7 @@ function buildVilla(THREE, ctx) {
         }
         h.stroke()
       }
-      K.blots(a, S, 12, 'rgba(200,190,175,0.25)', 0.08, 0.25, rand)
+      K.blots(a, S, 12, 'rgba(200,190,175,0.07)', 0.08, 0.25, rand)
       K.grit(h, S, 20, rand)
       r.fillStyle = '#e0e0e0'
       r.fillRect(0, 0, S, S)
@@ -822,7 +890,8 @@ function buildVilla(THREE, ctx) {
   /* --- shell ---------------------------------------------------------------- */
   // floor slab (house) and corridor floor
   B.add(floorMat, slab(-HX - T, HX + T, -0.3, 0, -HZ - T, HZ + T, 5))
-  B.add(floorMat, slab(-4.5, -1.1, -0.3, 0, HZ + T, 11.8, 5))
+  B.add(floorMat, slab(-4.5, -2.5, -0.3, 0, HZ + T, 11.8, 5))
+  B.add(floorMat, slab(-2.8, 2.7, -0.3, 0, HZ + T, 9.9, 5))
   // long walls
   K.wallRun(B, wallMat, 'z', -HZ - T, -HZ, -HX - T, HX + T, EAVES, [GLAZE, S_WIN])
   K.wallRun(B, wallMat, 'z', HZ, HZ + T, -HX - T, HX + T, EAVES, [N_OPEN, N_WIN])
@@ -939,8 +1008,9 @@ function buildVilla(THREE, ctx) {
   K.glazing(frames, glassGeos, 'x', HX + T / 2, E_WINS[0], {})
   K.glazing(frames, glassGeos, 'x', HX + T / 2, E_WINS[1], { transoms: [3.0] })
   K.glazing(frames, glassGeos, 'x', HX + T / 2, E_WINS[2], { transoms: [2.8] })
-  K.glazing(frames, glassGeos, 'x', -HX - T / 2, W_WINS[0], { transoms: [2.6] })
+  K.glazing(frames, glassGeos, 'x', -HX - T / 2, W_WINS[0], { fw: 0.08, fd: 0.12 })
   K.glazing(frames, glassGeos, 'x', -HX - T / 2, W_WINS[1], {})
+  K.glazing(frames, glassGeos, 'x', -HX - T / 2, W_WINS[2], {})
   // inside sills (oak) under the gable windows
   B.add(oak, slab(HX - 0.04, HX + 0.02, E_WINS[0].y0 - 0.03, E_WINS[0].y0, E_WINS[0].a0, E_WINS[0].a1, 1))
 
@@ -949,28 +1019,57 @@ function buildVilla(THREE, ctx) {
   B.add(curtainMat, K.curtain(-5.95, -5.15, 0.03, 3.0, -HZ + 0.22, { period: 0.1, amp: 0.07, seed: 4 }), false)
   B.add(alu, slab(-10.6, 4.0, 3.02, 3.05, -HZ + 0.19, -HZ + 0.25, 1))
 
-  /* --- corridor behind the oak-and-glass screen ----------------------------------- */
-  const CW = { x0: -4.2, x1: -1.4, z1: 11.5, h: 2.7 }
+  /* --- behind the oak-and-glass screen: a beamed corridor and a glazed den --------- */
+  // The screen fills N_OPEN: an open passage (x -4.2..-2.8) into the corridor,
+  // an oak post, then a glazed bay with a glass door into a small den with a
+  // picture window onto the fields (laura-03 is taken looking through it).
+  const CW = { x0: -4.2, x1: -2.8, z1: 11.5, h: 2.7 }
+  const DEN = { x0: -2.5, x1: 2.4, z1: 9.6 }
   const CWIN = { a0: 7.6, a1: 8.8, y0: 0.9, y1: 2.2 }
+  const DWIN = { a0: -1.7, a1: 1.5, y0: 0.4, y1: 2.35 }
   K.wallRun(B, wallMat, 'x', CW.x0 - T, CW.x0, HZ + T, CW.z1 + T, CW.h + 0.3, [CWIN])
   K.wallRun(B, wallMat, 'x', CW.x1, CW.x1 + T, HZ + T, CW.z1 + T, CW.h + 0.3, [])
   B.add(wallMat, slab(CW.x0, CW.x1, 0, CW.h + 0.3, CW.z1, CW.z1 + T))
-  O.add(roofMat, slab(CW.x0 - T - 0.1, CW.x1 + T + 0.1, CW.h + 0.3, CW.h + 0.5, HZ + T, CW.z1 + T + 0.1, 2))
   B.add(wallMat, slab(CW.x0, CW.x1, CW.h, CW.h + 0.3, HZ + T, CW.z1, 3))
-  for (let z = HZ + 0.5; z < CW.z1 - 0.2; z += 0.62) B.add(whiteWood, slab(CW.x0, CW.x1, CW.h - 0.2, CW.h, z, z + 0.11, 1))
+  O.add(roofMat, slab(CW.x0 - T - 0.1, CW.x1 + T + 0.05, CW.h + 0.3, CW.h + 0.5, HZ + T, CW.z1 + T + 0.1, 2))
+  // the den: its own walls, ceiling and roof
+  K.wallRun(B, wallMat, 'z', DEN.z1, DEN.z1 + T, CW.x1 + T, DEN.x1 + T, CW.h + 0.3, [DWIN])
+  K.wallRun(B, wallMat, 'x', DEN.x1, DEN.x1 + T, HZ + T, DEN.z1, CW.h + 0.3, [])
+  B.add(wallMat, slab(DEN.x0, DEN.x1, CW.h, CW.h + 0.3, HZ + T, DEN.z1, 3))
+  O.add(roofMat, slab(DEN.x0 - 0.05, DEN.x1 + T + 0.1, CW.h + 0.3, CW.h + 0.5, HZ + T, DEN.z1 + T + 0.1, 2))
+  K.glazing(frames, glassGeos, 'z', DEN.z1 + T / 2, DWIN, { mullions: [-0.1], fw: 0.08 })
+  B.add(oak, slab(DWIN.a0, DWIN.a1, DWIN.y0 - 0.03, DWIN.y0, DEN.z1 - 0.05, DEN.z1 + 0.02, 1))
+  // white painted joists across corridor and den (laura-03)
+  for (let z = HZ + 0.55; z < CW.z1 - 0.2; z += 0.7) B.add(whiteWood, slab(CW.x0, CW.x1, CW.h - 0.24, CW.h, z, z + 0.14, 1))
+  for (let z = HZ + 0.55; z < DEN.z1 - 0.2; z += 0.7) B.add(whiteWood, slab(DEN.x0, DEN.x1, CW.h - 0.24, CW.h, z, z + 0.14, 1))
   K.glazing(frames, glassGeos, 'x', CW.x0 - T / 2, CWIN, { mullions: [8.2] })
-  // the door at the end of the corridor
-  B.add(whiteWood, slab(-3.25, -2.35, 0, 2.15, CW.z1 - 0.04, CW.z1, 1))
-  B.add(whiteWood, slab(-3.33, -2.27, 2.15, 2.22, CW.z1 - 0.05, CW.z1, 1))
-  B.add(whiteWood, slab(-3.33, -3.25, 0, 2.15, CW.z1 - 0.05, CW.z1, 1))
-  B.add(whiteWood, slab(-2.35, -2.27, 0, 2.15, CW.z1 - 0.05, CW.z1, 1))
-  B.add(black, rod([-2.45, 1.02, CW.z1 - 0.05], [-2.45, 1.02, CW.z1 - 0.1], 0.01))
-  B.add(black, rod([-2.45, 1.02, CW.z1 - 0.1], [-2.6, 1.02, CW.z1 - 0.1], 0.01))
-  // cane chair against the corridor wall
+  // the door at the end of the corridor, a second door in its east wall
+  const doorAt = (x0, x1, z, dir) => {
+    B.add(whiteWood, slab(x0, x1, 0, 2.15, z - 0.04, z, 1))
+    B.add(whiteWood, slab(x0 - 0.08, x1 + 0.08, 2.15, 2.22, z - 0.05, z, 1))
+    B.add(whiteWood, slab(x0 - 0.08, x0, 0, 2.15, z - 0.05, z, 1))
+    B.add(whiteWood, slab(x1, x1 + 0.08, 0, 2.15, z - 0.05, z, 1))
+    B.add(black, rod([x1 - 0.1, 1.02, z - 0.05], [x1 - 0.1, 1.02, z - 0.1], 0.01))
+    B.add(black, rod([x1 - 0.1, 1.02, z - 0.1], [x1 - 0.25 * dir, 1.02, z - 0.1], 0.01))
+  }
+  doorAt(-3.95, -3.05, CW.z1, 1)
+  {
+    // a white door on the corridor's east wall (seen at the right in laura-03)
+    const z0 = 9.9
+    const z1 = 10.8
+    const x = CW.x1 - 0.002
+    B.add(whiteWood, slab(x - 0.04, x, 0, 2.15, z0, z1, 1))
+    B.add(whiteWood, slab(x - 0.05, x, 2.15, 2.22, z0 - 0.08, z1 + 0.08, 1))
+    B.add(whiteWood, slab(x - 0.05, x, 0, 2.15, z0 - 0.08, z0, 1))
+    B.add(whiteWood, slab(x - 0.05, x, 0, 2.15, z1, z1 + 0.08, 1))
+    B.add(black, rod([x - 0.05, 1.02, z0 + 0.1], [x - 0.1, 1.02, z0 + 0.1], 0.01))
+    B.add(black, rod([x - 0.1, 1.02, z0 + 0.1], [x - 0.1, 1.02, z0 + 0.25], 0.01))
+  }
+  // cane chair against the corridor's west wall
   {
     const cane = std('#b8945f', 0.8)
-    const p = [-1.72, 0, 9.4]
-    const r = [0, -Math.PI / 2, 0]
+    const p = [-3.92, 0, 9.0]
+    const r = [0, Math.PI / 2, 0]
     B.parts(
       [
         [walnut, box(0.46, 0.03, 0.44).translate(0, 0.46, 0)],
@@ -986,22 +1085,30 @@ function buildVilla(THREE, ctx) {
       r
     )
   }
-  // oak screen in the opening: a glazed bay with two rails, then the passage
+  // oak screen in the opening: the passage, a post, a glazed bay with a glass door
   {
     const zc2 = HZ + T / 2
-    const post = (x) => B.add(oak, slab(x - 0.045, x + 0.045, 0, CW.h, zc2 - 0.045, zc2 + 0.045, 1))
-    post(CW.x0 + 0.045)
-    post(-3.0)
-    B.add(oak, slab(CW.x0, CW.x1, CW.h - 0.09, CW.h, zc2 - 0.05, zc2 + 0.05, 1))
-    B.add(oak, slab(CW.x0, -3.0, 0, 0.06, zc2 - 0.04, zc2 + 0.04, 1))
-    for (const y of [0.92, 1.2]) B.add(oak, slab(CW.x0, -3.0, y - 0.022, y + 0.022, zc2 - 0.03, zc2 + 0.03, 1))
-    const g = new THREE.PlaneGeometry(-3.0 - CW.x0, CW.h - 0.15)
-    g.translate((CW.x0 - 3.0) / 2, (CW.h - 0.15) / 2 + 0.06, zc2)
+    const GX0 = CW.x1
+    const GX1 = N_OPEN.a1
+    const post = (x, w = 0.045) => B.add(oak, slab(x - w, x + w, 0, CW.h, zc2 - 0.05, zc2 + 0.05, 1))
+    post(GX0 + 0.06, 0.06)
+    post(GX1 - 0.05)
+    post(GX0 + 1.0, 0.035) // the glass door's hanging stile
+    B.add(oak, slab(GX0, GX1, CW.h - 0.09, CW.h, zc2 - 0.05, zc2 + 0.05, 1))
+    B.add(oak, slab(CW.x0, GX0, CW.h - 0.09, CW.h, zc2 - 0.05, zc2 + 0.05, 1))
+    B.add(oak, slab(GX0, GX1, 0, 0.06, zc2 - 0.04, zc2 + 0.04, 1))
+    for (const y of [0.95, 1.22]) B.add(oak, slab(GX0, GX1, y - 0.022, y + 0.022, zc2 - 0.03, zc2 + 0.03, 1))
+    // the door's lever handle
+    B.add(chrome, rod([GX0 + 0.92, 1.05, zc2 - 0.04], [GX0 + 0.92, 1.05, zc2 - 0.1], 0.01))
+    B.add(chrome, rod([GX0 + 0.92, 1.05, zc2 - 0.1], [GX0 + 0.75, 1.05, zc2 - 0.1], 0.01))
+    const g = new THREE.PlaneGeometry(GX1 - GX0, CW.h - 0.15)
+    g.translate((GX0 + GX1) / 2, (CW.h - 0.15) / 2 + 0.06, zc2)
     glassGeos.push(g)
   }
-
+  // the den: a cream sofa under the window, a pebble pendant, a side table
+  const denSofaAt = { p: [-0.1, 0, DEN.z1 - 0.62], r: [0, Math.PI, 0], s: [0.85, 1, 1] }
   /* --- kitchen: travertine island, back run, open shelf ---------------------------- */
-  const ISL = { x: 6.0, z: 1.6, w: 3.0, d: 1.05, h: 0.92 }
+  const ISL = { x: 6.0, z: 2.5, w: 3.0, d: 1.05, h: 0.92 }
   {
     const g = rbox(ISL.w, ISL.h, ISL.d, 0.012, 2)
     g.translate(ISL.x, ISL.h / 2, ISL.z)
@@ -1170,7 +1277,10 @@ function buildVilla(THREE, ctx) {
     sofa.push([linenRust, tf(rbox(0.46, 0.44, 0.14, 0.09, 4), [-0.8, 0.68, -0.05], [-0.25, 0.2, 0.05])])
     sofa.push([linen, tf(rbox(0.52, 0.5, 0.15, 0.1, 4), [0.75, 0.7, -0.06], [-0.22, -0.15, -0.04])])
     sofa.push([boucle, tf(new THREE.SphereGeometry(0.2, 24, 16).scale(1, 0.62, 1), [0.25, 0.63, 0.05], [0, 0, 0])])
-    B.parts(sofa, [-9.35, 0, -0.8], [0, Math.PI / 2, 0])
+    B.parts(sofa, [-9.35, 0, -0.6], [0, Math.PI / 2, 0])
+    // the same sofa, shorter, in the den; and a cream modular one by the east gable
+    B.parts(sofa, denSofaAt.p, denSofaAt.r, denSofaAt.s)
+    B.parts(sofa, [10.3, 0, 2.35], [0, -Math.PI / 2, 0])
     // lounge chair, rust velvet, deep and slouchy
     const lounge = []
     lounge.push([velvet, rbox(0.92, 0.34, 0.95, 0.15, 5).translate(0, 0.17, 0.02)])
@@ -1193,19 +1303,58 @@ function buildVilla(THREE, ctx) {
     top.rotateX(-Math.PI / 2)
     top.translate(0, 0.34, 0)
     K.planarUV(top, 1)
-    const ct = [[walnut, top]]
+    const ct = [[travertine, top]]
     ct.push([walnut, K.planarUV(K.flute(cyl(0.27, 0.27, 0.33, 72), 22, 0.05).translate(-0.3, 0.165, 0.02), 1)])
     ct.push([walnut, K.planarUV(K.flute(cyl(0.2, 0.2, 0.33, 60), 18, 0.05).translate(0.38, 0.165, -0.05), 1)])
     B.parts(ct, [-7.85, 0, -0.8], [0, 0.25, 0])
-    // on it: books, a candle, a stoneware vase
-    B.add(bookMats[2], rbox(0.3, 0.04, 0.23, 0.004, 1).translate(-7.6, 0.42, -0.65))
-    B.add(bookMats[0], rbox(0.26, 0.03, 0.2, 0.004, 1).translate(-7.6, 0.455, -0.64))
-    B.add(ceramic, lathe([[0, 0], [0.06, 0], [0.075, 0.08], [0.045, 0.16], [0.05, 0.3], [0.03, 0.34], [0, 0.34]], 24).translate(-8.2, 0.4, -0.95))
-    B.add(std('#efe9dc', 0.9), cyl(0.04, 0.04, 0.12, 16).translate(-7.95, 0.46, -1.15))
+    // on it (laura-02): a stack of turned wood coasters, an hourglass travertine
+    // candle holder with a twisted ivory candle, books, a stoneware vase
+    for (let i = 0; i < 5; i++) B.add(walnut, cyl(0.055, 0.055, 0.011, 28).translate(-7.55 + (i % 2) * 0.004, 0.405 + i * 0.012, -1.05))
+    B.add(travertine, lathe([[0, 0], [0.05, 0], [0.052, 0.02], [0.03, 0.07], [0.022, 0.1], [0.03, 0.13], [0.05, 0.18], [0.045, 0.2], [0, 0.2]], 28).translate(-7.3, 0.4, -1.2))
+    {
+      // the twisted candle: a lathe whose radius ripples, spun up the height
+      const cg = new THREE.CylinderGeometry(0.018, 0.018, 0.2, 12, 24)
+      const pp = cg.attributes.position
+      for (let i = 0; i < pp.count; i++) {
+        const x = pp.getX(i)
+        const y = pp.getY(i)
+        const z = pp.getZ(i)
+        const a = Math.atan2(z, x) + y * 40
+        const k = 1 + 0.35 * Math.cos(a * 2)
+        pp.setX(i, x * k)
+        pp.setZ(i, z * k)
+      }
+      cg.computeVertexNormals()
+      B.add(std('#f1ebdf', 0.6), cg.translate(-7.3, 0.7, -1.2))
+    }
+    B.add(bookMats[2], rbox(0.3, 0.04, 0.23, 0.004, 1).translate(-8.25, 0.42, -0.55))
+    B.add(bookMats[0], rbox(0.26, 0.03, 0.2, 0.004, 1).translate(-8.25, 0.455, -0.54))
+    B.add(ceramic, lathe([[0, 0], [0.06, 0], [0.075, 0.08], [0.045, 0.16], [0.05, 0.3], [0.03, 0.34], [0, 0.34]], 24).translate(-8.45, 0.4, -1.0))
     // fluted side table by the sofa
-    B.add(walnut, K.planarUV(K.flute(cyl(0.22, 0.22, 0.48, 64), 20, 0.05).translate(-9.35, 0.24, 1.0), 1))
-    B.add(walnut, K.planarUV(cyl(0.25, 0.25, 0.03, 48).translate(-9.35, 0.495, 1.0), 1))
-    B.add(ceramicDark, lathe([[0, 0], [0.05, 0], [0.07, 0.05], [0.07, 0.09], [0, 0.09]], 20).translate(-9.3, 0.51, 1.0))
+    B.add(walnut, K.planarUV(K.flute(cyl(0.22, 0.22, 0.48, 64), 20, 0.05).translate(-9.35, 0.24, 1.02), 1))
+    B.add(travertine, K.planarUV(cyl(0.25, 0.25, 0.03, 48).translate(-9.35, 0.495, 1.02), 1))
+    B.add(ceramicDark, lathe([[0, 0], [0.05, 0], [0.07, 0.05], [0.07, 0.09], [0, 0.09]], 20).translate(-9.3, 0.51, 1.02))
+    // forsythia branches in a tall stoneware jar in the corner (laura-02)
+    {
+      const jx = -10.55
+      const jz = 0.78
+      B.add(ceramicDark, lathe([[0, 0], [0.11, 0], [0.15, 0.2], [0.13, 0.42], [0.08, 0.5], [0.09, 0.55], [0, 0.55]], 28).translate(jx, 0, jz))
+      const br = seeded(41)
+      const blooms = []
+      for (let b = 0; b < 7; b++) {
+        let p = [jx, 0.5, jz]
+        const dir = new THREE.Vector3(range(br, -0.4, 0.5), 1, range(br, -0.5, 0.4)).normalize()
+        for (let k = 0; k < 7; k++) {
+          const len = range(br, 0.13, 0.22)
+          const np = [p[0] + dir.x * len, p[1] + dir.y * len, p[2] + dir.z * len]
+          B.add(twig, rod(p, np, 0.007, 0.005, 4))
+          for (let f = 0; f < 4; f++) blooms.push(new THREE.OctahedronGeometry(range(br, 0.014, 0.022), 0).translate(np[0] + range(br, -0.05, 0.05), np[1] + range(br, -0.06, 0.03), np[2] + range(br, -0.05, 0.05)))
+          p = np
+          dir.add(new THREE.Vector3(range(br, -0.25, 0.25), 0.02, range(br, -0.25, 0.25))).normalize()
+        }
+      }
+      for (const g of blooms) B.add(forsythia, g, false)
+    }
     // rug: a soft-cornered wool rectangle
     const rugShape = new THREE.Shape()
     const rw = 1.75
@@ -1226,14 +1375,14 @@ function buildVilla(THREE, ctx) {
     K.planarUV(rug, 0.6)
     B.add(rugMat, rug)
     // a globe floor lamp in the corner (off)
-    B.add(alu, cyl(0.16, 0.18, 0.02, 32).translate(-10.35, 0.01, 1.55))
-    B.add(alu, rod([-10.35, 0, 1.55], [-10.35, 1.42, 1.55], 0.012))
-    B.add(std('#f4f1ea', 0.35), sphere(0.2, 32, 20).translate(-10.35, 1.6, 1.55))
+    B.add(alu, cyl(0.16, 0.18, 0.02, 32).translate(-10.4, 0.01, 3.9))
+    B.add(alu, rod([-10.4, 0, 3.9], [-10.4, 1.42, 3.9], 0.012))
+    B.add(std('#f4f1ea', 0.35), sphere(0.2, 32, 20).translate(-10.4, 1.6, 3.9))
   }
 
-  /* --- the textured artwork with a wooden chair, a console --------------------- */
+  /* --- the textured artwork with a wooden chair, the limewash wall, a console ------ */
   {
-    const ax = -7.6
+    const ax = -8.65
     B.add(artMat, K.planarUV(box(1.3, 1.8, 0.04).translate(ax, 1.75, HZ - 0.04), 1.3))
     const f = 0.03
     for (const [w, h, x, y] of [
@@ -1253,22 +1402,70 @@ function buildVilla(THREE, ctx) {
     }
     ch.push([oak, box(0.4, 0.035, 0.025).translate(0, 0.16, 0.18)])
     B.parts(ch, [ax + 0.05, 0, HZ - 0.55], [0, Math.PI + 0.15, 0])
-    // walnut console right of the corridor, with vessels
-    B.add(walnut, K.planarUV(rbox(1.7, 0.04, 0.38, 0.006, 1).translate(0.1, 0.8, HZ - 0.2), 1))
-    for (const sx of [-1, 1]) B.add(walnut, K.planarUV(box(0.04, 0.78, 0.36).translate(0.1 + sx * 0.8, 0.39, HZ - 0.2), 1))
-    B.add(ceramic, lathe([[0, 0], [0.09, 0], [0.13, 0.12], [0.1, 0.3], [0.05, 0.38], [0.055, 0.42], [0, 0.42]], 28).translate(-0.35, 0.82, HZ - 0.2))
-    B.add(ceramicDark, lathe([[0, 0], [0.08, 0], [0.1, 0.09], [0.07, 0.17], [0, 0.17]], 24).translate(0.25, 0.82, HZ - 0.22))
-    B.add(bookMats[1], rbox(0.28, 0.05, 0.22, 0.004, 1).translate(0.6, 0.845, HZ - 0.2))
+    // the limewash feature wall (laura-08): a hand-trowelled panel, full height
+    const LW = { x0: -7.55, x1: -4.45 }
+    B.add(limewash, K.planarUV(box(LW.x1 - LW.x0, EAVES - 0.08, 0.012).translate((LW.x0 + LW.x1) / 2, 0.08 + (EAVES - 0.08) / 2, HZ - 0.006), 2.6))
+    B.add(whiteWood, slab(LW.x0, LW.x1, 0, 0.08, HZ - 0.016, HZ - 0.012, 1))
+    // a bouclé stool on black hairpin legs in front of it
+    {
+      const st = []
+      st.push([boucle, rbox(0.4, 0.07, 0.4, 0.03, 3).translate(0, 0.47, 0)])
+      for (const sx of [-1, 1]) for (const sz of [-1, 1]) st.push([black, rod([sx * 0.13, 0.44, sz * 0.13], [sx * 0.17, 0, sz * 0.17], 0.009)])
+      st.push([black, box(0.3, 0.012, 0.3).translate(0, 0.435, 0)])
+      B.parts(st, [-6.0, 0, HZ - 0.55], [0, 0.1, 0])
+    }
+    // walnut console right of the screen, with vessels
+    const cx = 1.65
+    B.add(walnut, K.planarUV(rbox(1.7, 0.04, 0.38, 0.006, 1).translate(cx, 0.8, HZ - 0.2), 1))
+    for (const sx of [-1, 1]) B.add(walnut, K.planarUV(box(0.04, 0.78, 0.36).translate(cx + sx * 0.8, 0.39, HZ - 0.2), 1))
+    B.add(ceramic, lathe([[0, 0], [0.09, 0], [0.13, 0.12], [0.1, 0.3], [0.05, 0.38], [0.055, 0.42], [0, 0.42]], 28).translate(cx - 0.45, 0.82, HZ - 0.2))
+    B.add(ceramicDark, lathe([[0, 0], [0.08, 0], [0.1, 0.09], [0.07, 0.17], [0, 0.17]], 24).translate(cx + 0.15, 0.82, HZ - 0.22))
+    B.add(bookMats[1], rbox(0.28, 0.05, 0.22, 0.004, 1).translate(cx + 0.5, 0.845, HZ - 0.2))
+  }
+
+  /* --- the sitting corner by the east gable: a brown velvet lounger, a Zig-Zag chair -- */
+  {
+    // a low, quilted, backless-looking lounger (the Togo look): rolls of padding
+    const togo = []
+    togo.push([velvetBrown, rbox(0.95, 0.3, 0.92, 0.14, 5).translate(0, 0.15, 0.06)])
+    for (let i = 0; i < 4; i++) togo.push([velvetBrown, tf(new THREE.CapsuleGeometry(0.11, 0.72, 4, 12), [0, 0.32 + i * 0.13, -0.24 - i * 0.07], [-0.5, 0, Math.PI / 2])])
+    for (const sx of [-1, 1]) togo.push([velvetBrown, tf(new THREE.CapsuleGeometry(0.1, 0.62, 4, 10), [sx * 0.42, 0.33, 0.02], [Math.PI / 2, 0, 0])])
+    togo.push([velvetBrown, tf(new THREE.CapsuleGeometry(0.1, 0.72, 4, 10), [0, 0.3, 0.45], [0, 0, Math.PI / 2])])
+    B.parts(togo, [8.45, 0, -0.85], [0, -Math.PI / 2 + 0.35, 0])
+    // the Zig-Zag chair: four oak planks
+    const zz = []
+    const pl = (w, len, ang, p) => zz.push([oak, K.planarUV(tf(box(w, 0.022, len), p, [ang, 0, 0]), 1)])
+    pl(0.38, 0.4, 0, [0, 0.011, 0.02]) // foot
+    pl(0.38, 0.62, -(Math.PI / 2 - 0.86), [0, 0.22, 0.02]) // the diagonal
+    pl(0.38, 0.4, 0, [0, 0.43, 0.02]) // seat
+    pl(0.38, 0.42, Math.PI / 2, [0, 0.64, -0.17]) // back
+    B.parts(zz, [9.25, 0, -2.55], [0, -2.2, 0])
+    // two fluted side tables with travertine tops, a ceramic bowl
+    for (const [x, z, r, h] of [
+      [9.35, 0.45, 0.24, 0.42],
+      [8.95, 0.95, 0.19, 0.34],
+    ]) {
+      B.add(walnut, K.planarUV(K.flute(cyl(r - 0.02, r - 0.02, h, 56), 18, 0.05).translate(x, h / 2, z), 1))
+      B.add(travertine, K.planarUV(cyl(r, r, 0.03, 48).translate(x, h + 0.015, z), 1))
+    }
+    B.add(ceramic, lathe([[0, 0], [0.05, 0], [0.12, 0.05], [0.14, 0.08], [0, 0.03]], 24).translate(9.35, 0.45, 0.45))
+    // a round wool rug under it all
+    const rg = new THREE.CircleGeometry(1.5, 64).rotateX(-Math.PI / 2)
+    rg.translate(8.9, 0.008, -0.3)
+    K.planarUV(rg, 0.6)
+    B.add(rugMat, rg)
   }
 
   /* --- olive trees in stone planters ---------------------------------------------- */
   const olives = [
-    { x: -10.0, z: -3.9, h: 2.9, pot: 0.62 },
-    { x: 9.9, z: 0.6, h: 2.5, pot: 0.55 },
+    { x: -10.25, z: -2.75, h: 3.1, pot: 0.72, r: 0.5 }, // laura-01: big round planter, the slit window behind
+    { x: 9.9, z: 0.15, h: 2.6, pot: 0.55, r: 0.39 },
+    { x: 1.7, z: 8.6, h: 2.1, pot: 0.45, r: 0.32 }, // in the den
   ]
   for (const o of olives) {
-    B.add(potMat, lathe([[0, 0], [0.3, 0], [0.34, 0.04], [0.37, o.pot - 0.04], [0.39, o.pot], [0.35, o.pot], [0.34, o.pot - 0.04], [0, o.pot - 0.04]], 36).translate(o.x, 0, o.z))
-    B.add(soil, cyl(0.345, 0.345, 0.02, 30).translate(o.x, o.pot - 0.03, o.z))
+    const k = o.r / 0.39
+    B.add(potMat, lathe([[0, 0], [0.3 * k, 0], [0.36 * k, 0.06], [0.385 * k, o.pot * 0.6], [0.37 * k, o.pot - 0.04], [0.36 * k, o.pot], [0.33 * k, o.pot], [0.32 * k, o.pot - 0.04], [0, o.pot - 0.04]], 40).translate(o.x, 0, o.z))
+    B.add(soil, cyl(0.335 * k, 0.335 * k, 0.02, 30).translate(o.x, o.pot - 0.03, o.z))
   }
   addForest(
     THREE,
@@ -1354,7 +1551,7 @@ function buildVilla(THREE, ctx) {
     const boxwood = leafy.clone()
     boxwood.color = new THREE.Color('#3f5a2a')
     const beech = leafy.clone()
-    beech.color = new THREE.Color('#a8622c')
+    beech.color = new THREE.Color('#5d6b38')
     let ball = new THREE.IcosahedronGeometry(1, 3)
     const p = ball.attributes.position
     for (let i = 0; i < p.count; i++) {
@@ -1579,7 +1776,7 @@ function buildVilla(THREE, ctx) {
       Q.copy(P0).addScaledVector(d, t)
       if (face === 'z-' && (K.inRect(Q.x, Q.y, GLAZE) || K.inRect(Q.x, Q.y, S_WIN))) return view(d)
       if (face === 'z+' && K.inRect(Q.x, Q.y, N_WIN)) return view(d)
-      if (face === 'z+' && K.inRect(Q.x, Q.y, N_OPEN)) return [0.16, 0.15, 0.135]
+      if (face === 'z+' && K.inRect(Q.x, Q.y, N_OPEN)) return [0.3, 0.28, 0.25]
       if (face === 'x+' && E_WINS.some((w) => K.inRect(Q.z, Q.y, w))) return view(d)
       if (face === 'x-' && W_WINS.some((w) => K.inRect(Q.z, Q.y, w))) return view(d)
       const alb = face === 'y-' ? ALB.floor : face === 'c-' || face === 'c+' ? ALB.ceil : ALB.wall
@@ -1595,15 +1792,17 @@ function buildVilla(THREE, ctx) {
 
   /* --- viewpoints ------------------------------------------------------------------ */
   const V = (x, y, z) => new THREE.Vector3(x, y, z)
+  // One viewpoint per photograph, where it was taken from (laura-01..08);
+  // spots[0] is the hero (laura-04). The gallery's views list maps photo → spot.
   const spots = [
-    { pos: V(2.3, 1.5, 0.1), look: V(11, 1.8, 1.4) }, // laura-04: at the travertine island, the east windows beyond
-    { pos: V(-5.0, 1.5, -2.0), look: V(6.5, 1.55, -0.9) }, // laura-06: along the walnut table, pendants, glass wall
-    { pos: V(-5.6, 1.45, 0.9), look: V(-9.8, 0.9, -1.6) }, // laura-01/02: the bouclé sofa, coffee table, olive tree
-    { pos: V(-5.0, 1.55, 2.6), look: V(-7.8, 1.6, 5.0) }, // laura-05: the textured artwork and wooden chair
-    { pos: V(-2.6, 1.6, 2.2), look: V(-2.9, 1.35, 11) }, // laura-03: the oak-and-glass screen, the beamed corridor
-    { pos: V(-4.0, 1.6, -3.6), look: V(1.0, 1.3, -14) }, // out through the glass wall to the terrace and fields
-    { pos: V(8.4, 1.7, -2.4), look: V(-6, 1.3, 0.4) }, // laura-07: the whole room from the kitchen end
-    { pos: V(8.0, 4.0, 3.0), look: V(-3, 0.8, -1.6) }, // high, under the rafters
+    { pos: V(2.6, 1.22, 2.25), look: V(11, 1.6, 0.55) }, // 0 · laura-04: at the island's waterfall end, the east gable's picture window and tall windows beyond
+    { pos: V(-6.1, 1.0, -0.62), look: V(-11, 1.2, -0.42) }, // 1 · laura-01: low, square to the sofa; the tall window left, the olive in its big planter right
+    { pos: V(-6.95, 0.95, -2.45), look: V(-10.7, 1.08, 0.95) }, // 2 · laura-02: low over the travertine coffee table to the sofa's corner and the window
+    { pos: V(-3.35, 1.5, 3.25), look: V(-3.0, 1.42, 11) }, // 3 · laura-03: at the oak post; the beamed corridor right, the glazed den left
+    { pos: V(-8.6, 1.22, 2.15), look: V(-8.6, 1.5, 5.0) }, // 4 · laura-05: square to the textured artwork and the wooden chair
+    { pos: V(-4.6, 1.3, -2.2), look: V(9, 1.5, -0.6) }, // 5 · laura-06: along the walnut table, the pebble pendants, curtains left, the gable windows
+    { pos: V(-4.4, 1.35, -3.9), look: V(10, 2.0, 2.6) }, // 6 · laura-07: from the glass wall across the table to the sitting corner and the tall windows
+    { pos: V(-6.0, 1.1, 1.95), look: V(-6.0, 1.35, 5.0) }, // 7 · laura-08: square to the limewash wall and the bouclé stool
   ]
   const path = {
     positions: [V(-40, 30, -110), V(-12, 10, -42), V(2.8, 2.3, -13), V(2.8, 1.7, -6.2), spots[0].pos.clone()],
@@ -1685,15 +1884,16 @@ function buildStudio(THREE, ctx) {
     },
     { normal: 2 }
   )
-  const mahogany = K.wood('#6a2a17', { rough: 0.32, clearcoat: 1 })
+  const mahogany = K.wood('#7a301b', { rough: 0.32, clearcoat: 1 })
+  mahogany.normalScale = new THREE.Vector2(0.25, 0.25)
   const beech = K.wood('#cfa676', { rough: 0.45 })
   const white = std('#ecebe7', 0.5, 0, { normalMap: K.fine(), normalScale: new THREE.Vector2(0.15, 0.15) })
   const black = std('#141414', 0.45, 0.4)
   const rubber = std('#1c1c1d', 0.8)
-  const leather = std('#121212', 0.38, 0, { normalMap: K.fine(), normalScale: new THREE.Vector2(0.4, 0.4) })
+  const leather = std('#141414', 0.42)
   const steel = std('#c3c6c8', 0.3, 1)
   const brass = std('#b89458', 0.3, 1)
-  const ivory = std('#f3f0e7', 0.25)
+  const ivory = std('#f3f0e7', 0.25, 0, { emissive: new THREE.Color('#3a3834'), emissiveIntensity: 0.6 })
   const glass = K.glassMaterial(3)
   const frameWhite = std('#e9e9e6', 0.45, 0.2)
 
@@ -1734,9 +1934,7 @@ function buildStudio(THREE, ctx) {
   sk(-HX, -HX + 0.01, DOOR.a1, HZ)
   sk(HX - 0.01, HX, -HZ, HZ)
   // white cable trunking with sockets along the side walls
-  B.add(white, slab(-HX, -HX + 0.05, 0.3, 0.38, DOOR.a1 + 0.2, HZ, 1))
-  B.add(white, slab(HX - 0.05, HX, 0.3, 0.38, -HZ, HZ, 1))
-  for (const z of [-3.5, -0.5, 3.4]) B.add(white, rbox(0.03, 0.08, 0.08, 0.008, 1).translate(HX - 0.065, 0.34, z))
+  for (const z of [-4.6, 3.4]) B.add(white, rbox(0.03, 0.08, 0.08, 0.008, 1).translate(HX - 0.015, 0.34, z))
 
   /* --- windows with radiators beneath --------------------------------------------- */
   const rad = pbr(
@@ -1893,8 +2091,8 @@ function buildStudio(THREE, ctx) {
       ch.push([steel, rod([sx * 0.2, 0, 0.2], [sx * 0.19, 0.45, 0.18], 0.009)])
       ch.push([steel, rod([sx * 0.2, 0, -0.2], [sx * 0.2, 0.88, -0.23], 0.009)])
     }
-    B.parts(ch, [-5.8, 0, 1.2], [0, 0.6, 0])
-    B.parts(ch, [5.2, 0, -3.9], [0, -2.6, 0])
+    B.parts(ch, [-4.4, 0, -4.4], [0, 0.6, 0])
+    B.parts(ch, [1.9, 0, -4.5], [0, -2.6, 0])
     // speaker on a tripod
     const sp = []
     for (let i = 0; i < 3; i++) {
@@ -1940,10 +2138,9 @@ function buildStudio(THREE, ctx) {
       return K.texOf(c, true)
     })()
     const face = new THREE.CircleGeometry(0.15, 40)
-    face.rotateY(-Math.PI / 2)
-    face.translate(HX - 0.035, 2.55, -1.8)
+    face.translate(-2.25, 2.7, -HZ + 0.035)
     B.add(new THREE.MeshStandardMaterial({ map: clockTex, roughness: 0.2 }), face, false)
-    B.add(black, new THREE.TorusGeometry(0.155, 0.014, 8, 40).rotateY(Math.PI / 2).translate(HX - 0.035, 2.55, -1.8))
+    B.add(black, new THREE.TorusGeometry(0.155, 0.014, 8, 40).translate(-2.25, 2.7, -HZ + 0.035))
     // the gel light on a stand: a small LED panel, pink
     const ls = []
     for (let i = 0; i < 3; i++) {
@@ -1957,6 +2154,81 @@ function buildStudio(THREE, ctx) {
     const pf = new THREE.PlaneGeometry(0.28, 0.18)
     pf.translate(0, 1.36, 0.031)
     B.add(pinkFace, tf(pf, [-2.6, 0, -3.6], [0, -0.85, 0]), false)
+  }
+
+  /* --- the walls' history: a hairline crack, scuffs, old tape and pencil marks -------- */
+  {
+    const c = K.canvas(1024, 512)
+    const g = c.getContext('2d')
+    g.clearRect(0, 0, 1024, 512)
+    g.scale(2, 2)
+    const dr = seeded(77)
+    // the long hairline crack, wandering down from the ceiling (bobbi-01/02/05)
+    const crack = (x0, y0, y1, w) => {
+      g.strokeStyle = 'rgba(60,60,58,0.42)'
+      g.lineWidth = w
+      g.beginPath()
+      let x = x0
+      g.moveTo(x, y0)
+      for (let y = y0; y < y1; y += 3) {
+        x += range(dr, -1.6, 1.6)
+        g.lineTo(x, y)
+      }
+      g.stroke()
+    }
+    crack(150, 0, 120, 0.55)
+    crack(152, 60, 95, 0.4)
+    crack(380, 0, 70, 0.45)
+    // scuffs along the bottom from shoes and bags, grey smudges higher up
+    for (let i = 0; i < 70; i++) {
+      const x = dr() * 512
+      const y = range(dr, 225, 254)
+      g.fillStyle = `rgba(30,30,30,${range(dr, 0.05, 0.22)})`
+      g.fillRect(x, y, range(dr, 2, 18), range(dr, 0.6, 2))
+    }
+    for (let i = 0; i < 26; i++) {
+      const x = dr() * 512
+      const y = range(dr, 40, 230)
+      const r = range(dr, 6, 26)
+      const grd = g.createRadialGradient(x, y, 0, x, y, r)
+      grd.addColorStop(0, `rgba(${dr() < 0.3 ? '150,110,80' : '80,80,76'},${range(dr, 0.05, 0.13)})`)
+      grd.addColorStop(1, 'rgba(0,0,0,0)')
+      g.fillStyle = grd
+      g.fillRect(x - r, y - r, 2 * r, 2 * r)
+    }
+    // ghosts of tape, a few filled screw holes
+    for (let i = 0; i < 6; i++) {
+      g.fillStyle = 'rgba(255,255,250,0.22)'
+      g.fillRect(dr() * 500, range(dr, 60, 180), range(dr, 10, 22), 3)
+      g.fillStyle = 'rgba(60,60,60,0.35)'
+      g.beginPath()
+      g.arc(dr() * 512, range(dr, 40, 200), 1.3, 0, Math.PI * 2)
+      g.fill()
+    }
+    const tex = K.texOf(c, true)
+    tex.wrapS = tex.wrapT = THREE.ClampToEdgeWrapping
+    const decal = new THREE.MeshStandardMaterial({ map: tex, transparent: true, depthWrite: false, roughness: 0.9, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 })
+    // the bare east wall (bobbi-01, 03, 05, 06, 07) and the pink-washed west wall (bobbi-02)
+    const e = new THREE.PlaneGeometry(6.4, H)
+    e.rotateY(-Math.PI / 2)
+    e.translate(HX - 0.003, H / 2, -2.0)
+    B.add(decal, e, false)
+    const w = new THREE.PlaneGeometry(6.4, H)
+    w.rotateY(Math.PI / 2)
+    w.translate(-HX + 0.003, H / 2, 1.2)
+    B.add(decal, w, false)
+  }
+  // the vinyl dance floor's welded seams, every 1.5 m, running with the mirror wall
+  {
+    const seam = std('#4f585d', 0.45)
+    for (let z = -HZ + 1.0; z < HZ; z += 1.5) B.add(seam, slab(-HX, HX, 0, 0.0012, z - 0.004, z + 0.004, 1), false)
+  }
+  // a black flight case against the west wall (the dark block at the edge of bobbi-02)
+  {
+    const fc = std('#121213', 0.55, 0.1, { normalMap: K.fine(), normalScale: new THREE.Vector2(0.6, 0.6) })
+    B.add(fc, rbox(0.62, 0.92, 0.56, 0.02, 2).translate(-HX + 0.4, 0.46, 2.75))
+    for (const y of [0.02, 0.9]) B.add(steel, slab(-HX + 0.08, -HX + 0.72, y, y + 0.025, 2.46, 3.04, 1))
+    for (const z of [2.47, 3.03]) B.add(steel, slab(-HX + 0.08, -HX + 0.72, 0.02, 0.92, z - 0.012, z + 0.012, 1))
   }
 
   /* --- outside: the street and an old brick school across it ------------------------- */
@@ -2022,6 +2294,8 @@ function buildStudio(THREE, ctx) {
     for (let x = MIR.a0; x <= MIR.a1 + 1e-3; x += (MIR.a1 - MIR.a0) / 8) F.add(al, slab(x - 0.012, x + 0.012, MIR.y0, MIR.y1, t0 - 0.008, t0, 1))
     F.add(al, slab(MIR.a0 - 0.012, MIR.a1 + 0.012, MIR.y0 - 0.02, MIR.y0, t0 - 0.012, t0, 1))
     F.add(al, slab(MIR.a0 - 0.012, MIR.a1 + 0.012, MIR.y1, MIR.y1 + 0.02, t0 - 0.012, t0, 1))
+    // the east end of the mirror run is closed by a beech edge strip (bobbi-04)
+    F.add(beech, slab(MIR.a1, MIR.a1 + 0.04, MIR.y0 - 0.03, MIR.y1 + 0.03, t0 - 0.022, t0, 1))
     // the silvering: a faint green-grey cast over the reflected room
     const tint = new THREE.MeshBasicMaterial({ color: 0x0f1a17, transparent: true, opacity: 0.16, depthWrite: false })
     const tg = new THREE.PlaneGeometry(MIR.a1 - MIR.a0, MIR.y1 - MIR.y0)
@@ -2126,14 +2400,18 @@ function buildStudio(THREE, ctx) {
   scene.add(mirrored)
 
   const V = (x, y, z) => new THREE.Vector3(x, y, z)
+  // One viewpoint per photograph (bobbi-01..10); spots[0] is the hero (bobbi-02).
   const spots = [
-    { pos: V(1.2, 1.35, -0.6), look: V(-7, 1.25, 0.6) }, // bobbi-02: the pink-washed wall
-    { pos: V(-3.2, 1.45, -1.5), look: V(7, 1.2, -1.0) }, // bobbi-01/03: bare grey wall, windows at left
-    { pos: V(-0.6, 1.3, 0.9), look: V(-0.9, 1.35, 5) }, // bobbi-08: the mirror wall through the portable barre
-    { pos: V(3.6, 1.25, 0.2), look: V(6.4, 0.95, 1.8) }, // bobbi-09/10: the piano
-    { pos: V(-2.0, 0.8, 2.2), look: V(-7, 0.5, -1.0) }, // bobbi-04/05: low, the floor's sheen
-    { pos: V(6.2, 2.7, -4.3), look: V(-3.5, 0.9, 3.5) }, // high in the corner
-    { pos: V(1.0, 1.6, -2.0), look: V(-1.5, 2.6, -14) }, // out of the window to the school across the street
+    { pos: V(-3.3, 1.2, 0.9), look: V(-7, 1.25, 0.9) }, // 0 · bobbi-02: square to the pink-washed west wall, the flight case at the left edge
+    { pos: V(3.35, 1.3, -2.2), look: V(7, 1.2, -2.2) }, // 1 · bobbi-01: square to the bare east wall and its crack
+    { pos: V(3.55, 1.35, -0.95), look: V(7, 1.25, -0.9) }, // 2 · bobbi-03: the same wall, a step to the left
+    { pos: V(5.35, 2.0, 3.05), look: V(4.2, 0.25, 4.75) }, // 3 · bobbi-04: high, looking down at the floor where the wall meets the mirror's beech edge
+    { pos: V(3.1, 0.7, -3.4), look: V(7, 0.78, -3.4) }, // 4 · bobbi-05: low, the floor's sheen against the wall
+    { pos: V(3.2, 1.35, -4.0), look: V(7, 1.3, -3.6) }, // 5 · bobbi-06: square on, by the window corner
+    { pos: V(3.6, 1.05, -2.8), look: V(7, 1.0, -2.9) }, // 6 · bobbi-07: low-ish, along the wall
+    { pos: V(-1.0, 1.0, 2.45), look: V(-0.25, 1.3, 5) }, // 7 · bobbi-08: behind the portable barre, into the mirrors
+    { pos: V(5.35, 1.15, 0.35), look: V(6.6, 0.85, 1.95) }, // 8 · bobbi-09: at the bass end of the piano, along the keys
+    { pos: V(5.75, 1.3, 2.95), look: V(6.4, 0.75, 0.9) }, // 9 · bobbi-10: from the treble end, the keyboard and the bench
   ]
   return {
     scene,
