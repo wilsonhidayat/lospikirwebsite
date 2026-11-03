@@ -44,7 +44,8 @@ export default function Journey({ items, variant = 'home', landing = null, skip 
   const [photoOn, setPhotoOn] = useState(!home) // the place's photo is showing
   const landingStyle = useMemo(() => {
     if (typeof window === 'undefined') return 'gradient'
-    return new URLSearchParams(window.location.search).get('landing') === 'photo' ? 'photo' : 'gradient'
+    const photo = new URLSearchParams(window.location.search).get('landing') === 'photo' || window.location.hash === '#landing-photo'
+    return photo ? 'photo' : 'gradient'
   }, [])
 
   // the shape of every project's moment photo, known before the memories show
@@ -262,10 +263,7 @@ export default function Journey({ items, variant = 'home', landing = null, skip 
                   {...noCopy}
                 />
               </h1>
-              <motion.p className="jr__tagline label" initial={{ opacity: 0 }} animate={{ opacity: 1, transition: { delay: 1.4, duration: 0.9 } }}>
-                Photography · Netherlands
-              </motion.p>
-              <motion.div className="jr__landing-actions" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0, transition: { delay: 1.7, duration: 0.8 } }}>
+              <motion.div className="jr__landing-actions" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0, transition: { delay: 1.4, duration: 0.8 } }}>
                 <button type="button" className="btn btn--pill" onClick={startExploring}>
                   Start exploring
                 </button>
@@ -415,6 +413,7 @@ function Chevron({ dir }) {
 function Memories({ items, aspects, start = 0, onOpen, onBack, skipLink, noCopy }) {
   const trackRef = useRef(null)
   const lineRef = useRef(null)
+  const wallRef = useRef(null)
   const cardRefs = useRef([])
   const [active, setActive] = useState(start)
   const wide = aspects.map((a) => a > 1.1)
@@ -451,6 +450,8 @@ function Memories({ items, aspects, start = 0, onOpen, onBack, skipLink, noCopy 
           best = i
         }
       })
+      // the wall moves with the line (a little slower: it sits behind it)
+      if (wallRef.current) wallRef.current.style.backgroundPosition = `${(-track.scrollLeft * 0.9).toFixed(1)}px 0`
       if (best !== activeRef.current) {
         activeRef.current = best
         setActive(best)
@@ -460,9 +461,7 @@ function Memories({ items, aspects, start = 0, onOpen, onBack, skipLink, noCopy 
       if (!raf) raf = requestAnimationFrame(update)
     }
     // the twine runs the whole length of the line
-    const sizeLine = () => {
-      if (lineRef.current) lineRef.current.style.width = `${track.scrollWidth}px`
-    }
+    const sizeLine = () => drawLine(track, lineRef.current, cardRefs.current)
     sizeLine()
     const ro = new ResizeObserver(() => {
       sizeLine()
@@ -494,8 +493,7 @@ function Memories({ items, aspects, start = 0, onOpen, onBack, skipLink, noCopy 
   useLayoutEffect(() => {
     const el = cardRefs.current[activeRef.current]
     const track = trackRef.current
-    if (lineRef.current && track) lineRef.current.style.width = '0px'
-    if (lineRef.current && track) lineRef.current.style.width = `${track.scrollWidth}px`
+    if (track) drawLine(track, lineRef.current, cardRefs.current)
     if (el && track) track.scrollLeft = el.offsetLeft + el.offsetWidth / 2 - track.clientWidth / 2
     track?.dispatchEvent(new Event('scroll'))
   }, [wideKey])
@@ -551,14 +549,15 @@ function Memories({ items, aspects, start = 0, onOpen, onBack, skipLink, noCopy 
 
   return (
     <motion.div className="mem" initial={{ opacity: 0 }} animate={{ opacity: 1, transition: { duration: 0.7 } }} exit={{ opacity: 0, transition: { duration: 0.6 } }}>
-      <div className="mem__bokeh" aria-hidden="true" />
+      <div className="mem__wall" ref={wallRef} aria-hidden="true" />
+      <div className="mem__light" aria-hidden="true" />
       <button type="button" className="jr__pill jr__back" onClick={onBack}>
         ← Home
       </button>
       <div className="mem__skip">{skipLink}</div>
 
       <div className="mem__track" ref={trackRef} onPointerDown={onDown} onPointerMove={onMove} onPointerUp={onUp} onPointerLeave={onUp}>
-        <div className="mem__line" ref={lineRef} aria-hidden="true" />
+        <svg className="mem__line" ref={lineRef} aria-hidden="true" />
         {items.map((m, i) => (
           <button
             key={m.slug}
@@ -581,6 +580,7 @@ function Memories({ items, aspects, start = 0, onOpen, onBack, skipLink, noCopy 
                 />
               </span>
               <span className="mem__hand">{m.title || m.caption}</span>
+              <span className="mem__shade" aria-hidden="true" />
             </span>
           </button>
         ))}
@@ -607,4 +607,56 @@ function Memories({ items, aspects, start = 0, onOpen, onBack, skipLink, noCopy 
       </div>
     </motion.div>
   )
+}
+
+/**
+ * The string of fairy lights: a wire that sags between the pegs, with a warm
+ * bulb every ~50 px and the glow each bulb throws on the wall.
+ */
+const SVG_NS = 'http://www.w3.org/2000/svg'
+function drawLine(track, svg, cards) {
+  if (!svg || !track) return
+  const W = track.scrollWidth
+  const Y = 24 // where the pegs grip the wire
+  const pegs = cards.filter(Boolean).map((el) => el.offsetLeft + el.offsetWidth / 2)
+  const pts = [0, ...pegs, W]
+  let d = `M0 ${Y + 10}`
+  for (let i = 1; i < pts.length; i++) {
+    const a = pts[i - 1]
+    const b = pts[i]
+    const sag = Math.min(46, (b - a) * 0.075)
+    const ya = i === 1 ? Y + 10 : Y
+    const yb = i === pts.length - 1 ? Y + 10 : Y
+    d += ` Q${((a + b) / 2).toFixed(1)} ${(Math.max(ya, yb) + sag * 2).toFixed(1)} ${b.toFixed(1)} ${yb}`
+  }
+  svg.setAttribute('width', W)
+  svg.setAttribute('height', 140)
+  svg.setAttribute('viewBox', `0 0 ${W} 140`)
+  svg.style.width = `${W}px`
+  svg.innerHTML = `
+    <defs>
+      <radialGradient id="mem-glow"><stop offset="0" stop-color="#ffd9a0" stop-opacity="0.9"/><stop offset="0.35" stop-color="#ffb866" stop-opacity="0.32"/><stop offset="1" stop-color="#ff9a40" stop-opacity="0"/></radialGradient>
+      <radialGradient id="mem-pool"><stop offset="0" stop-color="#ffbe7a" stop-opacity="0.16"/><stop offset="1" stop-color="#ffbe7a" stop-opacity="0"/></radialGradient>
+      <radialGradient id="mem-bulb" cx="0.4" cy="0.35"><stop offset="0" stop-color="#fffaf0"/><stop offset="0.6" stop-color="#ffe2b0"/><stop offset="1" stop-color="#e7a35a"/></radialGradient>
+    </defs>
+    <g class="mem__pools"></g>
+    <path d="${d}" fill="none" stroke="#1c1612" stroke-width="2.2" stroke-linecap="round"/>
+    <path d="${d}" fill="none" stroke="#5a4636" stroke-width="0.8" stroke-linecap="round" transform="translate(0 -0.6)"/>
+    <g class="mem__bulbs"></g>`
+  const path = svg.querySelectorAll('path')[0]
+  const pools = svg.querySelector('.mem__pools')
+  const bulbs = svg.querySelector('.mem__bulbs')
+  const len = path.getTotalLength()
+  let poolsHtml = ''
+  let bulbsHtml = ''
+  let k = 0
+  for (let s = 18; s < len; s += 52, k++) {
+    const p = path.getPointAtLength(s)
+    const x = p.x.toFixed(1)
+    const y = (p.y + 7).toFixed(1)
+    poolsHtml += `<circle cx="${x}" cy="${(p.y + 30).toFixed(1)}" r="70" fill="url(#mem-pool)"/>`
+    bulbsHtml += `<g class="mem__bulb" style="--k:${(k * 0.37) % 3}s"><line x1="${x}" y1="${p.y.toFixed(1)}" x2="${x}" y2="${(p.y + 4).toFixed(1)}" stroke="#1c1612" stroke-width="1.6"/><circle class="mem__halo" cx="${x}" cy="${y}" r="15" fill="url(#mem-glow)"/><ellipse cx="${x}" cy="${y}" rx="2.6" ry="3.4" fill="url(#mem-bulb)"/></g>`
+  }
+  pools.innerHTML = poolsHtml
+  bulbs.innerHTML = bulbsHtml
 }

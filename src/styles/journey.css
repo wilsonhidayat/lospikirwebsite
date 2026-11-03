@@ -84,6 +84,9 @@ html.jr-tour body {
   top: 92px;
 }
 
+/* nothing to scroll during the tour: no scroll meter */
+html.jr-tour .meter { display: none; }
+
 /* --- landing: the logo, big ---------------------------------------------- */
 
 .jr__landing {
@@ -164,34 +167,36 @@ html.jr-tour body {
   padding: 0 26px;
 }
 
-/* --- memories: a long line of prints ------------------------------------- */
+/* --- memories: prints on a string of fairy lights, in a dark room ------------ */
 
 .mem {
   position: absolute;
   inset: 0;
   z-index: 3;
-  background:
-    radial-gradient(70% 50% at 50% 115%, rgba(200, 128, 80, 0.32), transparent 65%),
-    linear-gradient(180deg, #0f0e12 0%, #17141a 50%, #201819 100%);
+  background: #17130f;
   overflow: hidden;
 }
-.mem__bokeh {
+/* the wall: rough plaster, picked out by the light */
+.mem__wall {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='360' height='360'%3E%3Cfilter id='f' x='0' y='0' width='100%25' height='100%25'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.035 0.05' numOctaves='5' seed='7' stitchTiles='stitch' result='n'/%3E%3CfeDiffuseLighting in='n' surfaceScale='3.2' lighting-color='%23ffffff' diffuseConstant='1'%3E%3CfeDistantLight azimuth='250' elevation='38'/%3E%3C/feDiffuseLighting%3E%3C/filter%3E%3Crect width='360' height='360' filter='url(%23f)'/%3E%3C/svg%3E");
+  background-size: 360px 360px;
+  opacity: 0.2;
+  mix-blend-mode: soft-light;
+}
+/* the light in the room: the bulbs warm the top of the wall, a lamp picks out
+   the print in the middle, the corners fall into shadow */
+.mem__light {
   position: absolute;
   inset: 0;
   pointer-events: none;
   background:
-    radial-gradient(60px 60px at 12% 22%, rgba(255, 190, 120, 0.16), transparent 70%),
-    radial-gradient(90px 90px at 30% 70%, rgba(255, 170, 100, 0.1), transparent 70%),
-    radial-gradient(70px 70px at 58% 18%, rgba(255, 200, 140, 0.12), transparent 70%),
-    radial-gradient(120px 120px at 82% 64%, rgba(255, 180, 110, 0.1), transparent 70%),
-    radial-gradient(50px 50px at 92% 26%, rgba(255, 210, 160, 0.14), transparent 70%),
-    radial-gradient(80px 80px at 46% 88%, rgba(255, 170, 110, 0.1), transparent 70%);
-  filter: blur(6px);
-  animation: jr-drift-b 22s ease-in-out infinite alternate;
-}
-@keyframes jr-drift-b {
-  from { transform: translate(0, 0); }
-  to { transform: translate(-3%, 2%); }
+    radial-gradient(34% 46% at 50% 44%, rgba(255, 214, 168, 0.17), transparent 72%),
+    linear-gradient(180deg, rgba(255, 178, 110, 0.14) 0%, rgba(255, 178, 110, 0.05) 26%, transparent 46%),
+    radial-gradient(120% 90% at 50% 40%, transparent 50%, rgba(5, 4, 3, 0.75) 100%),
+    linear-gradient(180deg, transparent 70%, rgba(5, 4, 3, 0.55) 100%);
 }
 .mem__skip {
   position: absolute;
@@ -206,10 +211,10 @@ html.jr-tour body {
   left: 0;
   right: 0;
   top: max(120px, 15vh);
-  height: calc(var(--h) + 90px);
+  height: calc(var(--h) + 120px);
   display: flex;
   align-items: flex-start;
-  gap: clamp(28px, 4vw, 64px);
+  gap: clamp(36px, 5vw, 80px);
   padding: 30px calc(50vw - var(--h) * 0.314) 0;
   overflow-x: auto;
   overflow-y: hidden;
@@ -221,31 +226,31 @@ html.jr-tour body {
 .mem__track::-webkit-scrollbar { display: none; }
 .mem__track:active { cursor: grabbing; }
 
-/* the twine and its little lights, the whole length of the line */
+/* the wire, sagging between the pegs, and its bulbs (drawn in Journey.jsx) */
 .mem__line {
   position: absolute;
   left: 0;
-  top: 24px;
-  height: 2px;
-  width: 100%;
-  background: #8c7356;
-  box-shadow: 0 1px 0 rgba(0, 0, 0, 0.4);
+  top: 0;
+  height: 140px;
+  overflow: visible;
+  pointer-events: none;
 }
-.mem__line::after {
-  content: '';
-  position: absolute;
-  left: 0;
-  right: 0;
-  top: -3px;
-  height: 8px;
-  background: radial-gradient(circle at 4px 4px, rgba(255, 214, 150, 1) 0 2.2px, rgba(255, 190, 110, 0.35) 3px, transparent 6px) 0 0 / 46px 8px repeat-x;
-  filter: drop-shadow(0 0 6px rgba(255, 190, 110, 0.8));
+.mem__line .mem__pools { mix-blend-mode: screen; }
+.mem__halo {
+  mix-blend-mode: screen;
+  animation: jr-twinkle 3.2s ease-in-out infinite alternate;
+  animation-delay: calc(var(--k) * -1);
+}
+@keyframes jr-twinkle {
+  from { opacity: 0.75; }
+  to { opacity: 1; }
 }
 
 .mem__card {
   --d: 0;
   --a: 0;
   position: relative;
+  z-index: 1;
   flex: 0 0 auto;
   padding: 0;
   border: 0;
@@ -253,35 +258,53 @@ html.jr-tour body {
   cursor: pointer;
   scroll-snap-align: center;
   transform-origin: 50% 0;
-  transform: translateY(calc(var(--a) * 34px)) scale(calc(1 - var(--a) * 0.2)) rotate(calc(var(--d) * 3.5deg));
-  opacity: calc(1 - var(--a) * 0.45);
-  transition: opacity 0.2s linear;
+  transform: scale(calc(1 - var(--a) * 0.16)) rotate(calc(var(--d) * 2.5deg));
   -webkit-tap-highlight-color: transparent;
 }
-.mem__card.is-active .mem__print {
-  box-shadow: 0 40px 90px rgba(0, 0, 0, 0.6), 0 2px 8px rgba(0, 0, 0, 0.4);
-}
+/* a wooden clothes peg with its steel spring */
 .mem__peg {
   position: absolute;
   z-index: 2;
   left: 50%;
-  top: -20px;
-  width: 12px;
-  height: 36px;
+  top: -21px;
+  width: 11px;
+  height: 40px;
   translate: -50% 0;
-  border-radius: 2px;
-  background: linear-gradient(90deg, #a07a4c, #c79b66 45%, #8d6a40);
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.45);
+  border-radius: 2px 2px 3px 3px;
+  background:
+    linear-gradient(90deg, transparent 47%, rgba(40, 24, 10, 0.55) 49%, rgba(40, 24, 10, 0.55) 51%, transparent 53%),
+    linear-gradient(90deg, #8a6338, #c89c66 30%, #d9b07a 48%, #b4864f 70%, #7c5830);
+  box-shadow: 2px 4px 5px rgba(0, 0, 0, 0.5);
 }
+.mem__peg::after {
+  content: '';
+  position: absolute;
+  left: -2px;
+  right: -2px;
+  top: 13px;
+  height: 4px;
+  border-radius: 2px;
+  background: linear-gradient(180deg, #e3e6ea, #8c9298 60%, #5b6066);
+}
+/* the print: real paper, a little weight, a shadow cast down the wall */
 .mem__print {
+  position: relative;
   display: grid;
   grid-template-rows: auto 1fr;
   width: calc(var(--h) * 0.628);
   height: var(--h);
   padding: calc(var(--h) * 0.07) calc(var(--h) * 0.047) 0;
-  background: linear-gradient(170deg, #f8f6f1, #ece8df);
-  border-radius: 3px;
-  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.5), 0 2px 6px rgba(0, 0, 0, 0.35);
+  background:
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='200' height='200'%3E%3Cfilter id='p'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.8' numOctaves='3' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 0.35 0 0 0 0 0.32 0 0 0 0 0.28 0 0 0 0.09 0'/%3E%3C/filter%3E%3Crect width='200' height='200' filter='url(%23p)'/%3E%3C/svg%3E"),
+    linear-gradient(176deg, #fbf9f4 0%, #f1ede5 60%, #e6e1d7 100%);
+  background-size: 200px 200px, 100% 100%;
+  border-radius: 4px;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.8),
+    inset 0 -2px 3px rgba(120, 104, 84, 0.18),
+    0 1px 2px rgba(0, 0, 0, 0.5),
+    10px 26px 30px -6px rgba(0, 0, 0, 0.55),
+    26px 60px 80px -10px rgba(0, 0, 0, 0.45);
   transform-origin: 50% 0;
   animation: jr-sway 6s ease-in-out infinite alternate;
   animation-delay: calc(var(--sway) * -1);
@@ -291,8 +314,19 @@ html.jr-tour body {
   padding-inline: calc(var(--h) * 0.052);
 }
 @keyframes jr-sway {
-  from { rotate: -0.8deg; }
-  to { rotate: 0.8deg; }
+  from { rotate: -0.7deg; }
+  to { rotate: 0.7deg; }
+}
+/* prints away from the lamp sit in the shade */
+.mem__shade {
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: #3b2e24;
+  mix-blend-mode: multiply;
+  opacity: calc(var(--a) * 0.85);
+  pointer-events: none;
+  transition: opacity 0.2s linear;
 }
 .mem__window {
   display: block;
@@ -308,6 +342,16 @@ html.jr-tour body {
   height: 100%;
   object-fit: cover;
   display: block;
+}
+.mem__window {
+  position: relative;
+}
+.mem__window::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  box-shadow: inset 0 1px 1.5px rgba(0, 0, 0, 0.35), inset 0 0 0 0.5px rgba(0, 0, 0, 0.25);
+  pointer-events: none;
 }
 .mem__hand {
   align-self: center;
@@ -495,7 +539,6 @@ html.jr-tour body {
 
 @media (prefers-reduced-motion: reduce) {
   .mem__print,
-  .mem__bokeh,
   .jr__landing-glow {
     animation: none;
   }
