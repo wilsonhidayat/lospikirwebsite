@@ -11,12 +11,15 @@ export const SCENE_LABELS = {
   amsterdam: 'Amsterdam canals',
   leidseplein: 'Leidseplein, Amsterdam',
   coast: 'Dunes and beach',
-  campus: 'University campus',
+  campus: 'University campus (TU/e, Eindhoven)',
+  erasmus: 'Erasmus University, Rotterdam',
+  eindhoven: 'Eindhoven centre and the Blob',
   'waterfront-sunset': 'City waterfront at sunset',
   'waterfront-night': 'City waterfront at night',
   'party-boat': 'On the water at night',
-  interior: 'Light-filled interior',
+  interior: 'Light-filled country house',
   studio: 'Studio',
+  hall: 'Graduation hall',
 }
 
 const LOADERS = {
@@ -25,13 +28,16 @@ const LOADERS = {
   leidseplein: (T, ctx) => import('./leidseplein.js').then((m) => m.buildLeidseplein(T, ctx, { light: 'day' })),
   coast: (T, ctx) => import('./coast.js').then((m) => m.buildCoast(T, ctx, { light: 'sunset' })),
   campus: (T, ctx) => import('./campus.js').then((m) => m.buildCampus(T, ctx, { light: 'overcast' })),
+  erasmus: (T, ctx) => import('./erasmus.js').then((m) => m.buildErasmus(T, ctx, { light: 'overcast' })),
+  eindhoven: (T, ctx) => import('./eindhoven.js').then((m) => m.buildEindhoven(T, ctx, { light: 'day' })),
+  hall: (T, ctx) => import('./hall.js').then((m) => m.buildHall(T, ctx)),
   'waterfront-sunset': (T, ctx) =>
     import('./waterfront.js').then((m) => m.buildWaterfront(T, ctx, { light: 'sunset', lookout: true })),
   'waterfront-night': (T, ctx) =>
     import('./waterfront.js').then((m) => m.buildWaterfront(T, ctx, { light: 'night', bridge: true })),
   'party-boat': (T, ctx) =>
     import('./waterfront.js').then((m) => m.buildWaterfront(T, ctx, { light: 'night', partyBoat: true, bridge: false })),
-  interior: (T, ctx) => import('./interior.js').then((m) => m.buildInterior(T, ctx, { variant: 'loft' })),
+  interior: (T, ctx) => import('./interior.js').then((m) => m.buildInterior(T, ctx, { variant: 'villa' })),
   studio: (T, ctx) => import('./interior.js').then((m) => m.buildInterior(T, ctx, { variant: 'studio' })),
 }
 

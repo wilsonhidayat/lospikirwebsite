@@ -15,7 +15,7 @@ import '../styles/after-tour.css'
 export default function Home() {
   return (
     <main className="home-tour">
-      <Journey items={journeyGalleries} landing={site.hero?.image} skip="/work" after="#packages" />
+      <Journey items={journeyGalleries} landing={site.hero?.image} skip="/work" />
       <div className="after-tour">
         <Packages />
         <Investment />

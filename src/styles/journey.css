@@ -1,18 +1,25 @@
 /* ---------------------------------------------------------------
-   The tour: a photo, a wall of memories, and each memory's place.
-   One viewport tall; the page scrolls on normally below it. The UI
-   is kept to the gallery's title and a few quiet controls.
+   The tour: the logo, the memories, and each memory's place.
+   One viewport tall. The photos are always shown as they are —
+   no filters, full quality — and credited.
    --------------------------------------------------------------- */
 
 .jr {
   position: relative;
   height: 100vh;
   height: 100svh;
-  min-height: 620px;
+  min-height: 600px;
   overflow: hidden;
   background: #0b0b0c;
   color: var(--bone);
   isolation: isolate;
+}
+
+/* no page scrolling while inside the tour */
+html.jr-tour,
+html.jr-tour body {
+  overflow: hidden;
+  overscroll-behavior: none;
 }
 
 .jr__gl,
@@ -20,7 +27,6 @@
   position: absolute;
   inset: 0;
 }
-
 .jr__canvas {
   position: absolute;
   inset: 0;
@@ -28,477 +34,451 @@
   height: 100%;
   display: block;
 }
-
-/* without 3D: a soft, blurred copy of the photo on show */
-.jr--3d .jr__flat {
-  display: none;
+.jr--landing .jr__gl,
+.jr--memories .jr__gl {
+  visibility: hidden;
 }
 .jr__flat img {
   width: 100%;
   height: 100%;
   object-fit: cover;
-  filter: blur(30px) brightness(0.5) saturate(1.1);
-  transform: scale(1.12);
+  filter: blur(34px) brightness(0.45);
+  transform: scale(1.15);
 }
 
-/* --- first visit: a print slides out and develops ------------------- */
+/* never let the photos be dragged out or long-pressed away */
+.jr img {
+  -webkit-user-drag: none;
+  -webkit-touch-callout: none;
+  user-select: none;
+}
 
-.jr__reel {
-  position: absolute;
-  inset: 0;
-  z-index: 6;
-  display: grid;
-  place-items: center;
-  background: radial-gradient(70% 60% at 50% 55%, #1b1613 0%, #0b0b0c 70%);
+/* the small rounded buttons: back, skip */
+.jr__pill {
+  height: 40px;
+  padding: 0 18px;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  border-radius: var(--pill);
+  border: 1px solid rgba(243, 241, 236, 0.32);
+  background: rgba(10, 10, 11, 0.42);
+  -webkit-backdrop-filter: blur(14px);
+  backdrop-filter: blur(14px);
+  color: var(--bone);
+  font: inherit;
+  font-size: 11px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  text-decoration: none;
+  white-space: nowrap;
   cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  transition: background var(--dur-hover) ease, scale var(--dur-press) var(--ease);
+}
+.jr__pill:active { scale: 0.96; }
+.jr__back {
+  position: absolute;
+  z-index: 5;
+  left: var(--pad);
+  top: 92px;
 }
 
-.jr__reel-print {
-  --pw: min(46vw, 300px, calc(52vh * 0.628));
-  width: var(--pw);
-  aspect-ratio: 54 / 86;
-  /* (percent padding would follow the screen's width, not the print's) */
-  padding: calc(var(--pw) * 0.074) calc(var(--pw) * 0.074) 0;
-  background: linear-gradient(160deg, #f7f5ef, #e9e5db);
-  border-radius: 3px;
-  box-shadow: 0 30px 80px rgba(0, 0, 0, 0.55), 0 2px 6px rgba(0, 0, 0, 0.3);
-  display: grid;
-  grid-template-columns: 100%;
-  grid-template-rows: auto 1fr;
-  will-change: transform, opacity;
-}
-.jr__reel-print img {
-  width: 100%;
-  height: auto;
-  min-width: 0;
-  aspect-ratio: 46 / 62;
-  object-fit: cover;
-  display: block;
-}
-.jr__reel-brand {
-  align-self: center;
-  justify-self: center;
-  font-family: Caveat, 'Bradley Hand', 'Segoe Print', cursive;
-  font-size: clamp(20px, 2.6vw, 30px);
-  color: rgba(38, 36, 44, 0.86);
-  rotate: -2deg;
-}
-
-/* --- landing: one photo, full screen --------------------------------- */
+/* --- landing: the logo, big ---------------------------------------------- */
 
 .jr__landing {
   position: absolute;
   inset: 0;
   z-index: 4;
+  display: grid;
+  place-items: center;
+  background:
+    radial-gradient(80% 60% at 50% 110%, rgba(214, 140, 92, 0.42) 0%, rgba(214, 140, 92, 0) 60%),
+    radial-gradient(60% 50% at 85% 0%, rgba(120, 112, 170, 0.25) 0%, rgba(120, 112, 170, 0) 70%),
+    linear-gradient(180deg, #121219 0%, #1b1820 45%, #2b1f22 100%);
+}
+.jr__landing-glow {
+  position: absolute;
+  inset: -20%;
+  background: radial-gradient(40% 30% at 50% 50%, rgba(255, 210, 170, 0.1), transparent 70%);
+  animation: jr-breathe 9s ease-in-out infinite alternate;
+  pointer-events: none;
+}
+@keyframes jr-breathe {
+  from { transform: scale(0.95); opacity: 0.6; }
+  to { transform: scale(1.08); opacity: 1; }
 }
 
+.jr__landing--photo {
+  background: #0b0b0c;
+}
 .jr__landing-photo {
   position: absolute;
   inset: 0;
   width: 100%;
   height: 100%;
   object-fit: cover;
-  animation: jr-drift 26s ease-in-out infinite alternate;
 }
-@keyframes jr-drift {
-  from { transform: scale(1.04) translate(0, 0); }
-  to { transform: scale(1.12) translate(-1.5%, -1%); }
-}
-
-.jr__landing-shade {
+.jr__landing--photo::after {
+  content: '';
   position: absolute;
   inset: 0;
-  background:
-    linear-gradient(0deg, rgba(11, 11, 12, 0.55) 0%, rgba(11, 11, 12, 0) 40%),
-    radial-gradient(90% 70% at 0% 100%, rgba(11, 11, 12, 0.35), transparent 60%);
-}
-
-.jr__landing-actions {
-  position: absolute;
-  left: var(--pad);
-  bottom: clamp(56px, 10vh, 110px);
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 12px;
-}
-
-/* --- the wall ------------------------------------------------------------ */
-
-.jr__wallhit {
-  position: absolute;
-  inset: 0;
-  z-index: 1;
-  touch-action: none;
-  cursor: grab;
-}
-.jr__wallhit.is-over {
-  cursor: pointer;
-}
-
-.jr__wallui {
-  position: absolute;
-  inset: 0;
-  z-index: 2;
+  background: radial-gradient(70% 60% at 50% 50%, rgba(11, 11, 12, 0.3), rgba(11, 11, 12, 0.6));
   pointer-events: none;
 }
-.jr__wallui > * {
-  pointer-events: auto;
+
+.jr__landing-center {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  justify-items: center;
+  gap: 22px;
+  padding: 0 var(--pad);
+  text-align: center;
+}
+.jr__logo {
+  margin: 0;
+  line-height: 0;
+}
+.jr__logo img {
+  width: min(78vw, 780px);
+  height: auto;
+  display: block;
+  filter: drop-shadow(0 10px 40px rgba(0, 0, 0, 0.35));
+}
+.jr__tagline {
+  margin: 0;
+  color: var(--dim-2);
+  letter-spacing: 0.3em;
+}
+.jr__landing-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 12px;
+  margin-top: 14px;
+}
+.jr__landing-actions .btn,
+.jr__landing-actions .jr__pill {
+  height: 50px;
+  padding: 0 26px;
 }
 
-.jr__hint {
+/* --- memories: a long line of prints ------------------------------------- */
+
+.mem {
+  position: absolute;
+  inset: 0;
+  z-index: 3;
+  background:
+    radial-gradient(70% 50% at 50% 115%, rgba(200, 128, 80, 0.32), transparent 65%),
+    linear-gradient(180deg, #0f0e12 0%, #17141a 50%, #201819 100%);
+  overflow: hidden;
+}
+.mem__bokeh {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background:
+    radial-gradient(60px 60px at 12% 22%, rgba(255, 190, 120, 0.16), transparent 70%),
+    radial-gradient(90px 90px at 30% 70%, rgba(255, 170, 100, 0.1), transparent 70%),
+    radial-gradient(70px 70px at 58% 18%, rgba(255, 200, 140, 0.12), transparent 70%),
+    radial-gradient(120px 120px at 82% 64%, rgba(255, 180, 110, 0.1), transparent 70%),
+    radial-gradient(50px 50px at 92% 26%, rgba(255, 210, 160, 0.14), transparent 70%),
+    radial-gradient(80px 80px at 46% 88%, rgba(255, 170, 110, 0.1), transparent 70%);
+  filter: blur(6px);
+  animation: jr-drift-b 22s ease-in-out infinite alternate;
+}
+@keyframes jr-drift-b {
+  from { transform: translate(0, 0); }
+  to { transform: translate(-3%, 2%); }
+}
+.mem__skip {
+  position: absolute;
+  z-index: 5;
+  right: var(--pad);
+  top: 92px;
+}
+
+.mem__track {
+  --h: min(60vh, 600px);
   position: absolute;
   left: 0;
   right: 0;
-  bottom: 28px;
-  margin: 0;
-  text-align: center;
-  color: var(--dim-2);
-  pointer-events: none !important;
+  top: max(120px, 15vh);
+  height: calc(var(--h) + 90px);
+  display: flex;
+  align-items: flex-start;
+  gap: clamp(28px, 4vw, 64px);
+  padding: 30px calc(50vw - var(--h) * 0.314) 0;
+  overflow-x: auto;
+  overflow-y: hidden;
+  scroll-snap-type: x proximity;
+  scrollbar-width: none;
+  cursor: grab;
+  overscroll-behavior-x: contain;
+}
+.mem__track::-webkit-scrollbar { display: none; }
+.mem__track:active { cursor: grabbing; }
+
+/* the twine and its little lights, the whole length of the line */
+.mem__line {
+  position: absolute;
+  left: 0;
+  top: 24px;
+  height: 2px;
+  width: 100%;
+  background: #8c7356;
+  box-shadow: 0 1px 0 rgba(0, 0, 0, 0.4);
+}
+.mem__line::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: -3px;
+  height: 8px;
+  background: radial-gradient(circle at 4px 4px, rgba(255, 214, 150, 1) 0 2.2px, rgba(255, 190, 110, 0.35) 3px, transparent 6px) 0 0 / 46px 8px repeat-x;
+  filter: drop-shadow(0 0 6px rgba(255, 190, 110, 0.8));
 }
 
-/* the wall as buttons: hidden until focused (3D), or the whole wall (no 3D) */
-.jr__memlist {
-  list-style: none;
-  margin: 0;
+.mem__card {
+  --d: 0;
+  --a: 0;
+  position: relative;
+  flex: 0 0 auto;
   padding: 0;
+  border: 0;
+  background: none;
+  cursor: pointer;
+  scroll-snap-align: center;
+  transform-origin: 50% 0;
+  transform: translateY(calc(var(--a) * 34px)) scale(calc(1 - var(--a) * 0.2)) rotate(calc(var(--d) * 3.5deg));
+  opacity: calc(1 - var(--a) * 0.45);
+  transition: opacity 0.2s linear;
+  -webkit-tap-highlight-color: transparent;
 }
-.sr-only-focusable {
+.mem__card.is-active .mem__print {
+  box-shadow: 0 40px 90px rgba(0, 0, 0, 0.6), 0 2px 8px rgba(0, 0, 0, 0.4);
+}
+.mem__peg {
+  position: absolute;
+  z-index: 2;
+  left: 50%;
+  top: -20px;
+  width: 12px;
+  height: 36px;
+  translate: -50% 0;
+  border-radius: 2px;
+  background: linear-gradient(90deg, #a07a4c, #c79b66 45%, #8d6a40);
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.45);
+}
+.mem__print {
+  display: grid;
+  grid-template-rows: auto 1fr;
+  width: calc(var(--h) * 0.628);
+  height: var(--h);
+  padding: calc(var(--h) * 0.07) calc(var(--h) * 0.047) 0;
+  background: linear-gradient(170deg, #f8f6f1, #ece8df);
+  border-radius: 3px;
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.5), 0 2px 6px rgba(0, 0, 0, 0.35);
+  transform-origin: 50% 0;
+  animation: jr-sway 6s ease-in-out infinite alternate;
+  animation-delay: calc(var(--sway) * -1);
+}
+.mem__card--wide .mem__print {
+  width: calc(var(--h) * 1.256);
+  padding-inline: calc(var(--h) * 0.052);
+}
+@keyframes jr-sway {
+  from { rotate: -0.8deg; }
+  to { rotate: 0.8deg; }
+}
+.mem__window {
+  display: block;
+  aspect-ratio: 46 / 62;
+  overflow: hidden;
+  background: #222;
+}
+.mem__card--wide .mem__window {
+  aspect-ratio: 99 / 62;
+}
+.mem__window img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+.mem__hand {
+  align-self: center;
+  padding: 0 6px;
+  font-family: Caveat, 'Bradley Hand', 'Segoe Print', 'Marker Felt', cursive;
+  font-size: calc(var(--h) * 0.045);
+  color: rgba(38, 36, 44, 0.86);
+  rotate: -1.5deg;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.mem__caption {
   position: absolute;
   left: var(--pad);
-  top: 92px;
-  width: 1px;
-  height: 1px;
-  overflow: hidden;
-  clip: rect(0 0 0 0);
+  right: var(--pad);
+  bottom: clamp(26px, 5vh, 56px);
+  text-align: center;
+  pointer-events: none;
 }
-.sr-only-focusable:focus-within {
+.mem__name {
+  margin: 0;
+  font-size: clamp(36px, 5.6vw, 92px);
+  line-height: 0.95;
+  text-wrap: balance;
+  text-shadow: 0 4px 30px rgba(0, 0, 0, 0.5);
+}
+.mem__meta {
+  margin: 14px 0 0;
+  color: var(--dim-2);
+  font-variant-numeric: tabular-nums;
+}
+
+/* --- the photo flying out of its print ----------------------------------- */
+
+.jr__flight {
+  position: fixed;
+  z-index: 50;
+  overflow: hidden;
+  border-radius: 2px;
+  box-shadow: 0 40px 100px rgba(0, 0, 0, 0.55);
+  pointer-events: none;
+}
+.jr__flight img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+/* --- a place: the photo, as it is --------------------------------------- */
+
+.pv {
+  position: absolute;
+  inset: 0;
+  z-index: 3;
+  pointer-events: none;
+}
+.pv > * {
+  pointer-events: auto;
+}
+.pv__stage {
+  position: absolute;
+  left: 50%;
+  top: 47%;
+  translate: -50% -50%;
+  perspective: 1400px;
+}
+.pv__frame {
+  position: relative;
+  display: grid;
+}
+.pv__photo {
+  grid-area: 1 / 1;
+  display: block;
+  max-width: 56vw;
+  max-height: 66vh;
+  max-height: 66svh;
   width: auto;
   height: auto;
-  clip: auto;
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-  max-width: 60vw;
-}
-.sr-only-focusable .jr__mem {
-  height: 32px;
-  padding: 0 12px;
-  border-radius: var(--pill);
-  border: 1px solid rgba(243, 241, 236, 0.3);
-  background: rgba(10, 10, 11, 0.6);
-  color: var(--bone);
-  font: inherit;
-  font-size: 12px;
-}
-
-/* no 3D: polaroids pinned in a loose grid */
-.jr__polaroids {
-  position: absolute;
-  inset: 90px var(--pad) 70px;
-  overflow-y: auto;
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
-  gap: 28px 22px;
-  padding: 10px;
-}
-.jr__polaroids .jr__mem {
-  width: 100%;
-  padding: 12px 12px 0;
-  border: 0;
-  border-radius: 3px;
-  background: linear-gradient(160deg, #f7f5ef, #e9e5db);
-  box-shadow: 0 18px 40px rgba(0, 0, 0, 0.4);
-  rotate: var(--tilt);
-  cursor: pointer;
-  display: grid;
-  transition: rotate var(--dur-move) var(--ease), scale var(--dur-press) var(--ease);
-}
-.jr__polaroids .jr__mem img {
-  width: 100%;
-  aspect-ratio: 46 / 62;
-  object-fit: cover;
-}
-.jr__polaroids .jr__mem span {
-  padding: 10px 0 14px;
-  font-family: Caveat, 'Bradley Hand', 'Segoe Print', cursive;
-  font-size: 19px;
-  color: rgba(38, 36, 44, 0.86);
-}
-.jr__polaroids .jr__mem:active {
-  scale: 0.97;
-}
-
-/* --- arriving: the gallery's title ---------------------------------------- */
-
-.jr__titlecard {
-  position: absolute;
-  inset: 0;
-  z-index: 2;
-  display: grid;
-  place-content: center;
-  justify-items: center;
-  text-align: center;
-  pointer-events: none;
-  text-shadow: 0 2px 30px rgba(20, 12, 8, 0.45);
-}
-.jr__titlecard-name {
-  margin: 0;
-  font-size: clamp(44px, 7.4vw, 116px);
-  max-width: 14ch;
-  text-wrap: balance;
-}
-
-/* --- browsing a memory ------------------------------------------------------ */
-
-.jr__printhit {
-  position: absolute;
-  left: 0;
-  top: 0;
-  z-index: 2;
-  padding: 0;
-  border: 0;
-  background: transparent;
-  cursor: zoom-in;
-  -webkit-tap-highlight-color: transparent;
-}
-.jr__printhit:focus-visible {
-  outline: 2px solid var(--bone);
-  outline-offset: 6px;
-}
-
-.jr__chrome {
-  position: absolute;
-  inset: 0;
-  z-index: 3;
-  pointer-events: none;
-}
-.jr__chrome > * {
-  pointer-events: auto;
-}
-
-.jr__back {
-  position: absolute;
-  left: var(--pad);
-  top: 92px;
-  height: 36px;
-  padding: 0 16px;
-  border-radius: var(--pill);
-  border: 1px solid rgba(243, 241, 236, 0.3);
-  background: rgba(10, 10, 11, 0.38);
-  -webkit-backdrop-filter: blur(12px);
-  backdrop-filter: blur(12px);
-  color: var(--bone);
-  font: inherit;
-  font-size: 11px;
-  letter-spacing: 0.14em;
-  text-transform: uppercase;
-  cursor: pointer;
-  transition: background var(--dur-hover) ease, scale var(--dur-press) var(--ease);
-}
-.jr__back:active { scale: 0.96; }
-
-.jr__name {
-  position: absolute;
-  left: var(--pad);
-  bottom: clamp(84px, 12vh, 130px);
-  max-width: min(26vw, 380px);
-  margin: 0;
-  font-size: clamp(30px, 3.6vw, 60px);
-  text-wrap: balance;
-  text-shadow: 0 2px 24px rgba(20, 12, 8, 0.4);
-  pointer-events: none !important;
-}
-
-.jr__nav {
-  position: absolute;
-  left: var(--pad);
-  bottom: 24px;
-  display: flex;
-  align-items: center;
-  gap: 12px;
-}
-
-.jr__arrow {
-  width: 44px;
-  height: 44px;
-  border-radius: var(--pill);
-  border: 1px solid rgba(243, 241, 236, 0.3);
-  background: rgba(10, 10, 11, 0.42);
-  -webkit-backdrop-filter: blur(12px);
-  backdrop-filter: blur(12px);
-  color: var(--bone);
-  font-size: 18px;
-  line-height: 1;
-  cursor: pointer;
-  -webkit-tap-highlight-color: transparent;
-  transition: background var(--dur-hover) ease, scale var(--dur-press) var(--ease), opacity var(--dur-hover) ease;
-}
-.jr__arrow:active { scale: 0.92; }
-.jr__arrow:disabled {
-  opacity: 0.3;
-  cursor: default;
-}
-
-.jr__count {
-  min-width: 52px;
-  text-align: center;
-  color: var(--dim-2);
-  font-variant-numeric: tabular-nums;
-}
-
-.jr__more {
-  margin-left: 6px;
-}
-
-.jr__worktogether {
-  position: absolute;
-  right: var(--pad);
-  bottom: 30px;
-  color: var(--bone);
-  font-size: 11px;
-  letter-spacing: 0.14em;
-  text-transform: uppercase;
-  text-decoration: none;
-  border-bottom: 1px solid rgba(243, 241, 236, 0.4);
-  padding-bottom: 3px;
-}
-
-/* without 3D: the print, centred */
-.jr__flatprint {
-  position: absolute;
-  inset: 0;
-  z-index: 1;
-  display: grid;
-  place-items: center;
-  padding-bottom: 6vh;
-}
-.jr__print {
-  grid-area: 1 / 1;
-  padding: 14px 14px 0;
-  border: 0;
-  border-radius: 3px;
-  background: linear-gradient(160deg, #f7f5ef, #e9e5db);
-  box-shadow: 0 30px 90px rgba(0, 0, 0, 0.5);
-  display: grid;
-  justify-items: center;
-  cursor: zoom-in;
+  border-radius: 2px;
+  box-shadow: 0 40px 100px rgba(0, 0, 0, 0.5), 0 3px 10px rgba(0, 0, 0, 0.3);
   touch-action: pan-y;
-}
-.jr__print img {
-  display: block;
-  max-height: 56vh;
-  max-height: 56svh;
-  max-width: 76vw;
-  user-select: none;
-  -webkit-user-drag: none;
-}
-.jr__print-title {
-  padding: 12px 0 18px;
-  font-family: Caveat, 'Bradley Hand', 'Segoe Print', cursive;
-  font-size: 22px;
-  color: rgba(38, 36, 44, 0.86);
+  cursor: grab;
+  backface-visibility: hidden;
 }
 
-/* leave the tour, always within reach */
-.jr__skip {
+.pv__arrow {
   position: absolute;
-  z-index: 3;
-  right: var(--pad);
-  top: 92px;
-  height: 36px;
-  padding: 0 16px;
-  display: inline-flex;
-  align-items: center;
-  border-radius: var(--pill);
-  border: 1px solid rgba(243, 241, 236, 0.3);
-  background: rgba(10, 10, 11, 0.38);
-  -webkit-backdrop-filter: blur(12px);
-  backdrop-filter: blur(12px);
-  color: var(--bone);
-  font-size: 11px;
-  letter-spacing: 0.14em;
-  text-transform: uppercase;
-  text-decoration: none;
-  -webkit-tap-highlight-color: transparent;
-  transition: background var(--dur-hover) ease, scale var(--dur-press) var(--ease);
-}
-.jr__skip:active { scale: 0.96; }
-.jr__landing-actions .jr__skip {
-  position: static;
-  height: 48px;
-  padding: 0 22px;
-}
-
-/* the photo, full screen */
-.jr__full {
-  position: fixed;
-  inset: 0;
-  z-index: 60;
-  display: grid;
-  place-items: center;
-  background: rgba(8, 8, 9, 0.96);
-}
-.jr__full-photo {
-  grid-area: 1 / 1;
-  max-width: calc(100vw - 2 * var(--pad));
-  max-height: calc(100vh - 120px);
-  max-height: calc(100svh - 120px);
-  object-fit: contain;
-  border-radius: 4px;
-  touch-action: pan-y;
-  user-select: none;
-  -webkit-user-drag: none;
-}
-.jr__full-close {
-  position: absolute;
-  top: 20px;
-  right: var(--pad);
-  height: 36px;
-  padding: 0 16px;
-  border-radius: var(--pill);
-  border: 1px solid rgba(243, 241, 236, 0.3);
-  background: transparent;
-  color: var(--bone);
-  font: inherit;
-  font-size: 11px;
-  letter-spacing: 0.14em;
-  text-transform: uppercase;
-  cursor: pointer;
-}
-.jr__full-step {
-  position: fixed;
   top: 50%;
+  width: 60px;
+  height: 60px;
   translate: 0 -50%;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  border: 1px solid rgba(243, 241, 236, 0.4);
+  background: rgba(10, 10, 11, 0.5);
+  -webkit-backdrop-filter: blur(14px);
+  backdrop-filter: blur(14px);
+  color: var(--bone);
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  transition: background var(--dur-hover) ease, scale var(--dur-press) var(--ease);
 }
-.jr__full-step--prev { left: var(--pad); }
-.jr__full-step--next { right: var(--pad); }
-.jr__full-count {
+.pv__arrow--prev { right: calc(100% + 26px); }
+.pv__arrow--next { left: calc(100% + 26px); }
+.pv__arrow:active { scale: 0.92; }
+
+.pv__credit {
   position: absolute;
-  bottom: 22px;
-  left: 0;
   right: 0;
+  top: calc(100% + 10px);
   margin: 0;
-  text-align: center;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
   color: var(--dim-2);
+  pointer-events: none;
+}
+.pv__credit img {
+  height: 9px;
+  width: auto;
+  opacity: 0.85;
+}
+
+.pv__below {
+  position: absolute;
+  left: 50%;
+  top: calc(100% + 18px);
+  translate: -50% 0;
+  display: grid;
+  justify-items: center;
+  gap: 14px;
+}
+.pv__count {
+  margin: 0;
+  font-size: 13px;
+  letter-spacing: 0.24em;
+  color: var(--bone);
   font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.pv__count span {
+  color: var(--dim);
+  margin: 0 4px;
+}
+.pv__more {
+  white-space: nowrap;
+}
+
+.pv__name {
+  position: absolute;
+  left: var(--pad);
+  bottom: clamp(24px, 5vh, 52px);
+  max-width: min(22vw, 360px);
+  margin: 0;
+  font-size: clamp(30px, 3.4vw, 58px);
+  line-height: 0.95;
+  text-wrap: balance;
+  text-shadow: 0 3px 24px rgba(0, 0, 0, 0.45);
+  pointer-events: none !important;
 }
 
 @media (hover: hover) and (pointer: fine) {
-  .jr__arrow:not(:disabled):hover,
-  .jr__back:hover,
-  .jr__skip:hover { background: rgba(10, 10, 11, 0.7); }
-  .jr__full-close:hover { background: rgba(243, 241, 236, 0.1); }
-  .jr__polaroids .jr__mem:hover { rotate: 0deg; }
-}
-
-/* hold the page still while a photo is full screen */
-html.jr-locked {
-  overflow: hidden;
-}
-html.jr-locked .nav {
-  opacity: 0;
-  pointer-events: none;
+  .jr__pill:hover,
+  .pv__arrow:hover {
+    background: rgba(10, 10, 11, 0.78);
+  }
 }
 
 .sr-only {
@@ -514,7 +494,9 @@ html.jr-locked .nav {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .jr__landing-photo {
+  .mem__print,
+  .mem__bokeh,
+  .jr__landing-glow {
     animation: none;
   }
 }
@@ -522,35 +504,47 @@ html.jr-locked .nav {
 /* --- phones ----------------------------------------------------------- */
 
 @media (max-width: 820px) {
-  .jr__landing-actions {
-    left: var(--pad);
-    right: var(--pad);
-    justify-content: center;
-  }
-  .jr__skip,
-  .jr__back {
+  .jr__back,
+  .mem__skip {
     top: 76px;
-    height: 32px;
-    padding: 0 12px;
   }
-  .jr__name {
+  .jr__pill {
+    height: 36px;
+    padding: 0 14px;
+  }
+  .mem__track {
+    --h: min(50vh, 460px);
+    top: 130px;
+  }
+  .mem__name {
+    font-size: clamp(30px, 9vw, 48px);
+  }
+  .pv__stage {
+    top: 46%;
+  }
+  .pv__photo {
+    max-width: 90vw;
+    max-height: 56vh;
+    max-height: 56svh;
+  }
+  /* arrows sit on the photo's edges when there's no room beside it */
+  .pv__arrow {
+    width: 48px;
+    height: 48px;
+  }
+  .pv__arrow--prev { right: auto; left: 8px; }
+  .pv__arrow--next { left: auto; right: 8px; }
+  .pv__name {
     left: var(--pad);
     right: var(--pad);
     max-width: none;
-    bottom: 84px;
+    bottom: 22px;
     text-align: center;
-    font-size: clamp(26px, 8vw, 38px);
+    font-size: clamp(26px, 8vw, 40px);
   }
-  .jr__nav {
-    left: 50%;
-    translate: -50% 0;
-    bottom: 18px;
-  }
-  .jr__worktogether {
-    display: none;
-  }
-  .jr__polaroids {
-    grid-template-columns: repeat(2, 1fr);
-    inset: 120px var(--pad) 60px;
+  .jr__landing-actions .btn,
+  .jr__landing-actions .jr__pill {
+    height: 46px;
+    padding: 0 20px;
   }
 }

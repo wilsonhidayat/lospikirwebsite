@@ -73,7 +73,7 @@ export function readPhoto(url) {
         g.drawImage(img, 0, 0, w, h)
         const { data } = g.getImageData(0, 0, w, h)
         const whole = avg(data, w, 0, h)
-        const tone = { warmth: (whole[0] - whole[2]) / 255, lum: lum(whole) }
+        const tone = { warmth: (whole[0] - whole[2]) / 255, lum: lum(whole), mean: whole.map((v) => v / 255), sat: sat(whole) }
 
         // Look for the sky row by row in the upper part of the frame: a run
         // of rows that are bright, even across the width, and coloured like
@@ -206,4 +206,21 @@ export async function skyFromProject(p) {
   const want = hero.tone?.warmth ?? 0
   found.sort((a, b) => Math.abs(a.warmth - want) - Math.abs(b.warmth - want))
   return found[0]
+}
+
+/**
+ * How to grade a place so it sits with its photographs: a gentle white
+ * balance toward the photos' average colour and a matching saturation.
+ * Uses the hero and a few other photos of the project.
+ */
+export async function gradeFromProject(p) {
+  const srcs = [p.hero, ...(p.photos || []).map((ph) => ph.src).filter((s) => s !== p.hero)].slice(0, 4)
+  const tones = (await Promise.all(srcs.map((s) => readPhoto(s)))).map((r) => r.tone).filter(Boolean)
+  if (!tones.length) return { tint: [1, 1, 1], saturation: 1 }
+  const mean = [0, 1, 2].map((i) => tones.reduce((a, t) => a + t.mean[i], 0) / tones.length)
+  const grey = (mean[0] + mean[1] + mean[2]) / 3 || 1
+  const tint = mean.map((v) => Math.max(0.9, Math.min(1.1, 1 + (v / grey - 1) * 0.3)))
+  const s = tones.reduce((a, t) => a + t.sat, 0) / tones.length
+  const saturation = Math.max(0.85, Math.min(1.15, 0.8 + s * 0.9))
+  return { tint, saturation }
 }

@@ -160,12 +160,15 @@ collections:
           - { label: "Amsterdam canals", value: amsterdam }
           - { label: "Leidseplein, Amsterdam", value: leidseplein }
           - { label: "Dunes and beach", value: coast }
-          - { label: "University campus", value: campus }
+          - { label: "University campus (TU/e)", value: campus }
+          - { label: "Erasmus University, Rotterdam", value: erasmus }
+          - { label: "Eindhoven centre and the Blob", value: eindhoven }
           - { label: "City waterfront at sunset", value: waterfront-sunset }
           - { label: "City waterfront at night", value: waterfront-night }
           - { label: "On the water at night", value: party-boat }
-          - { label: "Light-filled interior", value: interior }
+          - { label: "Light-filled country house", value: interior }
           - { label: "Studio", value: studio }
+          - { label: "Graduation hall", value: hall }
         hint: "Pick the one closest to where it was shot."
       - { name: place, label: "Where it was shot (e.g. “Trocadéro, Paris”)", widget: string, required: false }
       - { name: hero, label: "The moment — the photo the 3D flight lands on", widget: image, required: false, hint: "Defaults to the cover photo." }

@@ -12,19 +12,17 @@
  *  5. One composite shader then
  *       - adds ambient occlusion — the soft contact shadow in corners, under
  *         trees and where things meet the ground,
- *       - adds the bloom and the sun rays, and a whisper of lens fringing,
+ *       - adds the bloom and the sun rays,
  *       - maps the HDR light to the screen with a filmic (ACES) curve,
- *       - grades gently, adds a soft vignette and fine film grain,
- *       - and paints a layer of clouds over everything when travelling
- *         between places (uCloud 0 → 1).
+ *       - matches the colour to the project's photographs (white balance and
+ *         saturation, set per place),
+ *       - and can "develop" the place out of the dark (uReveal 0 → 1).
+ *
+ * No grain, vignette or lens effects: the image is kept clean. The photos
+ * themselves are never drawn here — they sit over the canvas as real <img>s.
  *
  * Objects on layer 2 (sprites, transparent water jets, glows) are skipped by
- * the normal pass. The floating print is drawn over the place with its own
- * depth (render's `overlay`); in the normal pass it only marks its pixels
- * (alpha 0), so they get no occlusion, block the sun rays, and skip the film
- * curve — the photo keeps its true colours. The memory wall is shown wholly
- * that way (render's `flat`). A full-screen photo can be dissolved over it
- * all (setPhoto + uPhoto), for the move between a photo and its place.
+ * the normal pass.
  */
 import { FullScreenQuad } from 'three/addons/postprocessing/Pass.js'
 import { NOISE_GLSL } from './world.js'
@@ -157,23 +155,17 @@ export function createPost(THREE, renderer, { quality = 'high' } = {}) {
     uRayColor: { value: new THREE.Color(0xfff0d8) },
     uExposure: { value: 1 },
     uTime: { value: 0 },
-    uGrain: { value: high ? 0.026 : 0.018 },
-    uVignette: { value: 0.22 },
-    uSaturation: { value: 1.03 },
-    uFringe: { value: high ? 1 : 0 },
-    // display-space multipliers (applied after the curve), so plain numbers
-    uWarmth: { value: new THREE.Vector3(1.0, 0.985, 0.965) },
+    // the place's colour, matched to its photographs: a gentle white
+    // balance (display-space multipliers) and saturation
+    uSaturation: { value: 1.0 },
+    uTint: { value: new THREE.Vector3(1, 1, 1) },
     uCloud: { value: 0 },
     uCloudLit: { value: new THREE.Color(0xfff4ea) },
     uCloudShade: { value: new THREE.Color(0xe2c7b8) },
     uFade: { value: 0 },
-    // 1: show everything without the film curve (the memory wall); the
-    // overlay's pixels (the floating print) always are, so photos stay true
-    uFlat: { value: 0 },
-    // a photo laid over everything, dissolving in and out like film developing
-    tPhoto: { value: null },
-    uPhoto: { value: 0 },
-    uPhotoAspect: { value: 1.5 },
+    // 0 → 1: the place develops out of the dark in soft patches
+    uReveal: { value: 1 },
+    uRevealColor: { value: new THREE.Vector3(0.043, 0.043, 0.047) },
   }
 
   const material = new THREE.ShaderMaterial({
@@ -189,9 +181,9 @@ export function createPost(THREE, renderer, { quality = 'high' } = {}) {
       uniform vec2 uRes; uniform mat4 uProjInv; uniform float uProjScale;
       uniform float uAO; uniform float uAORadius; uniform float uBloom; uniform float uRays; uniform vec3 uRayColor;
       uniform float uExposure; uniform float uTime;
-      uniform float uGrain; uniform float uVignette; uniform float uSaturation; uniform float uFringe; uniform vec3 uWarmth;
-      uniform float uCloud; uniform vec3 uCloudLit; uniform vec3 uCloudShade; uniform float uFade; uniform float uFlat;
-      uniform sampler2D tPhoto; uniform float uPhoto; uniform float uPhotoAspect;
+      uniform float uSaturation; uniform vec3 uTint;
+      uniform float uCloud; uniform vec3 uCloudLit; uniform vec3 uCloudShade; uniform float uFade;
+      uniform float uReveal; uniform vec3 uRevealColor;
       varying vec2 vUv;
       ${NOISE_GLSL}
 
@@ -243,42 +235,22 @@ export function createPost(THREE, renderer, { quality = 'high' } = {}) {
       }
 
       void main() {
-        // a whisper of lateral colour fringing toward the frame's edges
-        vec2 dc = vUv - 0.5;
-        vec2 fr = dc * dot(dc, dc) * 0.006 * uFringe;
-        vec3 c;
-        c.r = texture2D(tColor, vUv + fr).r;
-        c.g = texture2D(tColor, vUv).g;
-        c.b = texture2D(tColor, vUv - fr).b;
-
-        float flatMask = max(uFlat, 1.0 - texture2D(tNormal, vUv).a);
-        if (uAO > 0.0 && flatMask < 0.5) c *= mix(1.0, occlusion(vUv), uAO);
+        vec3 c = texture2D(tColor, vUv).rgb;
+        if (uAO > 0.0) c *= mix(1.0, occlusion(vUv), uAO);
 
         vec3 glow = texture2D(tBloom, vUv).rgb * uBloom + texture2D(tRays, vUv).r * uRays * uRayColor;
-        // photographs (and the wall) as they are; the places through a film curve
-        vec3 plain = toSRGB(clamp(c + glow, 0.0, 1.0));
-        vec3 film = toSRGB(aces((c * uExposure + glow) / 0.6));
-        float l = dot(film, vec3(0.2126, 0.7152, 0.0722));
-        film = mix(vec3(l), film, uSaturation);
-        film *= mix(vec3(0.985, 0.99, 1.01), uWarmth, smoothstep(0.25, 0.85, l));
-        c = mix(film, plain, flatMask);
-        l = dot(c, vec3(0.2126, 0.7152, 0.0722));
+        // the film curve, then the photographs' own colour
+        c = toSRGB(aces((c * uExposure + glow) / 0.6));
+        float l = dot(c, vec3(0.2126, 0.7152, 0.0722));
+        c = mix(vec3(l), c, uSaturation) * uTint;
 
-        // the photograph, developing into (or out of) the 3D place: it comes
-        // and goes in soft organic patches, with a warm glow at the edges
-        if (uPhoto > 0.001) {
-          vec2 suv = vUv - 0.5;
-          float ra = (uRes.x / uRes.y) / uPhotoAspect;
-          vec2 puv = ra > 1.0 ? vec2(suv.x, suv.y / ra) : vec2(suv.x * ra, suv.y);
-          puv = puv * (1.0 - 0.035 * uPhoto) + 0.5;
-          vec3 pc = toSRGB(texture2D(tPhoto, puv).rgb);
+        // developing: the place comes up out of the dark in soft patches
+        if (uReveal < 0.999) {
           vec2 q = vUv * vec2(uRes.x / uRes.y, 1.0);
-          float n = fbm(q * 2.6) * 0.75 + fbm(q * 11.0 + 3.0) * 0.25;
-          float edge = uPhoto * 1.45 - 0.22;
-          float m = 1.0 - smoothstep(edge - 0.09, edge + 0.09, n);
-          float rim = 1.0 - abs(m * 2.0 - 1.0);
-          c = mix(c, pc, m);
-          c += vec3(1.0, 0.78, 0.55) * rim * 0.22 * step(0.001, 1.0 - uPhoto);
+          float n = fbm(q * 2.4) * 0.75 + fbm(q * 9.0 + 3.0) * 0.25;
+          float edge = uReveal * 1.45 - 0.22;
+          float m = smoothstep(edge - 0.1, edge + 0.1, n);
+          c = mix(c, uRevealColor, m);
         }
 
         // clouds for travelling between places
@@ -291,11 +263,6 @@ export function createPost(THREE, renderer, { quality = 'high' } = {}) {
           vec3 cc = toSRGB(mix(uCloudShade, uCloudLit, lit));
           c = mix(c, cc, clamp(cover, 0.0, 1.0));
         }
-
-        // vignette and grain
-        c *= 1.0 - uVignette * smoothstep(0.2, 0.9, dot(dc, dc) * 2.2);
-        float g = fract(sin(dot(vUv * uRes + fract(uTime) * 91.7, vec2(12.9898, 78.233))) * 43758.5453) - 0.5;
-        c += g * uGrain * (1.0 - l * 0.6);
 
         c = mix(c, vec3(0.02), uFade);
         gl_FragColor = vec4(c, 1.0);
@@ -356,7 +323,6 @@ export function createPost(THREE, renderer, { quality = 'high' } = {}) {
    */
   function render(scene, camera, { time = 0, exposure = 1, overlay = null, sun = null, flat = false } = {}) {
     uniforms.uTime.value = time
-    uniforms.uFlat.value = flat ? 1 : 0
     uniforms.uExposure.value = exposure
     uniforms.uProjInv.value.copy(camera.projectionMatrixInverse)
     // pixels per metre at 1 m distance, for sizing the occlusion radius
@@ -417,11 +383,6 @@ export function createPost(THREE, renderer, { quality = 'high' } = {}) {
     setSize,
     render,
     renderClouds,
-    /** The photo to show full screen (uniforms.uPhoto sets how much). */
-    setPhoto(texture, aspect) {
-      uniforms.tPhoto.value = texture
-      uniforms.uPhotoAspect.value = aspect
-    },
     dispose() {
       for (const t of [color, normals, bloomA, bloomB, rays]) t.dispose()
       depthTexture.dispose()

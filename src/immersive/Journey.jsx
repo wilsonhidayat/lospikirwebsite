@@ -1,69 +1,67 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { AnimatePresence, motion, useReducedMotion } from 'framer-motion'
 import { immersiveSupported, qualityLevel } from './support.js'
 import { SPRING, project } from '../motion.js'
 import '../styles/journey.css'
 
-const INTRO_KEY = 'lospikir-intro-seen'
-const seenIntro = () => {
-  try {
-    return sessionStorage.getItem(INTRO_KEY) === '1'
-  } catch {
-    return true
-  }
-}
-const markIntro = () => {
-  try {
-    sessionStorage.setItem(INTRO_KEY, '1')
-  } catch {
-    /* private mode: just show it again next time */
-  }
-}
-
 /**
  * The tour.
  *
- *  intro    first visit only: an instant print slides out, develops, and
- *           opens up into the landing photo
- *  landing  one of Wilson's photos, full screen: Start exploring / Skip
- *  wall     every project as an instant print hanging on twine — the
- *           memories. Choose one…
- *  place    …the view flies into the print, the photo fills the screen and
- *           develops into the 3D place where it was taken. The photos float
- *           in the middle as prints in the wind; each new photo blows in as
- *           the view moves somewhere new. After the last: "View other
- *           memories", back to the wall.
+ *  landing   the LOSPIKIR logo, big, with Start exploring / Skip the tour —
+ *            over a soft gradient, or (?landing=photo) over a photograph
+ *  memories  every project as an instant print on a long line of twine;
+ *            scroll sideways through them, the one in the middle comes
+ *            forward and its name is written large. Click it…
+ *  place     …the photo flies out of its print to the middle of the screen
+ *            and the 3D place where it was taken develops around it. The
+ *            photos are shown as they are — no frame, no filter, full
+ *            quality — with arrows either side; each new photo moves the view
+ *            somewhere new. After the last: View other memories.
  *
- * Gallery pages go straight into their own place. Without WebGL (or with
- * reduced motion) the same steps work as flat pages with CSS prints.
+ * The page doesn't scroll while you're in the memories or a place. Gallery
+ * pages open straight into their own place. Without WebGL the same steps
+ * work over a soft copy of the photo.
  *
  * items: galleries — { slug, title, caption, hero, alt, photos, scene }
  */
-export default function Journey({
-  items,
-  variant = 'home',
-  landing = null,
-  skip = '/work',
-  skipLabel = 'Skip the tour',
-  after = '#packages',
-}) {
+export default function Journey({ items, variant = 'home', landing = null, skip = '/work', skipLabel = 'Skip the tour', allPhotos = '#photos' }) {
   const reduced = useReducedMotion()
   const home = variant === 'home'
   const sectionRef = useRef(null)
   const glRef = useRef(null)
   const viewerRef = useRef(null)
-  const printHitRef = useRef(null)
+  const viewerReady = useRef(null)
 
   const [use3D, setUse3D] = useState(() => immersiveSupported())
-  const [stage, setStage] = useState(() => (!home ? 'place' : reduced || seenIntro() ? 'landing' : 'intro'))
-  const [phase, setPhase] = useState('loading')
+  const [stage, setStage] = useState(home ? 'landing' : 'place') // landing | memories | place
+  const [phase, setPhase] = useState('idle')
   const [chapter, setChapter] = useState(0)
   const [photo, setPhoto] = useState(0)
   const [dir, setDir] = useState(1)
-  const [full, setFull] = useState(false)
-  const [hover, setHover] = useState(-1)
+  const [flight, setFlight] = useState(null) // the photo flying out of its print
   const [visible, setVisible] = useState(true)
+  const [photoOn, setPhotoOn] = useState(!home) // the place's photo is showing
+  const landingStyle = useMemo(() => {
+    if (typeof window === 'undefined') return 'gradient'
+    return new URLSearchParams(window.location.search).get('landing') === 'photo' ? 'photo' : 'gradient'
+  }, [])
+
+  // the shape of every project's moment photo, known before the memories show
+  const [aspects, setAspects] = useState(() => items.map(() => 0))
+  useEffect(() => {
+    if (!home) return
+    let alive = true
+    items.forEach((it, i) => {
+      const img = new Image()
+      img.onload = () => alive && setAspects((a) => a.map((v, k) => (k === i ? img.naturalWidth / img.naturalHeight : v)))
+      img.src = it.hero
+    })
+    return () => {
+      alive = false
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   const item = items[chapter]
   const photos = useMemo(() => {
@@ -75,72 +73,57 @@ export default function Journey({
   const name = item.title || item.caption
   const last = photo === photos.length - 1
   const altFor = (p, i) => p?.alt || `${name} — photo ${i + 1} of ${photos.length}`
-  const landingSrc = landing || items[0]?.hero
 
-  /* --- the 3D viewer ----------------------------------------------------- */
+  /* --- the 3D viewer (made when first needed) -------------------------- */
 
-  useEffect(() => {
-    if (!use3D) return
-    const host = glRef.current
+  const getViewer = useCallback(() => {
+    if (!use3D) return Promise.resolve(null)
+    if (viewerReady.current) return viewerReady.current
     const canvas = document.createElement('canvas')
     canvas.className = 'jr__canvas'
     canvas.setAttribute('aria-hidden', 'true')
-    host.appendChild(canvas)
-    let alive = true
-    let viewer = null
-
-    // the tap target over the floating print, moved every frame
-    const onPrintRect = (r) => {
-      const el = printHitRef.current
-      if (!el) return
-      if (!r.visible) {
-        el.style.display = 'none'
-        return
-      }
-      el.style.display = 'block'
-      el.style.transform = `translate(${r.x}px, ${r.y}px)`
-      el.style.width = `${r.w}px`
-      el.style.height = `${r.h}px`
-    }
-
-    import('./viewer.js')
+    glRef.current.appendChild(canvas)
+    viewerReady.current = import('./viewer.js')
       .then(({ createViewer }) =>
         createViewer({
           canvas,
           quality: qualityLevel(),
-          onPrintRect,
-          onPhase: (p) => alive && setPhase(p),
+          onPhase: (p) => setPhase(p),
           onError: (err) => {
             console.error(err)
-            if (alive) setUse3D(false)
+            setUse3D(false)
           },
         })
       )
       .then((v) => {
-        if (!alive) {
-          v.dispose()
-          return
-        }
-        viewer = v
         viewerRef.current = v
         v.start()
-        if (home) v.prepareWall(items).catch((err) => console.error(err))
-        else v.enter(0, items[0], { title: items[0].title || items[0].caption })
+        return v
       })
       .catch((err) => {
         console.error(err)
-        if (alive) setUse3D(false)
+        setUse3D(false)
+        return null
       })
-    return () => {
-      alive = false
-      viewerRef.current = null
-      viewer?.dispose()
-      canvas.remove()
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    return viewerReady.current
   }, [use3D])
 
-  // pause off screen; resize; the view leans gently with the pointer
+  useEffect(
+    () => () => {
+      viewerRef.current?.dispose()
+      viewerRef.current = null
+    },
+    []
+  )
+
+  // gallery pages: straight into the place
+  useEffect(() => {
+    if (home) return
+    getViewer().then((v) => v?.enter(items[0]))
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  // pause off screen; resize; a breath of parallax with the pointer
   useEffect(() => {
     const io = new IntersectionObserver(([e]) => setVisible(e.intersectionRatio > 0.2), { threshold: [0, 0.2, 0.6] })
     io.observe(sectionRef.current)
@@ -158,92 +141,66 @@ export default function Journey({
   useEffect(() => {
     const v = viewerRef.current
     if (!v) return
-    if (visible) v.start()
+    if (visible && stage === 'place') v.start()
     else v.stop()
-  }, [visible, phase])
+  }, [visible, stage, phase])
 
-  // the next print, painted ahead of time
+  // no page scrolling while in the memories or a place
   useEffect(() => {
-    if (stage !== 'place' || phase !== 'arrived') return
-    const next = photos[photo + 1]
-    if (next) viewerRef.current?.preloadPrint(next.src)
-  }, [stage, phase, photo, photos])
+    const lock = home && (stage === 'memories' || stage === 'place')
+    document.documentElement.classList.toggle('jr-tour', lock)
+    return () => document.documentElement.classList.remove('jr-tour')
+  }, [home, stage])
 
-  /* --- moving through the tour ------------------------------------------- */
-
-  function finishIntro() {
-    markIntro()
-    setStage((s) => (s === 'intro' ? 'landing' : s))
-  }
+  /* --- moving through the tour ------------------------------------------ */
 
   function startExploring() {
-    setStage('wall')
-    sectionRef.current?.scrollIntoView({ behavior: reduced ? 'auto' : 'smooth', block: 'start' })
-    if (viewerRef.current) viewerRef.current.showWall(items)
-    else setPhase('wall')
+    window.scrollTo({ top: sectionRef.current.offsetTop, behavior: 'auto' })
+    setStage('memories')
+    getViewer() // get the 3D ready in the background
   }
 
-  function openMemory(i) {
+  function openMemory(i, imgEl) {
+    const it = items[i]
+    const aspect = imgEl?.naturalWidth ? imgEl.naturalWidth / imgEl.naturalHeight : 0.75
+    const from = imgEl?.getBoundingClientRect()
     setChapter(i)
     setPhoto(0)
     setDir(1)
-    setHover(-1)
+    setPhotoOn(false)
+    if (from && !reduced) setFlight({ src: it.hero, from, to: photoBox(aspect) })
+    else setPhotoOn(true)
     setStage('place')
-    if (viewerRef.current) {
-      setPhase('entering')
-      viewerRef.current.enter(i, items[i], { title: items[i].title || items[i].caption })
-    } else setPhase('arrived')
+    setPhase('loading')
+    getViewer().then((v) => (v ? v.enter(it) : setPhase('arrived')))
   }
 
   const goPhoto = useCallback(
     (next) => {
       if (next < 0 || next >= photos.length || next === photo) return
-      const d = next > photo ? 1 : -1
-      setDir(d)
+      setDir(next > photo ? 1 : -1)
       setPhoto(next)
-      viewerRef.current?.photo(next, photos[next].src, d)
+      viewerRef.current?.photo(next)
     },
     [photo, photos]
   )
 
   function backToMemories() {
-    setFull(false)
-    if (!home) return
-    setStage('wall')
-    if (viewerRef.current) {
-      setPhase('leaving')
-      viewerRef.current.backToWall(current?.src)
-    } else setPhase('wall')
+    setPhotoOn(false)
+    viewerRef.current?.leave()
+    setStage('memories')
   }
 
-  function openFull() {
-    setFull(true)
-    document.documentElement.classList.add('jr-locked')
+  function backToLanding() {
+    setStage('landing')
   }
-  function closeFull() {
-    setFull(false)
-    document.documentElement.classList.remove('jr-locked')
-  }
-  useEffect(() => () => document.documentElement.classList.remove('jr-locked'), [])
 
   // keyboard
   useEffect(() => {
-    if (!visible && !full) return
+    if (!visible) return
     const onKey = (e) => {
       if (e.target.closest?.('input, textarea, select')) return
-      if (full) {
-        if (e.key === 'Escape') closeFull()
-        else if (e.key === 'ArrowRight') goPhoto(photo + 1)
-        else if (e.key === 'ArrowLeft') goPhoto(photo - 1)
-        else return
-        e.preventDefault()
-        return
-      }
-      if (stage === 'intro') {
-        finishIntro()
-        return
-      }
-      if (stage !== 'place' || (use3D && phase !== 'arrived')) return
+      if (stage !== 'place' || !photoOn) return
       if (e.key === 'ArrowRight') goPhoto(photo + 1)
       else if (e.key === 'ArrowLeft') goPhoto(photo - 1)
       else if (e.key === 'Escape' && home) backToMemories()
@@ -254,59 +211,18 @@ export default function Journey({
     return () => window.removeEventListener('keydown', onKey)
   })
 
-  // the wall: hover lifts a print, a click opens it, a drag pans
-  const wallDrag = useRef(null)
-  const toNdc = (e) => {
-    const r = e.currentTarget.getBoundingClientRect()
-    return [((e.clientX - r.left) / r.width) * 2 - 1, -(((e.clientY - r.top) / r.height) * 2 - 1)]
-  }
-  const onWallMove = (e) => {
-    const v = viewerRef.current
-    if (!v) return
-    const d = wallDrag.current
-    if (d) {
-      const dx = e.clientX - d.x
-      const dy = e.clientY - d.y
-      if (Math.abs(dx) + Math.abs(dy) > 6) d.moved = true
-      if (d.moved) v.wallPan(dx, dy)
-      d.x = e.clientX
-      d.y = e.clientY
-      return
-    }
-    const [x, y] = toNdc(e)
-    setHover(v.wallHover(x, y))
-  }
-  const onWallDown = (e) => {
-    wallDrag.current = { x: e.clientX, y: e.clientY, moved: false }
-  }
-  const onWallUp = (e) => {
-    const d = wallDrag.current
-    wallDrag.current = null
-    if (d?.moved || phase !== 'wall') return
-    const v = viewerRef.current
-    if (!v) return
-    const [x, y] = toNdc(e)
-    const i = v.wallHover(x, y)
-    if (i >= 0) openMemory(i)
-  }
-
   /* --- render ----------------------------------------------------------- */
 
-  const placeReady = stage === 'place' && (!use3D || phase === 'arrived')
-  const arriving = stage === 'place' && use3D && (phase === 'arriving' || phase === 'loading' || phase === 'entering')
-  const wallReady = stage === 'wall' && (!use3D || phase === 'wall')
-  const slide = reduced ? 0 : 70
-  const dragged = useRef(false)
-
   const skipLink = skip.startsWith('#') ? (
-    <a className="jr__skip" href={skip}>
+    <a className="jr__pill" href={skip}>
       {skipLabel}
     </a>
   ) : (
-    <Link className="jr__skip" to={skip}>
+    <Link className="jr__pill" to={skip}>
       {skipLabel}
     </Link>
   )
+  const noCopy = { onContextMenu: (e) => e.preventDefault(), draggable: false }
 
   return (
     <section
@@ -315,269 +231,380 @@ export default function Journey({
       data-phase={phase}
       aria-label={home ? 'The tour' : name}
     >
-      {/* without 3D: a soft copy of the photo behind the flat pages */}
-      <div className="jr__flat" aria-hidden="true">
-        {stage === 'place' && <img src={current?.src || item.hero} alt="" />}
-      </div>
-      <div className="jr__gl" ref={glRef} />
+      {/* the place: 3D, or a soft copy of the photo */}
+      <div className="jr__gl" ref={glRef} aria-hidden="true" />
+      {!use3D && stage === 'place' && (
+        <div className="jr__flat" aria-hidden="true">
+          <img src={current?.src} alt="" />
+        </div>
+      )}
 
-      {/* First visit: a print slides out and develops into the landing photo */}
+      {/* Landing */}
       <AnimatePresence>
-        {stage === 'intro' && <IntroReel src={landingSrc} onDone={finishIntro} />}
-      </AnimatePresence>
-
-      {/* Landing: one photo, full screen */}
-      <AnimatePresence>
-        {(stage === 'landing' || stage === 'intro') && (
+        {stage === 'landing' && (
           <motion.div
             key="landing"
-            className="jr__landing"
-            initial={false}
-            animate={{ opacity: stage === 'landing' ? 1 : 0 }}
-            exit={{ opacity: 0, transition: { duration: 1.1 } }}
-            transition={{ duration: 0.9 }}
+            className={`jr__landing jr__landing--${landingStyle}`}
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1, transition: { duration: 0.8 } }}
+            exit={{ opacity: 0, transition: { duration: 0.7 } }}
           >
-            <img className="jr__landing-photo" src={landingSrc} alt="" />
-            <div className="jr__landing-shade" aria-hidden="true" />
-            <h1 className="sr-only">Lospikir — photography</h1>
-            {stage === 'landing' && (
-              <motion.div
-                className="jr__landing-actions"
-                initial={{ opacity: 0, y: 12 }}
-                animate={{ opacity: 1, y: 0, transition: { delay: 0.4, duration: 0.9 } }}
-              >
+            {landingStyle === 'photo' && <img className="jr__landing-photo" src={landing || items[0]?.hero} alt="" {...noCopy} />}
+            <div className="jr__landing-glow" aria-hidden="true" />
+            <div className="jr__landing-center">
+              <h1 className="jr__logo">
+                <motion.img
+                  src="/logo-bone.png"
+                  alt="Lospikir"
+                  initial={reduced ? false : { clipPath: 'inset(0 100% 0 0)', opacity: 0.2, y: 10 }}
+                  animate={{ clipPath: 'inset(0 0% 0 0)', opacity: 1, y: 0 }}
+                  transition={{ duration: 1.6, ease: [0.22, 1, 0.36, 1], delay: 0.25 }}
+                  {...noCopy}
+                />
+              </h1>
+              <motion.p className="jr__tagline label" initial={{ opacity: 0 }} animate={{ opacity: 1, transition: { delay: 1.4, duration: 0.9 } }}>
+                Photography · Netherlands
+              </motion.p>
+              <motion.div className="jr__landing-actions" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0, transition: { delay: 1.7, duration: 0.8 } }}>
                 <button type="button" className="btn btn--pill" onClick={startExploring}>
                   Start exploring
                 </button>
                 {skipLink}
               </motion.div>
-            )}
+            </div>
           </motion.div>
         )}
       </AnimatePresence>
 
-      {/* The wall of memories */}
-      {stage === 'wall' && use3D && (
-        <div
-          className={`jr__wallhit${hover >= 0 ? ' is-over' : ''}`}
-          onPointerMove={onWallMove}
-          onPointerDown={onWallDown}
-          onPointerUp={onWallUp}
-          onPointerLeave={() => {
-            wallDrag.current = null
-            setHover(viewerRef.current?.wallHover(-9, -9) ?? -1)
+      {/* Memories */}
+      <AnimatePresence>
+        {stage === 'memories' && (
+          <Memories key="memories" items={items} aspects={aspects} start={chapter} onOpen={openMemory} onBack={backToLanding} skipLink={skipLink} noCopy={noCopy} />
+        )}
+      </AnimatePresence>
+
+      {/* The photo flying out of its print */}
+      {flight && (
+        <motion.div
+          className="jr__flight"
+          initial={{ left: flight.from.left, top: flight.from.top, width: flight.from.width, height: flight.from.height }}
+          animate={{ left: flight.to.left, top: flight.to.top, width: flight.to.width, height: flight.to.height }}
+          transition={{ duration: 1.1, ease: [0.65, 0, 0.35, 1] }}
+          onAnimationComplete={() => {
+            setPhotoOn(true)
+            requestAnimationFrame(() => setFlight(null))
           }}
-          aria-hidden="true"
-        />
-      )}
-      <AnimatePresence>
-        {wallReady && (
-          <motion.div key="wallui" className="jr__wallui" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.6 }}>
-            <p className="label jr__hint">{hover >= 0 ? items[hover].title || items[hover].caption : 'Choose a memory'}</p>
-            {/* the same choices as plain buttons: for keyboards, screen readers, and no-3D */}
-            <ol className={use3D ? 'jr__memlist sr-only-focusable' : 'jr__memlist jr__polaroids'}>
-              {items.map((it, i) => (
-                <li key={it.slug}>
-                  <button type="button" className="jr__mem" onClick={() => openMemory(i)} style={{ '--tilt': `${((i * 37) % 9) - 4}deg` }}>
-                    {!use3D && <img src={it.hero} alt="" loading="lazy" />}
-                    <span>{it.title || it.caption}</span>
-                  </button>
-                </li>
-              ))}
-            </ol>
-            {skipLink}
-          </motion.div>
-        )}
-      </AnimatePresence>
-
-      {/* Arriving: the gallery's title */}
-      <AnimatePresence>
-        {arriving && phase === 'arriving' && (
-          <motion.div
-            key={`card-${chapter}`}
-            className="jr__titlecard"
-            initial={{ opacity: 0, y: 14 }}
-            animate={{ opacity: 1, y: 0, transition: { duration: 1.1, delay: 0.8 } }}
-            exit={{ opacity: 0, transition: { duration: 0.7 } }}
-            aria-hidden="true"
-          >
-            <p className="display jr__titlecard-name">{name}</p>
-          </motion.div>
-        )}
-      </AnimatePresence>
-
-      {/* Without 3D: the print in the middle */}
-      {stage === 'place' && !use3D && (
-        <div className="jr__flatprint">
-          <AnimatePresence initial={false} custom={dir} mode="popLayout">
-            <motion.button
-              key={current?.src}
-              type="button"
-              className="jr__print"
-              initial={{ opacity: 0, x: dir * slide, rotate: dir * 6 }}
-              animate={{ opacity: 1, x: 0, rotate: -1.5 }}
-              exit={{ opacity: 0, x: -dir * slide * 1.4, rotate: -dir * 8 }}
-              transition={SPRING}
-              onClick={() => !dragged.current && openFull()}
-              drag={photos.length > 1 ? 'x' : false}
-              dragSnapToOrigin
-              onDragStart={() => (dragged.current = true)}
-              onDragEnd={(_, { offset, velocity }) => {
-                const x = offset.x + project(velocity.x)
-                if (x < -80) goPhoto(photo + 1)
-                else if (x > 80) goPhoto(photo - 1)
-                setTimeout(() => (dragged.current = false), 0)
-              }}
-            >
-              <img src={current?.src} alt={altFor(current, photo)} draggable={false} />
-              <span className="jr__print-title">{name}</span>
-            </motion.button>
-          </AnimatePresence>
-        </div>
+        >
+          <img src={flight.src} alt="" {...noCopy} />
+        </motion.div>
       )}
 
-      {/* Browsing a memory */}
-      <button ref={printHitRef} type="button" className="jr__printhit" aria-label={`View ${altFor(current, photo)} full screen`} onClick={openFull} style={{ display: 'none' }} />
+      {/* A place */}
       <AnimatePresence>
-        {placeReady && (
-          <motion.div key="chrome" className="jr__chrome" initial={{ opacity: 0 }} animate={{ opacity: 1, transition: { duration: 0.7 } }} exit={{ opacity: 0, transition: { duration: 0.3 } }}>
-            {home && (
-              <button type="button" className="jr__back" onClick={backToMemories}>
+        {stage === 'place' && (photoOn || flight) && (
+          <motion.div key={`place-${chapter}`} className="pv" initial={{ opacity: 1 }} exit={{ opacity: 0, transition: { duration: 0.6 } }}>
+            {home ? (
+              <button type="button" className="jr__pill jr__back" onClick={backToMemories}>
                 ← Memories
               </button>
-            )}
-            <h2 className="display jr__name">{name}</h2>
-            <div className="jr__nav">
-              <button type="button" className="jr__arrow" aria-label="Previous photo" onClick={() => goPhoto(photo - 1)} disabled={photo === 0}>
-                ←
-              </button>
-              <span className="label jr__count" aria-hidden="true">
-                {photo + 1} / {photos.length}
-              </span>
-              {!last && (
-                <button type="button" className="jr__arrow" aria-label="Next photo" onClick={() => goPhoto(photo + 1)}>
-                  →
-                </button>
-              )}
-              {last &&
-                (home ? (
-                  <button type="button" className="btn btn--pill jr__more" onClick={backToMemories}>
-                    View other memories
-                  </button>
-                ) : (
-                  <a className="btn btn--pill jr__more" href="#photos">
-                    See every photo
-                  </a>
-                ))}
-            </div>
-            {home && last && (
-              <a className="jr__worktogether" href={after}>
-                Work together →
+            ) : (
+              <a className="jr__pill jr__back" href={allPhotos}>
+                See every photo ↓
               </a>
             )}
-            {skipLink}
-          </motion.div>
-        )}
-      </AnimatePresence>
 
-      {/* The photo, full screen */}
-      <AnimatePresence>
-        {full && (
-          <motion.div
-            className="jr__full"
-            role="dialog"
-            aria-modal="true"
-            aria-label={altFor(current, photo)}
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            transition={{ duration: 0.3 }}
-            onClick={(e) => e.target === e.currentTarget && closeFull()}
-          >
-            <AnimatePresence initial={false} custom={dir} mode="popLayout">
-              <motion.img
-                key={current?.src}
-                src={current?.src}
-                alt={altFor(current, photo)}
-                className="jr__full-photo"
-                initial={{ opacity: 0, x: dir * slide, scale: 0.98 }}
-                animate={{ opacity: 1, x: 0, scale: 1 }}
-                exit={{ opacity: 0, x: -dir * slide }}
-                transition={SPRING}
-                drag={photos.length > 1 ? 'x' : false}
-                dragSnapToOrigin
-                dragElastic={0.25}
-                onDragEnd={(_, { offset, velocity }) => {
-                  const x = offset.x + project(velocity.x)
-                  if (x < -80) goPhoto(photo + 1)
-                  else if (x > 80) goPhoto(photo - 1)
-                }}
-                draggable={false}
-              />
-            </AnimatePresence>
-            <button type="button" className="jr__full-close" onClick={closeFull} autoFocus>
-              Close
-            </button>
-            {photos.length > 1 && (
-              <>
-                {photo > 0 && (
-                  <button type="button" className="jr__arrow jr__full-step jr__full-step--prev" aria-label="Previous photo" onClick={() => goPhoto(photo - 1)}>
-                    ←
+            <div className="pv__stage">
+              <motion.div className="pv__frame" layout transition={SPRING} style={{ visibility: photoOn ? 'visible' : 'hidden' }}>
+                <AnimatePresence initial={false} custom={dir} mode="popLayout">
+                  <motion.img
+                    key={current?.src}
+                    src={current?.src}
+                    alt={altFor(current, photo)}
+                    className="pv__photo"
+                    custom={dir}
+                    initial={{ opacity: 0, x: dir * 90, rotateY: dir * 10 }}
+                    animate={{ opacity: 1, x: 0, rotateY: 0 }}
+                    exit={{ opacity: 0, x: -dir * 90, rotateY: -dir * 10 }}
+                    transition={SPRING}
+                    drag={photos.length > 1 ? 'x' : false}
+                    dragSnapToOrigin
+                    dragElastic={0.2}
+                    onDragEnd={(_, { offset, velocity }) => {
+                      const x = offset.x + project(velocity.x)
+                      if (x < -80) goPhoto(photo + 1)
+                      else if (x > 80) goPhoto(photo - 1)
+                    }}
+                    {...noCopy}
+                  />
+                </AnimatePresence>
+                {photos.length > 1 && photo > 0 && (
+                  <button type="button" className="pv__arrow pv__arrow--prev" aria-label="Previous photo" onClick={() => goPhoto(photo - 1)}>
+                    <Chevron dir={-1} />
                   </button>
                 )}
-                {!last && (
-                  <button type="button" className="jr__arrow jr__full-step jr__full-step--next" aria-label="Next photo" onClick={() => goPhoto(photo + 1)}>
-                    →
+                {photos.length > 1 && !last && (
+                  <button type="button" className="pv__arrow pv__arrow--next" aria-label="Next photo" onClick={() => goPhoto(photo + 1)}>
+                    <Chevron dir={1} />
                   </button>
                 )}
-                <p className="label jr__full-count" aria-hidden="true">
-                  {photo + 1} / {photos.length}
+                <p className="pv__credit">
+                  © <img src="/logo-bone.png" alt="Lospikir" {...noCopy} />
                 </p>
-              </>
-            )}
+                <div className="pv__below">
+                  <p className="pv__count label" aria-hidden="true">
+                    {String(photo + 1).padStart(2, '0')} <span>/</span> {String(photos.length).padStart(2, '0')}
+                  </p>
+                  <AnimatePresence>
+                    {last && home && (
+                      <motion.button
+                        key="more"
+                        type="button"
+                        className="btn btn--pill pv__more"
+                        onClick={backToMemories}
+                        initial={{ opacity: 0, y: 8 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        exit={{ opacity: 0 }}
+                      >
+                        View other memories
+                      </motion.button>
+                    )}
+                  </AnimatePresence>
+                </div>
+              </motion.div>
+            </div>
+
+            <h2 className="display pv__name">{name}</h2>
           </motion.div>
         )}
       </AnimatePresence>
 
       <p className="sr-only" aria-live="polite">
-        {placeReady ? `${name}. Photo ${photo + 1} of ${photos.length}.` : stage === 'wall' && wallReady ? 'Memories. Choose one.' : ''}
+        {stage === 'place' && photoOn ? `${name}. Photo ${photo + 1} of ${photos.length}.` : ''}
       </p>
     </section>
   )
 }
 
-/**
- * First visit: an instant print slides up out of the dark, the photo on it
- * develops from nothing, and then the view dives into it — it opens up into
- * the landing photo. Tap or press any key to skip.
- */
-function IntroReel({ src, onDone }) {
-  useEffect(() => {
-    const t = setTimeout(onDone, 4300)
-    return () => clearTimeout(t)
-  }, [onDone])
+/** Where the photo sits in a place, for a given aspect ratio (CSS px). Matches journey.css. */
+function photoBox(aspect) {
+  const W = window.innerWidth
+  const H = window.innerHeight
+  const phone = W <= 820
+  const maxW = phone ? W * 0.9 : W * 0.56
+  const maxH = phone ? H * 0.56 : H * 0.66
+  const w = Math.min(maxW, maxH * aspect)
+  const h = w / aspect
+  const cy = phone ? H * 0.46 : H * 0.47
+  return { left: (W - w) / 2, top: cy - h / 2, width: w, height: h }
+}
+
+function Chevron({ dir }) {
   return (
-    <motion.div className="jr__reel" onClick={onDone} exit={{ opacity: 0, transition: { duration: 0.8 } }}>
-      <motion.div
-        className="jr__reel-print"
-        initial={{ y: '70vh', rotate: -8, scale: 0.9 }}
-        animate={{
-          y: ['70vh', '0vh', '0vh', '0vh'],
-          rotate: [-8, -2, -2, 0],
-          scale: [0.9, 1, 1, 7],
-          opacity: [1, 1, 1, 0],
-        }}
-        transition={{ duration: 5.2, times: [0, 0.22, 0.7, 1], ease: [0.22, 1, 0.36, 1] }}
-      >
-        <motion.img
-          src={src}
-          alt=""
-          initial={{ filter: 'brightness(0.12) sepia(1) saturate(0.2) blur(4px)' }}
-          animate={{ filter: 'brightness(1) sepia(0) saturate(1) blur(0px)' }}
-          transition={{ delay: 1.1, duration: 2.4, ease: 'easeInOut' }}
-        />
-        <span className="jr__reel-brand">Lospikir</span>
-      </motion.div>
+    <svg viewBox="0 0 24 24" width="26" height="26" aria-hidden="true">
+      <path d={dir > 0 ? 'M9 5l7 7-7 7' : 'M15 5l-7 7 7 7'} fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  )
+}
+
+/**
+ * The memories: a long line of twine with every project hanging from it as
+ * an instant print. Scroll sideways (wheel, trackpad, drag, swipe, arrow
+ * keys); the print in the middle comes forward and its name is written large
+ * beneath. Click it to go in.
+ */
+function Memories({ items, aspects, start = 0, onOpen, onBack, skipLink, noCopy }) {
+  const trackRef = useRef(null)
+  const lineRef = useRef(null)
+  const cardRefs = useRef([])
+  const [active, setActive] = useState(start)
+  const wide = aspects.map((a) => a > 1.1)
+  const drag = useRef(null)
+  const activeRef = useRef(start)
+
+  // centre the starting print before the first paint
+  useLayoutEffect(() => {
+    const el = cardRefs.current[start]
+    const track = trackRef.current
+    if (el && track) track.scrollLeft = el.offsetLeft + el.offsetWidth / 2 - track.clientWidth / 2
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  // each print leans back the further it is from the middle
+  useEffect(() => {
+    const track = trackRef.current
+    let raf = 0
+    const update = () => {
+      raf = 0
+      const mid = track.clientWidth / 2
+      let best = 0
+      let bestD = Infinity
+      cardRefs.current.forEach((el, i) => {
+        if (!el) return
+        const c = el.offsetLeft + el.offsetWidth / 2 - track.scrollLeft
+        const d = (c - mid) / Math.max(1, el.offsetWidth)
+        const a = Math.min(1, Math.abs(d))
+        el.style.setProperty('--d', d.toFixed(3))
+        el.style.setProperty('--a', a.toFixed(3))
+        el.style.zIndex = String(100 - Math.round(Math.abs(d) * 10))
+        if (Math.abs(d) < bestD) {
+          bestD = Math.abs(d)
+          best = i
+        }
+      })
+      if (best !== activeRef.current) {
+        activeRef.current = best
+        setActive(best)
+      }
+    }
+    const onScroll = () => {
+      if (!raf) raf = requestAnimationFrame(update)
+    }
+    // the twine runs the whole length of the line
+    const sizeLine = () => {
+      if (lineRef.current) lineRef.current.style.width = `${track.scrollWidth}px`
+    }
+    sizeLine()
+    const ro = new ResizeObserver(() => {
+      sizeLine()
+      onScroll()
+    })
+    ro.observe(track)
+    // a vertical wheel scrolls the line sideways
+    const onWheel = (e) => {
+      if (Math.abs(e.deltaY) <= Math.abs(e.deltaX)) return
+      e.preventDefault()
+      track.scrollBy({ left: e.deltaY * 1.1, behavior: 'auto' })
+    }
+    update()
+    track.addEventListener('scroll', onScroll, { passive: true })
+    track.addEventListener('wheel', onWheel, { passive: false })
+    window.addEventListener('resize', onScroll)
+    return () => {
+      track.removeEventListener('scroll', onScroll)
+      track.removeEventListener('wheel', onWheel)
+      window.removeEventListener('resize', onScroll)
+      ro.disconnect()
+      cancelAnimationFrame(raf)
+    }
+  }, [])
+
+  // the prints change width once their photos' shapes are known: keep the
+  // active one in the middle
+  const wideKey = wide.join()
+  useLayoutEffect(() => {
+    const el = cardRefs.current[activeRef.current]
+    const track = trackRef.current
+    if (lineRef.current && track) lineRef.current.style.width = '0px'
+    if (lineRef.current && track) lineRef.current.style.width = `${track.scrollWidth}px`
+    if (el && track) track.scrollLeft = el.offsetLeft + el.offsetWidth / 2 - track.clientWidth / 2
+    track?.dispatchEvent(new Event('scroll'))
+  }, [wideKey])
+
+  const centre = (i, smooth = true) => {
+    const el = cardRefs.current[i]
+    const track = trackRef.current
+    if (!el || !track) return
+    track.scrollTo({ left: el.offsetLeft + el.offsetWidth / 2 - track.clientWidth / 2, behavior: smooth ? 'smooth' : 'auto' })
+  }
+
+  // keyboard: ← → move along the line, Enter opens
+  useEffect(() => {
+    const onKey = (e) => {
+      if (e.target.closest?.('input, textarea, select')) return
+      if (e.key === 'ArrowRight') centre(Math.min(items.length - 1, activeRef.current + 1))
+      else if (e.key === 'ArrowLeft') centre(Math.max(0, activeRef.current - 1))
+      else if (e.key === 'Enter' && document.activeElement === document.body) {
+        const el = cardRefs.current[activeRef.current]
+        onOpen(activeRef.current, el?.querySelector('img'))
+      } else return
+      e.preventDefault()
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  })
+
+  // mouse drag (touch scrolls natively)
+  const onDown = (e) => {
+    if (e.pointerType !== 'mouse') return
+    drag.current = { x: e.clientX, left: trackRef.current.scrollLeft, moved: false }
+  }
+  const onMove = (e) => {
+    const d = drag.current
+    if (!d) return
+    const dx = e.clientX - d.x
+    if (Math.abs(dx) > 5) d.moved = true
+    trackRef.current.scrollLeft = d.left - dx
+  }
+  const onUp = () => {
+    const d = drag.current
+    drag.current = null
+    if (d?.moved) centre(activeRef.current)
+  }
+
+  const click = (i, e) => {
+    if (drag.current?.moved) return
+    if (i !== activeRef.current) centre(i)
+    else onOpen(i, e.currentTarget.querySelector('img'))
+  }
+
+  const it = items[active]
+
+  return (
+    <motion.div className="mem" initial={{ opacity: 0 }} animate={{ opacity: 1, transition: { duration: 0.7 } }} exit={{ opacity: 0, transition: { duration: 0.6 } }}>
+      <div className="mem__bokeh" aria-hidden="true" />
+      <button type="button" className="jr__pill jr__back" onClick={onBack}>
+        ← Home
+      </button>
+      <div className="mem__skip">{skipLink}</div>
+
+      <div className="mem__track" ref={trackRef} onPointerDown={onDown} onPointerMove={onMove} onPointerUp={onUp} onPointerLeave={onUp}>
+        <div className="mem__line" ref={lineRef} aria-hidden="true" />
+        {items.map((m, i) => (
+          <button
+            key={m.slug}
+            ref={(el) => (cardRefs.current[i] = el)}
+            type="button"
+            className={`mem__card${wide[i] ? ' mem__card--wide' : ''}${i === active ? ' is-active' : ''}`}
+            style={{ '--sway': `${(i * 0.73) % 2}s` }}
+            onClick={(e) => click(i, e)}
+            aria-label={i === active ? `Open ${m.title || m.caption}` : m.title || m.caption}
+          >
+            <span className="mem__peg" aria-hidden="true" />
+            <span className="mem__print">
+              <span className="mem__window">
+                <img
+                  src={m.hero}
+                  alt={m.alt || ''}
+                  loading={Math.abs(i - start) < 4 ? 'eager' : 'lazy'}
+                  decoding="async"
+                  {...noCopy}
+                />
+              </span>
+              <span className="mem__hand">{m.title || m.caption}</span>
+            </span>
+          </button>
+        ))}
+      </div>
+
+      <div className="mem__caption">
+        <AnimatePresence mode="wait">
+          <motion.h2
+            key={it.slug}
+            className="display mem__name"
+            initial={{ opacity: 0, y: 14 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -10 }}
+            transition={{ duration: 0.35 }}
+          >
+            {it.title || it.caption}
+          </motion.h2>
+        </AnimatePresence>
+        <p className="mem__meta label">
+          {String(active + 1).padStart(2, '0')} / {String(items.length).padStart(2, '0')}
+          <span aria-hidden="true"> · </span>
+          <span className="mem__hint">Click the print to step in</span>
+        </p>
+      </div>
     </motion.div>
   )
 }
