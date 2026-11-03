@@ -139,17 +139,24 @@ export function createPost(THREE, renderer, { quality = 'high' } = {}) {
   const blurQuad = new FullScreenQuad(blurMat)
   const raysQuad = new FullScreenQuad(raysMat)
 
+  // ambient occlusion at half resolution, then blurred — soft, never speckled
+  const aoA = new THREE.WebGLRenderTarget(2, 2, { depthBuffer: false })
+  const aoB = new THREE.WebGLRenderTarget(2, 2, { depthBuffer: false })
+  let aoMat = null // made once the composite's uniforms exist (shared)
+  let aoQuad = null
+
   const uniforms = {
     tColor: { value: color.texture },
     tNormal: { value: normals.texture },
     tDepth: { value: depthTexture },
     tBloom: { value: bloomA.texture },
     tRays: { value: rays.texture },
+    tAO: { value: null },
     uRes: { value: new THREE.Vector2(1, 1) },
     uProjInv: { value: new THREE.Matrix4() },
     uProjScale: { value: 1 },
-    uAO: { value: high ? 1 : 0.7 },
-    uAORadius: { value: 1.4 }, // metres
+    uAO: { value: high ? 0.75 : 0.55 },
+    uAORadius: { value: 0.7 }, // metres
     uBloom: { value: 0.1 },
     uRays: { value: 0 },
     uRayColor: { value: new THREE.Color(0xfff0d8) },
@@ -168,40 +175,21 @@ export function createPost(THREE, renderer, { quality = 'high' } = {}) {
     uRevealColor: { value: new THREE.Vector3(0.043, 0.043, 0.047) },
   }
 
-  const material = new THREE.ShaderMaterial({
-    uniforms,
-    depthTest: false,
-    depthWrite: false,
-    toneMapped: false,
-    defines: { AO_SAMPLES: high ? 12 : 6 },
+  aoMat = new THREE.ShaderMaterial({
+    uniforms: {
+      tDepth: uniforms.tDepth,
+      tNormal: uniforms.tNormal,
+      uRes: uniforms.uRes,
+      uProjInv: uniforms.uProjInv,
+      uProjScale: uniforms.uProjScale,
+      uAORadius: uniforms.uAORadius,
+    },
+    defines: { AO_SAMPLES: high ? 14 : 8 },
     vertexShader: FULLSCREEN_VERT,
     fragmentShader: /* glsl */ `
-      uniform sampler2D tColor; uniform sampler2D tNormal; uniform sampler2D tDepth;
-      uniform sampler2D tBloom; uniform sampler2D tRays;
-      uniform vec2 uRes; uniform mat4 uProjInv; uniform float uProjScale;
-      uniform float uAO; uniform float uAORadius; uniform float uBloom; uniform float uRays; uniform vec3 uRayColor;
-      uniform float uExposure; uniform float uTime;
-      uniform float uSaturation; uniform vec3 uTint;
-      uniform float uCloud; uniform vec3 uCloudLit; uniform vec3 uCloudShade; uniform float uFade;
-      uniform float uReveal; uniform vec3 uRevealColor;
+      uniform sampler2D tNormal; uniform sampler2D tDepth;
+      uniform vec2 uRes; uniform mat4 uProjInv; uniform float uProjScale; uniform float uAORadius;
       varying vec2 vUv;
-      ${NOISE_GLSL}
-
-      vec3 toSRGB(vec3 c) {
-        return mix(c * 12.92, 1.055 * pow(c, vec3(1.0 / 2.4)) - 0.055, step(0.0031308, c));
-      }
-      // ACES filmic, as fitted by Stephen Hill (the curve three.js uses)
-      vec3 rrtOdt(vec3 v) {
-        vec3 a = v * (v + 0.0245786) - 0.000090537;
-        vec3 b = v * (0.983729 * v + 0.4329510) + 0.238081;
-        return a / b;
-      }
-      vec3 aces(vec3 c) {
-        const mat3 IN = mat3(0.59719, 0.07600, 0.02840, 0.35458, 0.90834, 0.13383, 0.04823, 0.01566, 0.83777);
-        const mat3 OUT = mat3(1.60475, -0.10208, -0.00327, -0.53108, 1.10813, -0.07276, -0.07367, -0.00605, 1.07602);
-        return clamp(OUT * rrtOdt(IN * c), 0.0, 1.0);
-      }
-
       vec3 viewPos(vec2 uv, float d) {
         vec4 v = uProjInv * vec4(uv * 2.0 - 1.0, d * 2.0 - 1.0, 1.0);
         return v.xyz / v.w;
@@ -231,12 +219,84 @@ export function createPost(THREE, renderer, { quality = 'high' } = {}) {
           float fall = max(0.0, 1.0 - vv / (uAORadius * uAORadius * 4.0));
           sum += fall * max(0.0, dot(v, n) + p.z * 0.0015) / (vv + 0.02);
         }
-        return clamp(1.0 - 2.0 * sum / float(AO_SAMPLES), 0.0, 1.0);
+        return clamp(1.0 - 1.4 * sum / float(AO_SAMPLES), 0.35, 1.0);
+      }
+
+      void main() { gl_FragColor = vec4(vec3(occlusion(vUv)), 1.0); }`,
+  })
+  aoQuad = new FullScreenQuad(aoMat)
+
+  // depth-aware blur: smooths the AO without bleeding it across edges, so
+  // furniture and walls never get dark halos
+  const aoBlurMat = new THREE.ShaderMaterial({
+    uniforms: {
+      tInput: { value: null },
+      tDepth: uniforms.tDepth,
+      uProjInv: uniforms.uProjInv,
+      uDir: { value: new THREE.Vector2() },
+    },
+    vertexShader: FULLSCREEN_VERT,
+    fragmentShader: /* glsl */ `
+      uniform sampler2D tInput; uniform sampler2D tDepth; uniform mat4 uProjInv; uniform vec2 uDir;
+      varying vec2 vUv;
+      float viewZ(vec2 uv) {
+        float d = texture2D(tDepth, uv).x;
+        vec4 v = uProjInv * vec4(uv * 2.0 - 1.0, d * 2.0 - 1.0, 1.0);
+        return -v.z / v.w;
+      }
+      void main() {
+        float z0 = viewZ(vUv);
+        float tol = max(z0 * 0.03, 0.02);
+        float sum = 0.0; float wsum = 0.0;
+        for (int i = -4; i <= 4; i++) {
+          vec2 uv = vUv + uDir * float(i) * 1.5;
+          float g = exp(-float(i * i) / 8.0);
+          float w = g * exp(-abs(viewZ(uv) - z0) / tol);
+          sum += texture2D(tInput, uv).r * w;
+          wsum += w;
+        }
+        gl_FragColor = vec4(vec3(sum / max(wsum, 1e-4)), 1.0);
+      }`,
+  })
+  const aoBlurQuad = new FullScreenQuad(aoBlurMat)
+
+  const material = new THREE.ShaderMaterial({
+    uniforms,
+    depthTest: false,
+    depthWrite: false,
+    toneMapped: false,
+    defines: { AO_SAMPLES: high ? 12 : 6 },
+    vertexShader: FULLSCREEN_VERT,
+    fragmentShader: /* glsl */ `
+      uniform sampler2D tColor; uniform sampler2D tNormal; uniform sampler2D tDepth;
+      uniform sampler2D tBloom; uniform sampler2D tRays; uniform sampler2D tAO;
+      uniform vec2 uRes; uniform mat4 uProjInv; uniform float uProjScale;
+      uniform float uAO; uniform float uAORadius; uniform float uBloom; uniform float uRays; uniform vec3 uRayColor;
+      uniform float uExposure; uniform float uTime;
+      uniform float uSaturation; uniform vec3 uTint;
+      uniform float uCloud; uniform vec3 uCloudLit; uniform vec3 uCloudShade; uniform float uFade;
+      uniform float uReveal; uniform vec3 uRevealColor;
+      varying vec2 vUv;
+      ${NOISE_GLSL}
+
+      vec3 toSRGB(vec3 c) {
+        return mix(c * 12.92, 1.055 * pow(c, vec3(1.0 / 2.4)) - 0.055, step(0.0031308, c));
+      }
+      // ACES filmic, as fitted by Stephen Hill (the curve three.js uses)
+      vec3 rrtOdt(vec3 v) {
+        vec3 a = v * (v + 0.0245786) - 0.000090537;
+        vec3 b = v * (0.983729 * v + 0.4329510) + 0.238081;
+        return a / b;
+      }
+      vec3 aces(vec3 c) {
+        const mat3 IN = mat3(0.59719, 0.07600, 0.02840, 0.35458, 0.90834, 0.13383, 0.04823, 0.01566, 0.83777);
+        const mat3 OUT = mat3(1.60475, -0.10208, -0.00327, -0.53108, 1.10813, -0.07276, -0.07367, -0.00605, 1.07602);
+        return clamp(OUT * rrtOdt(IN * c), 0.0, 1.0);
       }
 
       void main() {
         vec3 c = texture2D(tColor, vUv).rgb;
-        if (uAO > 0.0) c *= mix(1.0, occlusion(vUv), uAO);
+        if (uAO > 0.0) c *= mix(1.0, texture2D(tAO, vUv).r, uAO);
 
         vec3 glow = texture2D(tBloom, vUv).rgb * uBloom + texture2D(tRays, vUv).r * uRays * uRayColor;
         // the film curve, then the photographs' own colour
@@ -278,6 +338,8 @@ export function createPost(THREE, renderer, { quality = 'high' } = {}) {
     bloomA.setSize(qw, qh)
     bloomB.setSize(qw, qh)
     rays.setSize(qw, qh)
+    aoA.setSize(Math.max(2, Math.round(w / 2)), Math.max(2, Math.round(h / 2)))
+    aoB.setSize(Math.max(2, Math.round(w / 2)), Math.max(2, Math.round(h / 2)))
     uniforms.uRes.value.set(w, h)
     raysMat.uniforms.uAspect.value = w / h
   }
@@ -348,12 +410,27 @@ export function createPost(THREE, renderer, { quality = 'high' } = {}) {
     drawOver(overlay, true)
     }
 
+    // 2b. ambient occlusion, blurred
+    if (uniforms.uAO.value > 0) {
+      renderer.setRenderTarget(aoA)
+      aoQuad.render(renderer)
+      aoBlurMat.uniforms.tInput.value = aoA.texture
+      aoBlurMat.uniforms.uDir.value.set(1 / aoA.width, 0)
+      renderer.setRenderTarget(aoB)
+      aoBlurQuad.render(renderer)
+      aoBlurMat.uniforms.tInput.value = aoB.texture
+      aoBlurMat.uniforms.uDir.value.set(0, 1 / aoA.height)
+      renderer.setRenderTarget(aoA)
+      aoBlurQuad.render(renderer)
+      uniforms.tAO.value = aoA.texture
+    }
+
     // 3. bloom
     bloom(exposure)
 
     // 4. sun rays, when the sun is in front of us
     const strength = flat ? 0 : sun?.strength ?? 0
-    uniforms.uRays.value = strength * 0.3
+    uniforms.uRays.value = strength * 0.22
     if (strength > 0.001) {
       raysMat.uniforms.uSun.value.copy(sun.uv)
       if (sun.color) uniforms.uRayColor.value.copy(sun.color)
@@ -384,12 +461,15 @@ export function createPost(THREE, renderer, { quality = 'high' } = {}) {
     render,
     renderClouds,
     dispose() {
-      for (const t of [color, normals, bloomA, bloomB, rays]) t.dispose()
+      for (const t of [color, normals, bloomA, bloomB, rays, aoA, aoB]) t.dispose()
       depthTexture.dispose()
       normalMaterial.dispose()
       rigNormalMaterial.dispose()
       for (const m of [material, brightMat, blurMat, raysMat]) m.dispose()
-      for (const q of [quad, brightQuad, blurQuad, raysQuad]) q.dispose()
+      for (const q of [quad, brightQuad, blurQuad, raysQuad, aoQuad]) q.dispose()
+      aoMat.dispose()
+      aoBlurMat.dispose()
+      aoBlurQuad.dispose()
     },
   }
 }

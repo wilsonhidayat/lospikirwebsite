@@ -310,8 +310,8 @@ export async function createViewer({ canvas, quality = 'high', onError, onPhase 
 
   let raf = 0
   let running = false
-  function frame() {
-    raf = requestAnimationFrame(frame)
+  function frame(once) {
+    if (once !== true) raf = requestAnimationFrame(frame)
     if (lost) return
     const time = performance.now() / 1000
     for (const t of [u, yaw, orbit, spotMix, reveal]) t.update(time)
@@ -386,6 +386,10 @@ export async function createViewer({ canvas, quality = 'high', onError, onPhase 
       return ensure(p).catch(() => {})
     },
     resize,
+    /** Draw one frame now (tests, thumbnails). */
+    renderOnce() {
+      frame(true)
+    },
     start() {
       if (running) return
       running = true

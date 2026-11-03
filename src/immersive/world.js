@@ -211,7 +211,18 @@ export function createWorld(THREE, ctx, lightName = 'day', overrides = {}) {
   }
   // The sky read from the project's own photograph (palette.js), when it has
   // one: the painted sky, the haze and the water's reflections all follow it.
-  if (ctx.sky && !L.night) L.sky = { ...L.sky, ...ctx.sky }
+  if (ctx.sky && !L.night) {
+    L.sky = { ...L.sky, ...ctx.sky }
+    // a photo's top edge is not the zenith: the true sky overhead is a little
+    // deeper and bluer than what the lens caught
+    if (ctx.sky.blue) {
+      const z = new THREE.Color(L.sky.zenith)
+      const hsl = {}
+      z.getHSL(hsl)
+      z.setHSL(hsl.h, Math.min(1, hsl.s * 1.35 + 0.08), hsl.l * 0.86)
+      L.sky.zenith = z.getHex()
+    }
+  }
   const scene = new THREE.Scene()
   const sunDir = sunVector(THREE, L.sun.elevation, L.sun.azimuth)
 

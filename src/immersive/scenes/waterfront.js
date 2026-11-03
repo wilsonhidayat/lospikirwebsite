@@ -23,7 +23,7 @@ import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js'
 import { createWorld, waterMaterial, nightWindows } from '../world.js'
 import * as M from '../materials.js'
 import { addForest } from '../trees.js'
-import { beamBatch, paintTexture, seeded, range, pick, glowTexture } from '../utils.js'
+import { beamBatch, paintTexture, seeded, range, pick, glowTexture, scaleBoxUVs } from '../utils.js'
 
 export function buildWaterfront(THREE, ctx, opts = {}) {
   if (opts.partyBoat) return buildPartyBoat(THREE, ctx)
@@ -88,12 +88,14 @@ function toolkit(THREE, root) {
     putM(mat, geo, m4)
   }
   /** A box-section member from a to b (w across, d deep). */
-  function strut(mat, a, b, w, d = w) {
+  function strut(mat, a, b, w, d = w, uvTile = 0) {
     dir.subVectors(b, a)
     const len = dir.length() || 0.001
     q.setFromUnitVectors(zAxis, dir.normalize())
     m4.compose(p.addVectors(a, b).multiplyScalar(0.5), q, one)
-    putM(mat, new THREE.BoxGeometry(w, d, len), m4)
+    const geo = new THREE.BoxGeometry(w, d, len)
+    if (uvTile) scaleBoxUVs(geo, w, d, len, uvTile, uvTile)
+    putM(mat, geo, m4)
   }
   /** A round bar from a to b. */
   function rod(mat, a, b, r, seg = 6) {
@@ -1104,19 +1106,23 @@ function buildRotterdam(THREE, ctx) {
   // towers: big, randomly lit window grids (no visible repeat across a tower)
   const nightFac = (cols, rows, bay, storey, seed, lit, frame) => {
     const t = nightWindows(THREE, { cols, rows, seed, litRatio: lit, frame })
-    const material = new THREE.MeshStandardMaterial({ map: t.map, emissiveMap: t.emissive, emissive: 0xffffff, emissiveIntensity: 2.1, roughness: 0.28, metalness: 0.55 })
+    const material = new THREE.MeshStandardMaterial({ map: t.map, emissiveMap: t.emissive, emissive: 0xffffff, emissiveIntensity: 1.6, roughness: 0.28, metalness: 0.55 })
     return { material, tile: [(cols * bay) / 2, (rows * storey) / 2] }
   }
-  const tGlassA = nightFac(14, 28, 1.8, 3.6, 81, 0.55, '#1c1f24')
-  const tGlassB = nightFac(12, 24, 2.0, 3.5, 82, 0.4, '#202328')
-  const tGlassC = nightFac(10, 22, 2.4, 3.4, 83, 0.3, '#24262a')
-  const tWarm = nightFac(10, 20, 3.0, 3.2, 84, 0.45, '#2b211c')
+  const tGlassA = nightFac(14, 28, 1.8, 3.6, 81, 0.3, '#1c1f24')
+  const tGlassB = nightFac(12, 24, 2.0, 3.5, 82, 0.24, '#202328')
+  const tGlassC = nightFac(10, 22, 2.4, 3.4, 83, 0.18, '#24262a')
+  const tWarm = nightFac(10, 20, 3.0, 3.2, 84, 0.26, '#2b211c')
 
   const white = std(THREE, 0xf2f3f0, 0.35, 0.15, { emissive: new THREE.Color(0x9fb6e0), emissiveIntensity: 0.5 })
   const deckBlue = std(THREE, 0x8fa4b8, 0.45, 0.35, { emissive: new THREE.Color(0x3c5470), emissiveIntensity: 0.55 })
   const steel = std(THREE, 0x55595f, 0.4, 0.85)
   const darkSteel = std(THREE, 0x222428, 0.5, 0.7)
-  const stayMat = new THREE.MeshStandardMaterial({ color: 0xffffff, emissive: 0xe6eeff, emissiveIntensity: 1.5, roughness: 0.3, metalness: 0.2 })
+  const stayMat = new THREE.MeshStandardMaterial({ color: 0xd4dbe3, emissive: 0xbfcce0, emissiveIntensity: 0.55, roughness: 0.35, metalness: 0.4 })
+  // the pylon: pale-blue painted steel, floodlit from below
+  const pylonMat = M.concrete(THREE, { color: '#b9c8d6', ties: false, quality: q, seed: 75 })
+  pylonMat.emissive = new THREE.Color(0x3d5574)
+  pylonMat.emissiveIntensity = 0.45
   const ledWhite = new THREE.MeshBasicMaterial({ color: new THREE.Color(0xe8efff).multiplyScalar(2.6) })
   const ledWarm = new THREE.MeshBasicMaterial({ color: new THREE.Color(0xffc68a).multiplyScalar(3) })
   const ledViolet = new THREE.MeshBasicMaterial({ color: new THREE.Color(0x9a4dff).multiplyScalar(3) })
@@ -1205,10 +1211,10 @@ function buildRotterdam(THREE, ctx) {
   // the pylon: two raking legs from the pier, the knee, the swan's neck leaning back
   const knee = V(0, 60, -292)
   const top = V(0, 139, -318)
-  for (const s of [-1, 1]) K.strut(white, V(s * 24, 1.5, -305), V(s * 3.2, 60, -292), 4.2, 6.5)
-  K.put(white, new THREE.BoxGeometry(10, 9, 9).translate(0, 0, 0), 0, 56, -292)
-  K.strut(white, V(0, 56, -291), top, 5.6, 7.4)
-  K.put(white, new THREE.BoxGeometry(4.4, 3, 6), top.x, top.y + 0.5, top.z)
+  for (const s of [-1, 1]) K.strut(pylonMat, V(s * 24, 1.5, -305), V(s * 3.2, 60, -292), 4.2, 6.5, 4)
+  K.put(pylonMat, scaleBoxUVs(new THREE.BoxGeometry(10, 9, 9), 10, 9, 9, 4, 4), 0, 56, -292)
+  K.strut(pylonMat, V(0, 56, -291), top, 5.6, 7.4, 4)
+  K.put(pylonMat, scaleBoxUVs(new THREE.BoxGeometry(4.4, 3, 6), 4.4, 3, 6, 4, 4), top.x, top.y + 0.5, top.z)
   const mastAt = (y) => {
     const t = (y - knee.y) / (top.y - knee.y)
     return V(0, y, knee.z + (top.z - knee.z) * t)
@@ -1885,11 +1891,12 @@ function buildPartyBoat(THREE, ctx) {
   K.put(steel, new THREE.CylinderGeometry(0.01, 0.01, 0.2, 4), -4, CEIL - 0.2, 0)
   // the lights in the room (cheap point lights, no shadows)
   const lights = [
-    { c: 0xb24dff, p: V(-8, CEIL - 0.3, 0), i: 9, d: 13 },
-    { c: 0x4a62ff, p: V(0, CEIL - 0.3, 0), i: 8, d: 13 },
-    { c: 0xb24dff, p: V(7, CEIL - 0.3, 0.5), i: 8, d: 12 },
-    { c: 0xff2030, p: V(11.8, UP + 1.6, -1.6), i: 7, d: 8 },
-    { c: 0xffe0c0, p: V(-12.5, CEIL - 0.3, 0), i: 4, d: 6 },
+    { c: 0xb24dff, p: V(-8, CEIL - 0.3, 0), i: 30, d: 16 },
+    { c: 0x4a62ff, p: V(0, CEIL - 0.3, 0), i: 34, d: 16 },
+    { c: 0x5a6bff, p: V(-3, CEIL - 0.4, 2.4), i: 16, d: 12 },
+    { c: 0xb24dff, p: V(7, CEIL - 0.3, 0.5), i: 28, d: 15 },
+    { c: 0xff2030, p: V(11.8, UP + 1.6, -1.6), i: 22, d: 10 },
+    { c: 0xffe0c0, p: V(-12.5, CEIL - 0.3, 0), i: 12, d: 8 },
   ].map((l) => {
     const pl = new THREE.PointLight(l.c, l.i, l.d, 2)
     pl.position.copy(l.p)

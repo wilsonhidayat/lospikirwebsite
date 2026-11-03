@@ -184,44 +184,49 @@ lightbox and nav stop moving, and nothing is removed outright.
 
 ## The tour (3D)
 
-The home page is the tour.
+The home page is the tour. While it's on screen the page doesn't scroll; a
+back button always leads out.
 
-1. **First visit** — an instant print slides out of the dark, the photo on it
-   develops, and it opens up into the landing photo (once per visit; tap to
-   skip).
-2. **Landing** — one photo, full screen (the CMS hero photo), with **Start
-   exploring** and **Skip the tour** (the regular site at `/work`).
-3. **The wall of memories** — every project as an Instax print (Mini for
-   upright photos, Wide for landscape), pegged to twine with little lights,
-   swaying. Hovering lifts a print; choosing one flies into it.
-4. **Into the place** — the photo fills the screen and develops into the 3D
-   place where it was taken while the view glides in. The photos float in the
-   middle as prints bending in the wind; each new photo blows in as the old
-   one blows away, and the view moves somewhere new in the place. Tap a print
-   to see the photo full screen.
-5. **After the last photo** — **View other memories** goes back to the wall,
-   and **Work together** leads to the packages, pricing and enquiry below.
+1. **Landing** — the LOSPIKIR logo, big, in the middle over a dusk gradient,
+   with **Start exploring** and **Skip the tour** (the regular site at
+   `/work`). A second version puts the CMS hero photo behind the logo instead:
+   add `?landing=photo` to the URL to compare.
+2. **Memories** — every project as a large Instax print (Mini for upright
+   photos, Wide for landscape) on a line of fairy lights that scrolls sideways
+   (wheel, drag, swipe or arrow keys). The centred print's gallery name is
+   written large underneath. Click it to step in.
+3. **Into the place** — the print flies to the middle of the screen at its
+   true size (never zoomed, so never soft) and the 3D place where it was taken
+   develops out of the dark around it. Big arrows either side of the photo and
+   a counter ("03 / 09") underneath; each photo moves the view somewhere new.
+4. **After the last photo** — **View other memories** goes back to the line.
 
-The only text in the tour is each gallery's title (handwritten on the print).
+The photos are shown as plain full-quality images — no frame, no grain, no
+filter. Right-click saving and dragging are switched off and every photo
+carries a small © LOSPIKIR credit; the logo is always in the navigation bar.
+
 Gallery pages open straight into their own place; "View as a regular gallery"
 jumps to the grid.
 
-**The look.** As realistic as a browser allows: physically based materials,
-each place lit by its own sky (an environment map), soft shadows, ambient
-occlusion, bloom on bright lights, sun rays through clouds, trees and
-lattice, realistic water, and a filmic curve (`post.js`). The prints and the
-wall skip the film curve so the photos keep their true colours.
+**The look.** Everything is generated in code (no downloaded models or
+textures): physically based materials painted with relief and roughness
+(`materials.js`: brick, plaster, concrete, paving, roofs, glass that mirrors
+the sky…), branching trees with real leaves (`trees.js`), each place lit by its
+own sky (an environment map), shadows, soft ambient occlusion that respects
+edges, bloom on bright lights, sun rays, realistic water and a filmic curve
+(`post.js`).
 
-**The sky matches the photo.** Each place's sky colours are read from its
-moment photo (`palette.js`); night and indoor places keep their own light.
+**Colours match the photos.** Each place's sky is read from its photos, and
+the whole place gets a gentle white balance and saturation taken from them
+(`palette.js`). Night and indoor places keep their own light.
 
 ### Editing it in the CMS (`/admin` → Galleries)
 
 | Field | What it does |
 |---|---|
-| **Place** | The 3D world: Paris, Amsterdam canals, Leidseplein, Dunes and beach, University campus, City waterfront at sunset / at night, On the water at night, Light-filled interior, Studio, or None. |
+| **Place** | The 3D world: Paris, Amsterdam canals, Leidseplein, Dunes and beach, University campus (TU/e), Erasmus University, Eindhoven (the Blob), City waterfront at sunset / at night, On the water at night (party boat), Light-filled country house, Studio, Graduation hall, or None. |
 | **Where it was shot** | The line under the title, e.g. "Trocadéro, Paris". |
-| **The moment** | The first photo on the camera's screen, and where the sky is read from. A project needs both a Place and a Moment to appear in the tour. |
+| **The moment** | The photo on the print, and the first one shown; the sky is read from it. A project needs both a Place and a Moment to appear in the tour. |
 | **Describe the moment photo** | Alt text for screen readers and Google. |
 | **Home-page position** | 1, 2, 3… sets the order in the tour. Other projects with a place and moment follow. |
 
@@ -232,22 +237,23 @@ A new project just needs a Place and a Moment — no 3D work.
 Visitors get the same browsing over a softly blurred photo instead of 3D when
 they've asked their device for reduced motion, have Data Saver on, or their
 browser has no WebGL 2. Add `?classic` to any URL to see it yourself. Phones get
-a lighter version (lower resolution, simpler painting filter, fewer places kept
-in memory).
+a lighter version (lower resolution, fewer trees and grass, simpler occlusion,
+fewer places kept in memory).
 
 ### Where the code is
 
 ```
 src/immersive/
-  Journey.jsx        the tour's screens: intro, landing, wall, place, full screen
-  viewer.js          three.js renderer, the wall, the places, the floating print
-  wall.js            the wall of memories
-  prints.js          Instax prints: painted frame, handwritten title, wind shader
-  post.js            occlusion, bloom, sun rays, film curve, photo dissolve
-  palette.js         reads the sky colours out of a photo
-  world.js           painted sky, light presets, water, trees, night lights
+  Journey.jsx        the tour's screens: landing, memories, place view
+  viewer.js          three.js renderer: loads places, glides between viewpoints
+  post.js            occlusion, bloom, sun rays, film curve, colour grade, reveal
+  palette.js         reads sky colours and the colour grade out of the photos
+  world.js           painted sky, light presets, water, lamps, night windows
+  materials.js       procedural PBR surfaces (brick, plaster, paving, glass…)
+  trees.js           branching trees with leaf cards, by species and season
   scenes/            one file per place (paris, amsterdam, leidseplein, coast,
-                     campus, waterfront, interior) + index.js to register new ones
+                     campus, erasmus, eindhoven, waterfront, interior, hall)
+                     + index.js to register new ones
   shutter-sound.js   the shutter click, synthesised (no audio file)
 src/styles/journey.css
 ```

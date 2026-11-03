@@ -259,13 +259,13 @@ function tussockGeometry(THREE, rand) {
     })
   }
   // leaves
-  for (let b = 0; b < 6; b++) {
+  for (let b = 0; b < 14; b++) {
     const a = rand() * Math.PI * 2
     const out = new THREE.Vector3(Math.cos(a), 0, Math.sin(a))
     const side = new THREE.Vector3(-Math.sin(a), 0, Math.cos(a))
     const root = out.clone().multiplyScalar(rand() * 0.1)
-    const h = range(rand, 0.55, 1.0)
-    const lean = range(rand, 0.15, 0.6)
+    const h = range(rand, 0.45, 1.0)
+    const lean = range(rand, 0.08, 0.7)
     const droop = range(rand, 0.05, 0.32)
     const pts = []
     const cols = []
@@ -280,7 +280,7 @@ function tussockGeometry(THREE, rand) {
       cols.push(t < 0.5 ? tmp.copy(cBase).lerp(cMid, t * 2).clone() : tmp.copy(cMid).lerp(cTip, t * 2 - 1).clone())
     }
     const n = up.clone().multiplyScalar(0.75).addScaledVector(out, 0.45).normalize()
-    strip(pts, [0.045, 0.034, 0.02, 0.003], side, n, cols)
+    strip(pts, [0.022, 0.017, 0.011, 0.002], side, n, cols)
   }
   // plumed stalks, taller than the leaves
   for (let b = 0; b < 3; b++) {
@@ -300,7 +300,10 @@ function tussockGeometry(THREE, rand) {
     const p1 = top.clone().addScaledVector(pdir, L * 0.5)
     const p2 = top.clone().addScaledVector(pdir, L)
     const side2 = new THREE.Vector3().crossVectors(pdir, side).normalize()
-    for (const s of [side, side2]) strip([top, p1, p2], [0.008, 0.05, 0.004], s, n, [cStalk, cPlume, cPlume])
+    // a slender cylindrical spike, not a leaf: narrow, evenly thick, tapering at the tip
+    const pa = top.clone().addScaledVector(pdir, L * 0.15)
+    const pb = top.clone().addScaledVector(pdir, L * 0.8)
+    for (const s of [side, side2]) strip([top, pa, p1, pb, p2], [0.006, 0.018, 0.02, 0.016, 0.003], s, n, [cStalk, cPlume, cPlume, cPlume, cPlume])
   }
   const g = new THREE.BufferGeometry()
   g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3))

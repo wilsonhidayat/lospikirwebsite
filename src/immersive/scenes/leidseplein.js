@@ -860,6 +860,8 @@ export function buildLeidseplein(THREE, ctx, { light = 'day' } = {}) {
   {
     const barkMat = new THREE.MeshStandardMaterial({
       map: barkMap(THREE, 7),
+      // the camouflage reads in sunlight; keep it from glowing chalk-white
+      color: 0xa69d8c,
       normalMap: noiseNormalMap(THREE, 128, { cells: 8, strength: 2.2, octaves: 3, stretch: [1, 2] }),
       roughness: 0.9,
       side: THREE.DoubleSide,

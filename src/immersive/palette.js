@@ -219,7 +219,7 @@ export async function gradeFromProject(p) {
   if (!tones.length) return { tint: [1, 1, 1], saturation: 1 }
   const mean = [0, 1, 2].map((i) => tones.reduce((a, t) => a + t.mean[i], 0) / tones.length)
   const grey = (mean[0] + mean[1] + mean[2]) / 3 || 1
-  const tint = mean.map((v) => Math.max(0.9, Math.min(1.1, 1 + (v / grey - 1) * 0.3)))
+  const tint = mean.map((v) => Math.max(0.95, Math.min(1.05, 1 + (v / grey - 1) * 0.18)))
   const s = tones.reduce((a, t) => a + t.sat, 0) / tones.length
   const saturation = Math.max(0.85, Math.min(1.15, 0.8 + s * 0.9))
   return { tint, saturation }
