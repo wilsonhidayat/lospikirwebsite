@@ -736,3 +736,15 @@ html.jr-tour .meter { display: none; }
       linear-gradient(180deg, rgba(10, 10, 11, 0.5) 0%, rgba(10, 10, 11, 0) 20%);
   }
 }
+
+/* photo-based 3D: its own layer, only while a shoot is open */
+.jr__photo3d { z-index: 1; }
+.jr:not(.jr--place) .jr__photo3d { visibility: hidden; }
+.jr--mode-photo .pv__below {
+  top: auto;
+  bottom: 18px;
+  text-shadow: 0 1px 10px rgba(0, 0, 0, 0.6);
+}
+.jr--mode-photo .pv__nav {
+  top: 50%;
+}

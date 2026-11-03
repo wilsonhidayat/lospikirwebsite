@@ -74,6 +74,14 @@ collections:
             fields:
               - { name: eyebrow, label: "Small line above the logo", widget: string }
               - { name: intro, label: "Short introduction under the logo", widget: text }
+              - name: mode
+                label: "How a shoot is shown"
+                widget: select
+                options:
+                  - { label: "Photo-based 3D — each photo in depth (exact, automatic)", value: photo }
+                  - { label: "Hybrid — the photo in depth, floating in the modelled place", value: hybrid }
+                  - { label: "Modelled places", value: places }
+                default: places
               - { name: start, label: "Start button", widget: string }
               - { name: replay, label: "Start button after finishing", widget: string }
               - { name: memoriesEyebrow, label: "Memories: small heading", widget: string }

@@ -50,6 +50,19 @@ export default function Journey({ items, variant = 'home', landing = null, skip 
   const soundRef = useRef(null)
   const [soundOn, setSoundOn] = useState(home)
   const sound = () => (soundRef.current ||= createSoundscape({ music: site.tour?.music || null }))
+  // how a shoot is shown: 'places' (the modelled places), 'photo' (each photo
+  // turned into 3D from its depth — the photo is the place) or 'hybrid' (the
+  // photo in 3D, floating in the modelled place). Site settings → tour.mode;
+  // #photo3d / #hybrid / #places (or ?mode=) to try one.
+  const mode = useMemo(() => {
+    const ok = ['places', 'photo', 'hybrid']
+    if (typeof window === 'undefined') return site.tour?.mode || 'places'
+    const q = new URLSearchParams(window.location.search).get('mode')
+    const h = { '#photo3d': 'photo', '#hybrid': 'hybrid', '#places': 'places' }[window.location.hash]
+    return ok.includes(q) ? q : h || (ok.includes(site.tour?.mode) ? site.tour.mode : 'places')
+  }, [])
+  const photoMode = mode !== 'places'
+  const photo3dRef = useRef(null)
   const landingStyle = useMemo(() => {
     if (typeof window === 'undefined') return 'gradient'
     const photo = new URLSearchParams(window.location.search).get('landing') === 'photo' || window.location.hash === '#landing-photo'
@@ -75,7 +88,7 @@ export default function Journey({ items, variant = 'home', landing = null, skip 
     window.addEventListener('resize', on)
     return () => window.removeEventListener('resize', on)
   }, [])
-  const box = photoBox(ratios[current?.src] || 1.5)
+  const box = (mode === 'photo' ? fullBox : photoBox)(ratios[current?.src] || 1.5)
   // the next and previous photos load before they're asked for
   useEffect(() => {
     for (const k of [photo + 1, photo - 1, photo + 2]) {
@@ -125,8 +138,27 @@ export default function Journey({ items, variant = 'home', landing = null, skip 
     return viewerReady.current
   }, [use3D])
 
+  // the photo-in-3D layer (photo and hybrid modes), above the places
+  const getPhoto3D = useCallback(() => {
+    if (!use3D || !photoMode) return Promise.resolve(null)
+    if (photo3dRef.current) return Promise.resolve(photo3dRef.current)
+    const canvas = document.createElement('canvas')
+    canvas.className = 'jr__canvas jr__photo3d'
+    canvas.setAttribute('aria-hidden', 'true')
+    glRef.current.appendChild(canvas)
+    return import('./photo3d.js').then(({ createPhoto3D }) => {
+      if (photo3dRef.current) return photo3dRef.current
+      const p3 = createPhoto3D({ canvas, quality: qualityLevel(), surround: mode === 'photo', box: mode === 'hybrid' ? photoBox : null })
+      photo3dRef.current = p3
+      p3.start()
+      return p3
+    })
+  }, [use3D, photoMode, mode])
+
   useEffect(
     () => () => {
+      photo3dRef.current?.dispose()
+      photo3dRef.current = null
       viewerRef.current?.dispose()
       viewerRef.current = null
       soundRef.current?.dispose()
@@ -139,7 +171,8 @@ export default function Journey({ items, variant = 'home', landing = null, skip 
   useEffect(() => {
     if (home) return
     const first = sequence(items[0])
-    getViewer().then((v) => v?.enter(first.locs[0].item, first.spot[0]))
+    if (photoMode) getPhoto3D().then((p3) => p3?.show(first.photos[0].src, 1))
+    if (mode !== 'photo') getViewer().then((v) => v?.enter(first.locs[0].item, first.spot[0]))
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
@@ -147,9 +180,17 @@ export default function Journey({ items, variant = 'home', landing = null, skip 
   useEffect(() => {
     const io = new IntersectionObserver(([e]) => setVisible(e.intersectionRatio > 0.2), { threshold: [0, 0.2, 0.6] })
     io.observe(sectionRef.current)
-    const onResize = () => viewerRef.current?.resize()
+    const onResize = () => {
+      viewerRef.current?.resize()
+      photo3dRef.current?.resize()
+    }
     const fine = window.matchMedia('(hover: hover) and (pointer: fine)').matches
-    const onMove = (e) => viewerRef.current?.setPointer((e.clientX / innerWidth) * 2 - 1, -((e.clientY / innerHeight) * 2 - 1))
+    const onMove = (e) => {
+      const x = (e.clientX / innerWidth) * 2 - 1
+      const y = -((e.clientY / innerHeight) * 2 - 1)
+      viewerRef.current?.setPointer(x, y)
+      photo3dRef.current?.setPointer(x, y)
+    }
     window.addEventListener('resize', onResize)
     if (fine) window.addEventListener('pointermove', onMove, { passive: true })
     return () => {
@@ -161,9 +202,15 @@ export default function Journey({ items, variant = 'home', landing = null, skip 
   useEffect(() => {
     const v = viewerRef.current
     if (!v) return
-    if (visible && stage !== 'landing') v.start()
+    if (visible && (stage === 'memories' || (stage === 'place' && mode !== 'photo'))) v.start()
     else v.stop()
   }, [visible, stage, phase])
+  useEffect(() => {
+    const p3 = photo3dRef.current
+    if (!p3) return
+    if (visible && stage === 'place') p3.start()
+    else p3.stop()
+  }, [visible, stage, photo])
 
   // like a film: the page doesn't scroll until the experience is finished or
   // left — scrolling moves the story instead
@@ -259,6 +306,7 @@ export default function Journey({ items, variant = 'home', landing = null, skip 
   // finished, or left: back to the title, and the page scrolls on to the rest
   function finish() {
     soundRef.current?.stop()
+    photo3dRef.current?.clear()
     setPhotoOn(false)
     viewerRef.current?.leave()
     setStage('landing')
@@ -281,12 +329,21 @@ export default function Journey({ items, variant = 'home', landing = null, skip 
     setPhoto(0)
     setDir(1)
     setPhotoOn(false)
-    if (from && !reduced) setFlight({ src: it.hero, from, to: photoBox(aspect) })
+    const to = mode === 'photo' ? fullBox(aspect) : photoBox(aspect)
+    if (from && !reduced) setFlight({ src: it.hero, from, to })
     else setPhotoOn(true)
     setStage('place')
     setPhase('loading')
     soundRef.current?.setPlace(first.locs[0].scene)
+    if (mode === 'photo') {
+      // the map sinks away; the photo itself becomes the place
+      viewerRef.current?.leave()
+      getPhoto3D().then((p3) => p3?.show(first.photos[0].src, 1))
+      setPhase('arrived')
+      return
+    }
     getViewer().then((v) => (v ? v.enter(first.locs[0].item, first.spot[0]) : setPhase('arrived')))
+    if (mode === 'hybrid') getPhoto3D().then((p3) => p3?.show(first.photos[0].src, 1))
   }
 
   const goPhoto = useCallback(
@@ -294,6 +351,12 @@ export default function Journey({ items, variant = 'home', landing = null, skip 
       if (next < 0 || next >= photos.length || next === photo) return
       setDir(next > photo ? 1 : -1)
       setPhoto(next)
+      const p3 = photo3dRef.current
+      if (p3) {
+        p3.show(photos[next].src, next > photo ? 1 : -1)
+        if (photos[next + 1]) p3.preload(photos[next + 1].src)
+      }
+      if (mode === 'photo') return
       const v = viewerRef.current
       const loc = seq.loc[next]
       if (loc !== seq.loc[photo]) {
@@ -305,12 +368,13 @@ export default function Journey({ items, variant = 'home', landing = null, skip 
       const ahead = seq.loc[Math.min(photos.length - 1, next + 2)]
       if (ahead !== loc) v?.preload(seq.locs[ahead].item)
     },
-    [photo, photos, seq]
+    [photo, photos, seq, mode]
   )
 
   // back to the line of memories — on the next print when the story moves on
   function backToMemories(next = chapter) {
     setPhotoOn(false)
+    photo3dRef.current?.clear()
     viewerRef.current?.leave()
     setChapter(Math.max(0, Math.min(items.length - 1, next)))
     setStage('memories')
@@ -423,7 +487,7 @@ export default function Journey({ items, variant = 'home', landing = null, skip 
   return (
     <section
       ref={sectionRef}
-      className={`jr jr--${stage} jr--${variant}${use3D ? ' jr--3d' : ' jr--flat'}`}
+      className={`jr jr--${stage} jr--${variant}${use3D ? ' jr--3d' : ' jr--flat'} jr--mode-${mode}`}
       data-phase={phase}
       aria-label={home ? 'The tour' : name}
     >
@@ -532,7 +596,7 @@ export default function Journey({ items, variant = 'home', landing = null, skip 
             )}
             <div className="pv__stage">
               <div className="pv__frame" style={{ visibility: photoOn ? 'visible' : 'hidden', width: box.width, height: box.height }}>
-                <div className="pv__float">
+                <div className="pv__float" style={photoMode && use3D ? { opacity: 0 } : undefined}>
                 <AnimatePresence initial={false} custom={dir}>
                   <motion.img
                     key={current?.src}
@@ -583,18 +647,7 @@ export default function Journey({ items, variant = 'home', landing = null, skip 
             <div className="pv__story">
               <p className="label pv__kind">{shootLine({ ...item, city: seq.locs[seq.loc[photo]]?.city || item.city })}</p>
               <h2 className="display pv__name">{name}</h2>
-              <AnimatePresence mode="wait">
-                <motion.p
-                  key={storyLine({ ...item, city: seq.locs[seq.loc[photo]]?.city || item.city }, photo, photos.length)}
-                  className="pv__line"
-                  initial={{ opacity: 0, y: 8 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0, y: -6 }}
-                  transition={{ duration: 0.45 }}
-                >
-                  {storyLine({ ...item, city: seq.locs[seq.loc[photo]]?.city || item.city }, photo, photos.length)}
-                </motion.p>
-              </AnimatePresence>
+
             </div>
           </motion.div>
         )}
@@ -649,6 +702,15 @@ function photoBox(aspect) {
   const h = w / aspect
   const cy = phone ? H * 0.4 : H * 0.47
   return { left: (W - w) / 2, top: cy - h / 2, width: w, height: h }
+}
+
+/** Photo mode: the photo as large as fits the screen (matches photo3d.js). */
+function fullBox(aspect) {
+  const W = window.innerWidth
+  const H = window.innerHeight
+  const w = Math.min(W * 0.98, H * 0.98 * aspect)
+  const h = w / aspect
+  return { left: (W - w) / 2, top: (H - h) / 2, width: w, height: h }
 }
 
 function Chevron({ dir }) {
@@ -775,7 +837,6 @@ function Memories({ items, start = 0, onOpen, onBack, onFinish, onActive, threeD
   const count = it.photos?.length || 1
   const line = shootLine(it)
   const year = String(it.date || '').slice(0, 4)
-  const teaser = storyLine(it, 0, 1)
   const lastOne = active === items.length - 1
   const words = String(it.title || it.caption).split(/\s+/)
   const src = reel[slide % reel.length] || it.hero
@@ -829,11 +890,7 @@ function Memories({ items, start = 0, onOpen, onBack, onFinish, onActive, threeD
                 <span key={k}>{m}</span>
               ))}
             </motion.p>
-            {teaser && (
-              <motion.p className="mx__teaser" initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0, transition: { delay: 0.42, duration: 0.6 } }}>
-                “{teaser}”
-              </motion.p>
-            )}
+
           </motion.div>
         </AnimatePresence>
         <div className="mx__actions">
@@ -896,22 +953,6 @@ export function shootLine(it) {
   return parts.join(' · ')
 }
 
-/**
- * The story line under a place, moving on as the photos do: what a session
- * with Wilson is like. Per gallery from the CMS ("story"), otherwise the
- * general one from site settings; {place} becomes the gallery's place.
- */
-function storyLine(it, photo, count) {
-  const event = /event|party|launch|corporate/i.test(it.caption || '')
-  const general = (event && site.tour?.eventStory?.length ? site.tour.eventStory : site.tour?.story) || []
-  const lines = it.story && it.story.length ? it.story : general
-  if (!lines.length) return ''
-  const i = Math.min(lines.length - 1, Math.floor((photo / Math.max(1, count)) * lines.length))
-  // "The dunes and the beach" → "the dunes and the beach" mid-sentence
-  const where = it.city || ((it.place || '').split(',')[0] || 'the place').replace(/^(The|A|An) /, (w) => w.toLowerCase())
-  const line = lines[i].replace('{place}', where)
-  return line.charAt(0).toUpperCase() + line.slice(1)
-}
 
 /**
  * A gallery's photos in showing order, with the place each belongs to.
