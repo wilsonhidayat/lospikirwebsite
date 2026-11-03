@@ -83,6 +83,11 @@ collections:
                 widget: list
                 field: { name: line, label: "Line", widget: string }
                 hint: "Shown one after another as the photos go by. {place} becomes the gallery's place. A gallery can have its own story instead."
+              - name: eventStory
+                label: "The story for event galleries"
+                widget: list
+                field: { name: line, label: "Line", widget: string }
+                hint: "Used for galleries whose type mentions an event or party."
               - name: music
                 label: "Music file (optional)"
                 widget: file

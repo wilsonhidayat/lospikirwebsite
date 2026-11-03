@@ -97,8 +97,9 @@ html.jr-tour .meter { display: none; }
   display: grid;
   place-items: center;
   background:
-    radial-gradient(70% 55% at 50% 100%, rgba(243, 241, 236, 0.07) 0%, transparent 70%),
-    var(--ink);
+    radial-gradient(75% 60% at 50% 108%, var(--bronze-glow) 0%, transparent 70%),
+    radial-gradient(50% 40% at 88% 0%, rgba(201, 156, 110, 0.08) 0%, transparent 70%),
+    linear-gradient(180deg, var(--ink) 0%, var(--bronze-deep) 45%, var(--bronze-mid) 100%);
 }
 .jr__landing-glow {
   position: absolute;
@@ -173,7 +174,9 @@ html.jr-tour .meter { display: none; }
   position: absolute;
   inset: 0;
   z-index: 3;
-  background: #121213;
+  background:
+    radial-gradient(80% 50% at 50% 110%, var(--bronze-glow), transparent 70%),
+    linear-gradient(180deg, #12100e 0%, var(--bronze-deep) 50%, var(--bronze-mid) 100%);
   overflow: hidden;
 }
 /* the wall: rough plaster, picked out by the light */

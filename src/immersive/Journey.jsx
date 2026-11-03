@@ -854,7 +854,9 @@ export function shootLine(it) {
  * general one from site settings; {place} becomes the gallery's place.
  */
 function storyLine(it, photo, count) {
-  const lines = (it.story && it.story.length ? it.story : site.tour?.story) || []
+  const event = /event|party|launch|corporate/i.test(it.caption || '')
+  const general = (event && site.tour?.eventStory?.length ? site.tour.eventStory : site.tour?.story) || []
+  const lines = it.story && it.story.length ? it.story : general
   if (!lines.length) return ''
   const i = Math.min(lines.length - 1, Math.floor((photo / Math.max(1, count)) * lines.length))
   // "The dunes and the beach" → "the dunes and the beach" mid-sentence
