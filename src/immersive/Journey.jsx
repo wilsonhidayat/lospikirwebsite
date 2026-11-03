@@ -2,7 +2,7 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } fr
 import { Link } from 'react-router-dom'
 import { AnimatePresence, motion, useReducedMotion } from 'framer-motion'
 import { immersiveSupported, qualityLevel } from './support.js'
-import { SPRING, project } from '../motion.js'
+import { project } from '../motion.js'
 import { site } from '../data/site.js'
 import { createSoundscape } from './soundscape.js'
 import '../styles/journey.css'
@@ -62,6 +62,31 @@ export default function Journey({ items, variant = 'home', landing = null, skip 
   const seq = useMemo(() => sequence(item), [item])
   const photos = seq.photos
   const current = photos[Math.min(photo, photos.length - 1)]
+  // each photo's shape, so the frame is sized before the photo flies in
+  const [ratios, setRatios] = useState({})
+  const noteRatio = (img) => {
+    const key = img?.getAttribute('src')
+    if (!key || !img.naturalWidth) return
+    setRatios((m) => (m[key] ? m : { ...m, [key]: img.naturalWidth / img.naturalHeight }))
+  }
+  const [, setViewport] = useState(0)
+  useEffect(() => {
+    const on = () => setViewport((n) => n + 1)
+    window.addEventListener('resize', on)
+    return () => window.removeEventListener('resize', on)
+  }, [])
+  const box = photoBox(ratios[current?.src] || 1.5)
+  // the next and previous photos load before they're asked for
+  useEffect(() => {
+    for (const k of [photo + 1, photo - 1, photo + 2]) {
+      const p = photos[k]
+      if (!p || ratios[p.src]) continue
+      const img = new Image()
+      img.onload = () => setRatios((m) => (m[p.src] ? m : { ...m, [p.src]: img.naturalWidth / img.naturalHeight }))
+      img.src = p.src
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [photo, photos])
   const name = item.title || item.caption
   const last = photo === photos.length - 1
   const altFor = (p, i) => p?.alt || `${name} — photo ${i + 1} of ${photos.length}`
@@ -218,11 +243,12 @@ export default function Journey({ items, variant = 'home', landing = null, skip 
     )
   }
 
-  function openMemory(i, imgEl) {
+  function openMemory(i, imgEl, fromRect = null) {
     const it = items[i]
     const aspect = imgEl?.naturalWidth ? imgEl.naturalWidth / imgEl.naturalHeight : 0.75
-    const from = imgEl?.getBoundingClientRect()
+    const from = fromRect || imgEl?.getBoundingClientRect()
     const first = sequence(it)
+    if (imgEl?.naturalWidth) setRatios((m) => ({ ...m, [it.hero]: aspect }))
     setChapter(i)
     setPhoto(0)
     setDir(1)
@@ -477,9 +503,9 @@ export default function Journey({ items, variant = 'home', landing = null, skip 
               </>
             )}
             <div className="pv__stage">
-              <motion.div className="pv__frame" layout transition={SPRING} style={{ visibility: photoOn ? 'visible' : 'hidden' }}>
+              <div className="pv__frame" style={{ visibility: photoOn ? 'visible' : 'hidden', width: box.width, height: box.height }}>
                 <div className="pv__float">
-                <AnimatePresence initial={false} custom={dir} mode="popLayout">
+                <AnimatePresence initial={false} custom={dir}>
                   <motion.img
                     key={current?.src}
                     src={current?.src}
@@ -490,6 +516,7 @@ export default function Journey({ items, variant = 'home', landing = null, skip 
                     initial="enter"
                     animate="center"
                     exit="exit"
+                    onLoad={(e) => noteRatio(e.currentTarget)}
                     drag={photos.length > 1 ? 'x' : false}
                     dragSnapToOrigin
                     dragElastic={0.2}
@@ -522,7 +549,7 @@ export default function Journey({ items, variant = 'home', landing = null, skip 
                     )}
                   </AnimatePresence>
                 </div>
-              </motion.div>
+              </div>
             </div>
 
             <div className="pv__story">
@@ -557,24 +584,24 @@ export default function Journey({ items, variant = 'home', landing = null, skip 
  * blows away, and the next one drifts in, flutters and settles.
  */
 const WIND = {
-  enter: (d) => ({ opacity: 0, x: d * 380, y: -36, rotate: d * 8, rotateY: d * 30, rotateX: 12 }),
+  enter: (d) => ({ opacity: 0, x: d * 120, y: 16, rotate: d * 4, scale: 0.97, zIndex: 2 }),
   center: {
     opacity: 1,
     x: 0,
     y: 0,
     rotate: 0,
-    rotateY: 0,
-    rotateX: 0,
-    transition: { type: 'spring', stiffness: 60, damping: 11, mass: 1.15, opacity: { duration: 0.4 } },
+    scale: 1,
+    zIndex: 2,
+    transition: { duration: 0.8, ease: [0.16, 1, 0.3, 1], delay: 0.14 },
   },
   exit: (d) => ({
     opacity: 0,
-    x: -d * 640,
-    y: -110,
-    rotate: -d * 17,
-    rotateY: -d * 38,
-    rotateX: 22,
-    transition: { duration: 0.8, ease: [0.5, 0, 0.75, 0.35] },
+    x: -d * 220,
+    y: -40,
+    rotate: -d * 8,
+    scale: 0.95,
+    zIndex: 1,
+    transition: { duration: 0.5, ease: [0.4, 0, 0.9, 0.6] },
   }),
 }
 const FADE = {
@@ -605,23 +632,32 @@ function Chevron({ dir }) {
 }
 
 /**
- * The memories, as chapters: the chosen shoot fills the screen behind its
- * title (what it was, where, how many photos), with every chapter in a row
- * along the bottom. Scroll, swipe or use the arrow keys to move along the
- * row; Step into the shoot (or click the chosen card) goes in.
+ * The memories, as chapters. The chosen shoot plays like a trailer behind
+ * its title — its photos one after another, full screen, drifting slowly —
+ * with what it was, where, how many photos and when, and the first line of
+ * its story. Every chapter waits in a numbered row along the bottom.
+ * Scroll, swipe or use the arrow keys to move along; Step into the shoot
+ * (or click the chosen card again) goes in.
  */
+const TRAILER = 4.6 // seconds per photo
+
 function Memories({ items, start = 0, onOpen, onBack, onFinish, onActive, skipLink, noCopy }) {
   const rowRef = useRef(null)
-  const bgRef = useRef(null)
   const rootRef = useRef(null)
+  const stageRef = useRef(null)
   const cardRefs = useRef([])
   const [active, setActive] = useState(start)
+  const [slide, setSlide] = useState(0)
   const activeRef = useRef(start)
   activeRef.current = active
   const reduced = useReducedMotion()
 
+  const it = items[active]
+  const reel = useMemo(() => sequence(it).photos.slice(0, 5).map((p) => p.src), [it])
+
   const select = (i, smooth = true) => {
     const k = Math.max(0, Math.min(items.length - 1, i))
+    if (k !== activeRef.current) setSlide(0)
     setActive(k)
     const el = cardRefs.current[k]
     const row = rowRef.current
@@ -630,13 +666,31 @@ function Memories({ items, start = 0, onOpen, onBack, onFinish, onActive, skipLi
   useLayoutEffect(() => select(start, false), []) // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => onActive?.(active), [active]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  const open = () => onOpen(activeRef.current, bgRef.current)
+  // the trailer: the shoot's photos, one after another
+  useEffect(() => {
+    if (reduced || reel.length < 2) return
+    const t = setInterval(() => setSlide((n) => (n + 1) % reel.length), TRAILER * 1000)
+    return () => clearInterval(t)
+  }, [reel, reduced])
+  // the next photos of the trailer load early
+  useEffect(() => {
+    reel.forEach((src) => {
+      const img = new Image()
+      img.src = src
+    })
+  }, [reel])
+
+  const open = () => {
+    const card = cardRefs.current[activeRef.current]?.querySelector('img')
+    onOpen(activeRef.current, card, rootRef.current?.getBoundingClientRect())
+  }
   const selectRef = useRef(select)
   selectRef.current = select
   const openRef = useRef(open)
   openRef.current = open
 
-  // the wheel moves one chapter per flick; arrow keys too
+  // wheel: one chapter per flick; arrow keys; the backdrop leans a little
+  // with the pointer, like looking through a window
   useEffect(() => {
     let acc = 0
     let last = 0
@@ -665,35 +719,54 @@ function Memories({ items, start = 0, onOpen, onBack, onFinish, onActive, skipLi
       else return
       e.preventDefault()
     }
+    let raf = 0
+    const onMove = (e) => {
+      if (raf) return
+      raf = requestAnimationFrame(() => {
+        raf = 0
+        const x = (e.clientX / window.innerWidth - 0.5) * -18
+        const y = (e.clientY / window.innerHeight - 0.5) * -12
+        stageRef.current?.style.setProperty('--px', `${x.toFixed(1)}px`)
+        stageRef.current?.style.setProperty('--py', `${y.toFixed(1)}px`)
+      })
+    }
     const el = rootRef.current
     el?.addEventListener('wheel', onWheel, { passive: false })
     window.addEventListener('keydown', onKey)
+    const fine = window.matchMedia('(hover: hover) and (pointer: fine)').matches
+    if (fine && !reduced) window.addEventListener('pointermove', onMove, { passive: true })
     return () => {
       el?.removeEventListener('wheel', onWheel)
       window.removeEventListener('keydown', onKey)
+      window.removeEventListener('pointermove', onMove)
+      cancelAnimationFrame(raf)
     }
-  }, [])
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
-  const it = items[active]
   const count = it.photos?.length || 1
   const line = shootLine(it)
+  const year = String(it.date || '').slice(0, 4)
+  const teaser = storyLine(it, 0, 1)
   const lastOne = active === items.length - 1
+  const words = String(it.title || it.caption).split(/\s+/)
+  const src = reel[slide % reel.length] || it.hero
 
   return (
     <motion.div ref={rootRef} className="mx" initial={{ opacity: 0 }} animate={{ opacity: 1, transition: { duration: 0.7 } }} exit={{ opacity: 0, transition: { duration: 0.6 } }}>
-      <AnimatePresence initial={false}>
-        <motion.img
-          key={it.hero}
-          ref={bgRef}
-          className="mx__bg"
-          src={it.hero}
-          alt=""
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1, transition: { duration: 0.9 } }}
-          exit={{ opacity: 0, transition: { duration: 0.9 } }}
-          {...noCopy}
-        />
-      </AnimatePresence>
+      <div className="mx__stage" ref={stageRef} aria-hidden="true">
+        <AnimatePresence initial={false}>
+          <motion.img
+            key={src}
+            className="mx__bg"
+            src={src}
+            alt=""
+            initial={{ opacity: 0, scale: 1 }}
+            animate={{ opacity: 1, scale: reduced ? 1 : 1.06, transition: { opacity: { duration: 1.1 }, scale: { duration: TRAILER + 1.5, ease: 'linear' } } }}
+            exit={{ opacity: 0, transition: { duration: 1.1 } }}
+            {...noCopy}
+          />
+        </AnimatePresence>
+      </div>
       <div className="mx__scrim" aria-hidden="true" />
 
       <button type="button" className="jr__pill jr__back" onClick={onBack}>
@@ -706,16 +779,32 @@ function Memories({ items, start = 0, onOpen, onBack, onFinish, onActive, skipLi
           {site.tour?.memoriesEyebrow || 'Step into a shoot'} <span aria-hidden="true">·</span> Chapter {String(active + 1).padStart(2, '0')} / {String(items.length).padStart(2, '0')}
         </p>
         <AnimatePresence mode="wait">
-          <motion.div key={it.slug} initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }} transition={{ duration: 0.35 }}>
-            <h2 className="display mx__title">{it.title || it.caption}</h2>
-            <p className="mx__detail">
-              {line}
-              {line ? ' · ' : ''}
-              {count} photos
-            </p>
+          <motion.div key={it.slug} exit={{ opacity: 0, y: -10, transition: { duration: 0.25 } }}>
+            <h2 className="display mx__title" aria-label={it.title || it.caption}>
+              {words.map((w, k) => (
+                <span className="mx__word" key={k} aria-hidden="true">
+                  <motion.span
+                    initial={reduced ? false : { y: '105%' }}
+                    animate={{ y: '0%' }}
+                    transition={{ duration: 0.75, ease: [0.16, 1, 0.3, 1], delay: 0.06 * k }}
+                  >
+                    {w}
+                  </motion.span>
+                </span>
+              ))}
+            </h2>
+            <motion.p className="mx__meta" initial={{ opacity: 0 }} animate={{ opacity: 1, transition: { delay: 0.3, duration: 0.5 } }}>
+              {[line, `${count} photos`, year].filter(Boolean).map((m, k) => (
+                <span key={k}>{m}</span>
+              ))}
+            </motion.p>
+            {teaser && (
+              <motion.p className="mx__teaser" initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0, transition: { delay: 0.42, duration: 0.6 } }}>
+                “{teaser}”
+              </motion.p>
+            )}
           </motion.div>
         </AnimatePresence>
-        <p className="mx__lede">{site.tour?.memoriesIntro}</p>
         <div className="mx__actions">
           <button type="button" className="btn btn--pill mx__play" onClick={open}>
             <svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true">
@@ -727,6 +816,13 @@ function Memories({ items, start = 0, onOpen, onBack, onFinish, onActive, skipLi
             <button type="button" className="jr__pill mx__finish" onClick={onFinish}>
               Finish the experience
             </button>
+          )}
+          {reel.length > 1 && (
+            <span className="mx__dots" aria-hidden="true">
+              {reel.map((_, k) => (
+                <i key={k} className={k === slide ? 'is-on' : ''} />
+              ))}
+            </span>
           )}
         </div>
       </div>
@@ -742,10 +838,15 @@ function Memories({ items, start = 0, onOpen, onBack, onFinish, onActive, skipLi
             className={`mx__card${i === active ? ' is-active' : ''}`}
             onClick={() => (i === active ? open() : select(i))}
           >
+            <span className="mx__num" aria-hidden="true">
+              {String(i + 1).padStart(2, '0')}
+            </span>
             <span className="mx__thumb">
               <img src={m.hero} alt={m.alt || ''} loading={Math.abs(i - start) < 6 ? 'eager' : 'lazy'} decoding="async" {...noCopy} />
+              {i === active && !reduced && reel.length > 1 && <span key={`${slide}`} className="mx__progress" style={{ animationDuration: `${TRAILER}s` }} />}
             </span>
             <span className="mx__name">{m.title || m.caption}</span>
+            <span className="mx__kind">{shootLine(m)}</span>
           </button>
         ))}
       </div>
@@ -826,3 +927,4 @@ export function sequence(item) {
   })
   return { photos, loc, spot, locs }
 }
+
