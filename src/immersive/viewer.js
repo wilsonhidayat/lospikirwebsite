@@ -64,7 +64,7 @@ function tween(initial) {
 }
 
 const wait = (s) => new Promise((r) => setTimeout(r, s * 1000))
-const NIGHT_OR_INDOOR = new Set(['waterfront-night', 'party-boat', 'studio', 'interior', 'hall'])
+const NIGHT_OR_INDOOR = new Set(['waterfront-night', 'party-boat', 'studio', 'interior', 'hall', 'blob'])
 const fract = (v) => v - Math.floor(v)
 const ARRIVE_FROM = 0.72 // how far along its arrival path a place starts
 
@@ -342,7 +342,7 @@ export async function createViewer({ canvas, quality = 'high', onError, onPhase 
 
   return {
     /** Develop the place out of the dark while the view glides to the first spot. */
-    async enter(item) {
+    async enter(item, spot = 0) {
       const id = ++journey
       onPhase?.('loading')
       if (reveal.value > 0) await reveal.to(0, 0.5, easeInOutSine)
@@ -351,7 +351,7 @@ export async function createViewer({ canvas, quality = 'high', onError, onPhase 
       current = place
       applyGrade(place)
       if (place.path.spots) {
-        viewTo = place.path.spots[0]
+        viewTo = place.path.spots[(spot || 0) % place.path.spots.length]
         viewFrom = viewTo
         spotMix.set(1)
       } else {

@@ -1,18 +1,32 @@
 /**
- * Eindhoven centre and the Blob — the SRC × MANA run club on a bright, hazy
- * early-spring morning.
+ * Eindhoven centre — the SRC × MANA run club on a sunny spring morning.
  *
- * Built from the club's photographs: the run starts along a park strip past a
- * white sports pavilion with a long flat canopy and a weeping willow (photo
- * 1), runs down a brick-paved street of bare trees (2), across 18
- * Septemberplein past the white arched hood of the underground bike park,
- * station-area towers in the haze (5), to the Blob — Fuksas's free-form dome
- * of triangulated steel, glass above and white panels low down — where MANA
- * has its entrance (7) and a café with a DJ under the glass (8–13). Beside it
- * the curved glass Admirant tower, Piazza shopping centre to the north, the
- * Vestdijk to the east.
+ * The real layout around 18 Septemberplein (Fuksas, 2010), from references:
+ *  - the Blob (Admirant Entrance Building): a five-storey free-form shell of
+ *    triangular panels, dense white aluminium panels alternating with
+ *    "maritime blue" glass, four dimples in the skin, ~3000 m², ~23 m high.
+ *    MANA (social performance club) has its door in the white skin (photo 7).
+ *  - the Bubble: a small three-storey geodesic dome of greenish-blue glass
+ *    and silver-green panels on the square (photo 5, right).
+ *  - the Tube: the underground bike park, its entrances white horn-like
+ *    shells rising out of the paving (photo 5, left); the other one painted
+ *    with colourful graffiti rings (photo 6, right).
+ *  - the square: 7000 m² of grey flags with a ceramic strip and glass light
+ *    inserts; Piazza (shopping centre) with Fuksas's glass canopy on the east,
+ *    the Bijenkorf (Gio Ponti, tiles and hexagonal windows) beside it.
+ *  - the Admirant offices to the north: blue-green curtain walls and a glass
+ *    skybridge over the Mathildelaan with its red cycle lanes (photo 6).
+ *  - the Lichttoren (Philips' 1920s light tower, cream brick, glass lantern)
+ *    and De Witte Dame (the white Philips factory) across the Emmasingel.
+ *  - the Vestdijk to the east: bus lanes in the middle, red cycle lanes, and
+ *    the Lightyards building site behind a printed hoarding (photo 4).
+ *  - the station-area towers to the north with cranes on them (photo 5).
+ *  - south of the centre: a brick-paved street with young bare trees and a
+ *    big gridded office block (photo 3), a park with a brick promenade
+ *    between old trees (photo 2) and a white sports hall with a long canopy
+ *    and a willow, where the run starts (photo 1).
  *
- * Metres. The Blob is at the origin; north (the station) is −Z.
+ * Metres. The Blob is at the origin; north (the station) is −Z, east is +X.
  */
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js'
 import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js'
@@ -480,109 +494,6 @@ function instBoxes(THREE, scene, list, mat, { cast = true, geo = null } = {}) {
 }
 
 
-/* --- the Blob ------------------------------------------------------------------ */
-
-const BLOB = { ax: 24, ay: 19, az: 16, y0: 5 }
-const unit3 = (x, y, z) => {
-  const l = Math.hypot(x, y, z)
-  return [x / l, y / l, z / l]
-}
-const LOBES = [
-  [unit3(0.75, 0.45, -0.35), 0.17, 0.16],
-  [unit3(-0.75, 0.15, 0.5), 0.12, 0.14],
-  [unit3(0.2, 0.2, 0.95), 0.06, 0.2],
-  [unit3(-0.4, 0.6, -0.7), 0.07, 0.12],
-]
-/** Radius factor of the Blob in a direction (of the unit ellipsoid). */
-function blobR(dx, dy, dz) {
-  let r = 1 - 0.14 * sstep(0.5, 1, dy) + 0.03 * Math.sin(dx * 6.1 + dz * 4.3)
-  for (const [L, a, w] of LOBES) r += a * Math.exp(-(1 - (dx * L[0] + dy * L[1] + dz * L[2])) / w)
-  return r
-}
-function insideBlob(x, y, z) {
-  const qx = x / BLOB.ax
-  const qy = (y - BLOB.y0) / BLOB.ay
-  const qz = z / BLOB.az
-  const l = Math.hypot(qx, qy, qz)
-  if (l < 1e-6) return true
-  return l < blobR(qx / l, qy / l, qz / l)
-}
-/** The Blob's skin at (x, y), walking in from the south. */
-function blobSouth(x, y) {
-  for (let z = 45; z > 0; z -= 0.05) if (insideBlob(x, y, z)) return z
-  return 0
-}
-
-/**
- * The Blob: a deformed geodesic sphere, cut at the ground. Every triangle is
- * a panel (glass above, white aluminium low down and here and there); every
- * edge a white steel member, every vertex a node.
- */
-function buildBlob(THREE, scene, { low, rand, glassMat, whiteMat, steelMat, clear = [] }) {
-  const ico = new THREE.IcosahedronGeometry(1, low ? 5 : 7)
-  const P = ico.attributes.position
-  const glass = []
-  const white = []
-  const edges = new Map()
-  const nodes = new Map()
-  const key = (p) => `${Math.round(p[0] * 200)},${Math.round(p[1] * 200)},${Math.round(p[2] * 200)}`
-  const vert = (i) => {
-    const d = unit3(P.getX(i), P.getY(i), P.getZ(i))
-    const r = blobR(d[0], d[1], d[2])
-    return [d[0] * BLOB.ax * r, Math.max(0, BLOB.y0 + d[1] * BLOB.ay * r), d[2] * BLOB.az * r]
-  }
-  for (let i = 0; i < P.count; i += 3) {
-    const v = [vert(i), vert(i + 1), vert(i + 2)]
-    if (v[0][1] <= 0.02 && v[1][1] <= 0.02 && v[2][1] <= 0.02) continue
-    const cx = (v[0][0] + v[1][0] + v[2][0]) / 3
-    const cy = (v[0][1] + v[1][1] + v[2][1]) / 3
-    const cz = (v[0][2] + v[1][2] + v[2][2]) / 3
-    const ang = Math.atan2(cz, cx)
-    const line = 6.2 + 2.6 * Math.sin(ang * 2 + 0.5) + 1.2 * Math.sin(ang * 5)
-    // a few white panels scattered through the glass, kept off the camera's way in and out
-    const near = clear.some((c) => Math.hypot(cx - c[0], cy - c[1], cz - c[2]) < 5)
-    const isWhite = cy < line || (rand() < 0.06 && !near) || (cy < 9 && cz > 8 && cx > -14 && cx < 6)
-    const list = isWhite ? white : glass
-    for (const p of v) list.push(p[0], p[1], p[2])
-    for (let k = 0; k < 3; k++) {
-      const a = v[k]
-      const b = v[(k + 1) % 3]
-      if (a[1] <= 0.02 && b[1] <= 0.02) continue
-      const ka = key(a)
-      const kb = key(b)
-      const ek = ka < kb ? ka + '|' + kb : kb + '|' + ka
-      if (!edges.has(ek)) edges.set(ek, [a, b])
-      if (!nodes.has(ka)) nodes.set(ka, a)
-    }
-  }
-  const mesh = (arr, mat) => {
-    const g = new THREE.BufferGeometry()
-    g.setAttribute('position', new THREE.Float32BufferAttribute(arr, 3))
-    g.computeVertexNormals()
-    const m = new THREE.Mesh(g, mat)
-    m.castShadow = mat !== glassMat
-    m.receiveShadow = true
-    scene.add(m)
-    return m
-  }
-  mesh(white, whiteMat)
-  const glassMesh = mesh(glass, glassMat)
-  glassMesh.renderOrder = 2
-  const beams = beamBatch(THREE)
-  const A = new THREE.Vector3()
-  const B = new THREE.Vector3()
-  for (const [a, b] of edges.values()) beams.add(A.set(a[0], a[1], a[2]), B.set(b[0], b[1], b[2]), 0.15, 0.24)
-  const lattice = beams.build(steelMat)
-  lattice.receiveShadow = true
-  scene.add(lattice)
-  const nodeList = [...nodes.values()]
-  const knots = new THREE.InstancedMesh(new THREE.IcosahedronGeometry(0.17, 0), steelMat, nodeList.length)
-  const m4 = new THREE.Matrix4()
-  nodeList.forEach((p, i) => knots.setMatrixAt(i, m4.makeTranslation(p[0], p[1], p[2])))
-  knots.instanceMatrix.needsUpdate = true
-  scene.add(knots)
-}
-
 /** An extruded slab with an elliptical outline (and an optional elliptical hole). */
 function ellipseSlab(THREE, rx, rz, thick, hole = null) {
   const s = new THREE.Shape()
@@ -721,142 +632,668 @@ function addWillow(THREE, scene, x, z, rand, { low = false } = {}) {
   scene.add(leaves)
 }
 
-/* --- the place --------------------------------------------------------------------- */
+/* --- free-form shells: the Blob and the Bubble ------------------------------------ */
+
+const unit3 = (x, y, z) => {
+  const l = Math.hypot(x, y, z) || 1
+  return [x / l, y / l, z / l]
+}
+const BLOB = { ax: 20, ay: 17.5, az: 15, y0: 6 }
+// soft shoulders (+) and the four dimples (−) in the skin
+const BUMPS = [
+  [unit3(0.7, 0.3, -0.6), 0.09, 0.16],
+  [unit3(-0.85, 0.2, 0.3), 0.1, 0.14],
+  [unit3(-0.2, 0.55, -0.8), 0.06, 0.14],
+  [unit3(0.97, 0.25, 0.05), -0.16, 0.07],
+  [unit3(-0.35, 0.3, 0.9), -0.15, 0.07],
+  [unit3(-0.6, 0.35, -0.72), -0.15, 0.07],
+  [unit3(0.25, 0.97, 0.1), -0.09, 0.08],
+]
+/** Radius factor of the Blob in a direction of its unit ellipsoid. */
+function blobR(dx, dy, dz) {
+  let r = 1 - 0.1 * sstep(0.6, 1, dy) + 0.025 * Math.sin(dx * 6.1 + dz * 4.3)
+  for (const [L, a, w] of BUMPS) r += a * Math.exp(-(1 - (dx * L[0] + dy * L[1] + dz * L[2])) / w)
+  return r
+}
+function insideBlob(x, y, z) {
+  const qx = x / BLOB.ax
+  const qy = (y - BLOB.y0) / BLOB.ay
+  const qz = z / BLOB.az
+  const l = Math.hypot(qx, qy, qz)
+  if (l < 1e-6) return true
+  return l < blobR(qx / l, qy / l, qz / l)
+}
+/**
+ * A geodesic shell: a subdivided icosahedron pushed out to an ellipsoid with
+ * a radius function, cut at the ground. Every triangle a flat panel (glass or
+ * solid, chosen by `classify`), glazing bars along the edges of the glass,
+ * thin seams between solid panels.
+ */
+function geodesic(THREE, scene, o) {
+  const { cx = 0, cz = 0, ax, ay, az, y0, detail, rf, classify, glassMat, solidMat, barMat, seamMat, bar = 0.14, seam = 0.05 } = o
+  const ico = new THREE.IcosahedronGeometry(1, detail)
+  const P = ico.attributes.position
+  const glass = []
+  const solid = []
+  const edges = new Map()
+  const key = (p) => `${Math.round(p[0] * 40)},${Math.round(p[1] * 40)},${Math.round(p[2] * 40)}`
+  const vert = (i) => {
+    const d = unit3(P.getX(i), P.getY(i), P.getZ(i))
+    const r = rf(d[0], d[1], d[2])
+    return [cx + d[0] * ax * r, Math.max(0, y0 + d[1] * ay * r), cz + d[2] * az * r]
+  }
+  for (let i = 0; i < P.count; i += 3) {
+    const v = [vert(i), vert(i + 1), vert(i + 2)]
+    if (v[0][1] <= 0.02 && v[1][1] <= 0.02 && v[2][1] <= 0.02) continue
+    const c = [(v[0][0] + v[1][0] + v[2][0]) / 3, (v[0][1] + v[1][1] + v[2][1]) / 3, (v[0][2] + v[1][2] + v[2][2]) / 3]
+    if (o.skip && o.skip(c)) continue
+    const d = unit3((c[0] - cx) / ax, (c[1] - y0) / ay, (c[2] - cz) / az)
+    const isGlass = classify(d, c)
+    const list = isGlass ? glass : solid
+    for (const p of v) list.push(p[0], p[1], p[2])
+    for (let k = 0; k < 3; k++) {
+      const a = v[k]
+      const b = v[(k + 1) % 3]
+      if (a[1] <= 0.02 && b[1] <= 0.02) continue
+      const ka = key(a)
+      const kb = key(b)
+      const ek = ka < kb ? ka + '|' + kb : kb + '|' + ka
+      const e = edges.get(ek)
+      if (e) e.glass = e.glass || isGlass
+      else edges.set(ek, { a, b, glass: isGlass })
+    }
+  }
+  const out = {}
+  const mesh = (arr, mat, cast) => {
+    if (!arr.length) return null
+    const g = new THREE.BufferGeometry()
+    g.setAttribute('position', new THREE.Float32BufferAttribute(arr, 3))
+    g.computeVertexNormals()
+    const m = new THREE.Mesh(g, mat)
+    m.castShadow = cast
+    m.receiveShadow = true
+    scene.add(m)
+    return m
+  }
+  out.solid = mesh(solid, solidMat, true)
+  out.glass = mesh(glass, glassMat, false)
+  if (out.glass) out.glass.renderOrder = 2
+  const bars = beamBatch(THREE)
+  const seams = beamBatch(THREE)
+  const A = new THREE.Vector3()
+  const B = new THREE.Vector3()
+  for (const e of edges.values()) {
+    A.set(e.a[0], e.a[1], e.a[2])
+    B.set(e.b[0], e.b[1], e.b[2])
+    if (e.glass) bars.add(A, B, bar, bar * 1.6)
+    else if (seamMat) seams.add(A, B, seam, seam)
+  }
+  if (bars.size) scene.add(bars.build(barMat))
+  if (seamMat && seams.size) scene.add(seams.build(seamMat, { castShadow: false }))
+  return out
+}
+
+/* --- the Tube's horn-shaped entrances ---------------------------------------------- */
+
+/** A half cone lying on the ground, wide mouth toward +Z, with a rim and a glass screen. */
+function hornEntrance(THREE, scene, { x, z, ry, shellMat, rimMat, glassMat, darkMat, r0 = 1.0, r1 = 4.4, len = 18 }) {
+  const grp = new THREE.Group()
+  const shell = new THREE.CylinderGeometry(r0, r1, len, 36, 4, true, -Math.PI / 2, Math.PI)
+  shell.rotateX(-Math.PI / 2)
+  const s = new THREE.Mesh(shell, shellMat)
+  s.castShadow = s.receiveShadow = true
+  grp.add(s)
+  const rim = new THREE.Mesh(new THREE.TorusGeometry(r1, 0.24, 8, 40, Math.PI), rimMat)
+  rim.position.z = len / 2
+  rim.castShadow = true
+  grp.add(rim)
+  // a glazed screen over half the mouth, the rest open onto the ramp down
+  const q = new THREE.Shape()
+  q.moveTo(0, 0)
+  q.lineTo(-r1 * 0.96, 0)
+  q.absarc(0, 0, r1 * 0.96, Math.PI, Math.PI / 2, true)
+  q.lineTo(0, 0)
+  const scr = new THREE.ShapeGeometry(q, 12)
+  const uv = scr.attributes.uv
+  for (let i = 0; i < uv.count; i++) uv.setXY(i, uv.getX(i) / 1.5, uv.getY(i) / 1.5)
+  const screen = new THREE.Mesh(scr, glassMat)
+  screen.position.z = len / 2 - 1.2
+  grp.add(screen)
+  // the dark ramp sinking into the bike park
+  const ramp = new THREE.Mesh(new THREE.PlaneGeometry(r1 * 1.3, len * 0.85).rotateX(-Math.PI / 2), darkMat)
+  ramp.position.set(r1 * 0.2, 0.06, len * 0.05)
+  ramp.receiveShadow = true
+  grp.add(ramp)
+  grp.position.set(x, 0, z)
+  grp.rotation.y = ry
+  scene.add(grp)
+  return grp
+}
+
+/** The graffiti on the eastern Tube entrance: colourful rings and swirls on white. */
+function graffitiTexture(THREE) {
+  const c = document.createElement('canvas')
+  c.width = 1024
+  c.height = 512
+  const g = c.getContext('2d')
+  g.fillStyle = '#f2f0ea'
+  g.fillRect(0, 0, c.width, c.height)
+  const cols = ['#1565d8', '#14b8c8', '#0b2f7a', '#ff6f2c', '#ffcf33', '#ec3f86', '#25b56b', '#7b3fd0', '#ffffff']
+  const swirl = (cx, cy, R, k, sq, rot) => {
+    for (let r = R, i = 0; r > 8; r -= 13, i++) {
+      g.strokeStyle = cols[(k + i) % cols.length]
+      g.lineWidth = 11
+      g.beginPath()
+      g.ellipse(cx, cy, r * sq, r, rot, 0, Math.PI * 2)
+      g.stroke()
+    }
+  }
+  swirl(250, 250, 230, 0, 1.3, 0.3)
+  swirl(720, 230, 210, 3, 1.5, -0.2)
+  swirl(500, 420, 120, 5, 1.4, 0.1)
+  swirl(960, 400, 150, 1, 1.2, 0.6)
+  swirl(60, 60, 90, 6, 1.1, 0)
+  // a few hard-edged black outlines
+  g.strokeStyle = '#141414'
+  g.lineWidth = 6
+  for (const [x, y, r] of [
+    [250, 250, 236],
+    [720, 230, 216],
+  ]) {
+    g.beginPath()
+    g.ellipse(x, y, r * 1.4, r, 0.1, 0, Math.PI * 2)
+    g.stroke()
+  }
+  const t = new THREE.CanvasTexture(c)
+  t.colorSpace = THREE.SRGBColorSpace
+  t.anisotropy = 8
+  return t
+}
+
+/** The printed hoarding of the Lightyards building site (photo 4). */
+function hoardingTexture(THREE) {
+  const c = document.createElement('canvas')
+  c.width = 1024
+  c.height = 256
+  const g = c.getContext('2d')
+  const grad = g.createLinearGradient(0, 0, 1024, 0)
+  grad.addColorStop(0, '#1f6b67')
+  grad.addColorStop(0.35, '#3a8f7a')
+  grad.addColorStop(0.55, '#d9c98a')
+  grad.addColorStop(0.75, '#9ccf86')
+  grad.addColorStop(1, '#2f9f8f')
+  g.fillStyle = grad
+  g.fillRect(0, 0, 1024, 256)
+  g.fillStyle = 'rgba(255,255,255,0.18)'
+  for (let i = 0; i < 6; i++) {
+    g.beginPath()
+    g.arc(120 + i * 170, 140 + (i % 2) * 30, 60 + (i % 3) * 18, 0, Math.PI * 2)
+    g.fill()
+  }
+  // sparrows
+  g.fillStyle = '#5b4632'
+  for (const [x, y, s] of [
+    [380, 90, 1],
+    [430, 70, 0.8],
+    [860, 120, 1.2],
+  ]) {
+    g.beginPath()
+    g.ellipse(x, y, 22 * s, 12 * s, -0.3, 0, Math.PI * 2)
+    g.fill()
+    g.beginPath()
+    g.moveTo(x - 10 * s, y)
+    g.lineTo(x - 40 * s, y - 26 * s)
+    g.lineTo(x + 8 * s, y - 6 * s)
+    g.fill()
+  }
+  g.fillStyle = '#ffffff'
+  g.font = 'italic 600 34px "Helvetica Neue", Arial, sans-serif'
+  g.fillText('hier nest ik...', 470, 150)
+  g.fillText('hier overbrug ik...', 640, 205)
+  g.fillStyle = '#d4252b'
+  g.fillRect(40, 196, 26, 26)
+  const t = new THREE.CanvasTexture(c)
+  t.colorSpace = THREE.SRGBColorSpace
+  t.wrapS = THREE.RepeatWrapping
+  t.anisotropy = 8
+  return t
+}
+
+/** A road sign disc (no parking) or a blue name plate, painted on a canvas. */
+function signTexture(THREE, kind, text = '') {
+  const c = document.createElement('canvas')
+  c.width = 256
+  c.height = kind === 'plate' ? 64 : 256
+  const g = c.getContext('2d')
+  if (kind === 'plate') {
+    g.fillStyle = '#1f5fae'
+    g.fillRect(0, 0, 256, 64)
+    g.strokeStyle = '#ffffff'
+    g.lineWidth = 4
+    g.strokeRect(5, 5, 246, 54)
+    g.fillStyle = '#ffffff'
+    g.font = '600 30px "Helvetica Neue", Arial, sans-serif'
+    g.textAlign = 'center'
+    g.textBaseline = 'middle'
+    g.fillText(text, 128, 33)
+  } else {
+    g.fillStyle = '#d6202a'
+    g.beginPath()
+    g.arc(128, 128, 124, 0, Math.PI * 2)
+    g.fill()
+    g.fillStyle = '#1f5fae'
+    g.beginPath()
+    g.arc(128, 128, 96, 0, Math.PI * 2)
+    g.fill()
+    g.strokeStyle = '#d6202a'
+    g.lineWidth = 26
+    g.beginPath()
+    g.moveTo(60, 60)
+    g.lineTo(196, 196)
+    g.stroke()
+  }
+  const t = new THREE.CanvasTexture(c)
+  t.colorSpace = THREE.SRGBColorSpace
+  return t
+}
+
+/** Tower cranes: lattice masts and jibs, one draw call for all. */
+function addCranes(THREE, scene, list, mat) {
+  const b = beamBatch(THREE)
+  const V = (x, y, z) => new THREE.Vector3(x, y, z)
+  for (const { x, z, h, jib = 40, a = 0, y = 0 } of list) {
+    const s = 0.9
+    const corners = [
+      [-s, -s],
+      [s, -s],
+      [s, s],
+      [-s, s],
+    ]
+    for (const [cx, cz] of corners) b.add(V(x + cx, y, z + cz), V(x + cx, y + h, z + cz), 0.14)
+    for (let yy = y; yy < y + h; yy += 2.4) {
+      for (let k = 0; k < 4; k++) {
+        const [ax, az] = corners[k]
+        const [bx, bz] = corners[(k + 1) % 4]
+        b.add(V(x + ax, yy, z + az), V(x + bx, yy + 2.4, z + bz), 0.07)
+      }
+    }
+    const ca = Math.cos(a)
+    const sa = Math.sin(a)
+    const top = y + h
+    b.add(V(x - ca * 12, top + 0.6, z - sa * 12), V(x + ca * jib, top + 0.6, z + sa * jib), 1.0, 1.1)
+    b.add(V(x, top + 0.6, z), V(x, top + 7, z), 0.5)
+    b.add(V(x, top + 7, z), V(x + ca * jib * 0.6, top + 1.1, z + sa * jib * 0.6), 0.08)
+    b.add(V(x, top + 7, z), V(x - ca * 11, top + 1.1, z - sa * 11), 0.08)
+    // counterweight and cab
+    b.add(V(x - ca * 11, top - 0.6, z - sa * 11), V(x - ca * 8, top - 0.6, z - sa * 8), 2.2, 1.8)
+    b.add(V(x + ca * 1.6, top - 1.4, z + sa * 1.6), V(x + ca * 3.2, top - 1.4, z + sa * 3.2), 1.6, 2.2)
+    // the hook line
+    const hx = x + ca * jib * 0.7
+    const hz = z + sa * jib * 0.7
+    b.add(V(hx, top + 0.2, hz), V(hx, top - 18, hz), 0.04)
+  }
+  scene.add(b.build(mat))
+}
+
+/** City buses on the Vestdijk bus lanes: articulated, white with red skirts. */
+function addBuses(THREE, scene, list) {
+  if (!list.length) return
+  const body = new RoundedBoxGeometry(18, 2.6, 2.55, 2, 0.18).translate(0, 1.75, 0)
+  const win = new RoundedBoxGeometry(17.2, 1.1, 2.6, 1, 0.08).translate(0.3, 2.15, 0)
+  const skirt = new RoundedBoxGeometry(18.05, 0.55, 2.6, 1, 0.1).translate(0, 0.72, 0)
+  const wheels = []
+  for (const x of [-6.5, 1.5, 6.6]) {
+    for (const z of [-1.1, 1.1]) {
+      const t = new THREE.CylinderGeometry(0.5, 0.5, 0.3, 14)
+      t.rotateX(Math.PI / 2)
+      t.translate(x, 0.5, z)
+      wheels.push(t)
+    }
+  }
+  const parts = [
+    [body, new THREE.MeshPhysicalMaterial({ color: 0xf3f3f1, roughness: 0.35, clearcoat: 1, clearcoatRoughness: 0.08 })],
+    [win, new THREE.MeshPhysicalMaterial({ color: 0x14181c, roughness: 0.05, metalness: 0.3, clearcoat: 1 })],
+    [skirt, new THREE.MeshStandardMaterial({ color: 0xc8202b, roughness: 0.45 })],
+    [mergeGeometries(wheels, false), new THREE.MeshStandardMaterial({ color: 0x18181a, roughness: 0.9 })],
+  ]
+  const m = new THREE.Matrix4()
+  const q = new THREE.Quaternion()
+  const one = new THREE.Vector3(1, 1, 1)
+  const yAxis = new THREE.Vector3(0, 1, 0)
+  for (const [geo, mat] of parts) {
+    const mesh = new THREE.InstancedMesh(geo, mat, list.length)
+    list.forEach((b, i) => {
+      q.setFromAxisAngle(yAxis, b.r)
+      m.compose(new THREE.Vector3(b.x, 0, b.z), q, one)
+      mesh.setMatrixAt(i, m)
+    })
+    mesh.castShadow = true
+    mesh.instanceMatrix.needsUpdate = true
+    scene.add(mesh)
+  }
+}
+
+/* --- the place ---------------------------------------------------------------------- */
 
 export function buildEindhoven(THREE, ctx, { light = 'day' } = {}) {
-  const world = createWorld(THREE, ctx, light, {
-    sun: { elevation: 30, azimuth: 318 },
-    fog: { density: 0.00125 },
+  // a clear blue spring sky, whatever the photos' pale skies say
+  ctx.sky = null
+  const world = createWorld(THREE, ctx, light === 'day' ? 'day' : light, {
+    sun: { elevation: 36, azimuth: 28 },
+    sky: { zenith: 0x3a78cc, horizon: 0xb9d4ee, clouds: 0.22 },
+    fog: { density: 0.00045 },
+    sunIntensity: 2.3,
   })
   const { scene } = world
   const low = ctx.quality === 'low'
   const q = ctx.quality
-  const S = low ? 256 : 512
   const s2 = low ? 128 : 256
   const rand = seeded(1809)
   const V = (x, y, z) => new THREE.Vector3(x, y, z)
   const batch = makeBatch(THREE)
+  /** A block from its corners: x0..x1, z0..z1, base y, height h. */
+  const blk = (mat, x0, x1, z0, z1, y, h, tile) => batch.box(mat, x1 - x0, h, z1 - z0, (x0 + x1) / 2, y, (z0 + z1) / 2, tile)
 
-  /* materials --------------------------------------------------------------------- */
-  const asphalt = M.asphalt(THREE, { color: '#3c3d3f', tile: 6, quality: 'low' })
-  const squareFlags = M.paving(THREE, { kind: 'flags', color: '#9d9c97', joint: '#6b6a66', unit: 0.3, tile: 3, quality: q, seed: 14 })
-  const brickPavers = M.paving(THREE, { kind: 'herringbone', color: '#84483a', joint: '#4f4038', variation: 0.16, tile: 2, quality: q, seed: 22 })
-  const lawn = M.lawn(THREE, { color: '#5f7438', worn: 0.32, tile: 3, quality: q, seed: 12 })
-  const kerb = M.concrete(THREE, { color: '#b4b1aa', tile: 3, ties: false, quality: 'low', seed: 3 })
-  const whiteConcrete = M.concrete(THREE, { color: '#e3e1dc', tile: 4, ties: false, quality: 'low', seed: 33 })
-  const slats = M.planks(THREE, { color: '#a1835c', width: 0.07, gap: 0.012, tile: 2, quality: 'low', seed: 9 })
-  const interiorFloor = M.floor(THREE, { kind: 'concrete', color: '#bdb7ad', polish: 0.6, quality: 'low', seed: 2 })
-  const brick = M.brick(THREE, { color: '#6e3a2a', tile: 2, quality: 'low', seed: 8 })
+  /* materials ------------------------------------------------------------------------ */
+  const asphalt = M.asphalt(THREE, { color: '#3b3c3f', tile: 6, quality: 'low' })
+  const flags = M.paving(THREE, { kind: 'flags', color: '#a3a5a6', joint: '#6c6e70', unit: 0.6, variation: 0.1, tile: 3.6, quality: q, seed: 14 })
+  const ceramic = M.paving(THREE, { kind: 'flags', color: '#d8d2c6', joint: '#9a948a', unit: 0.3, variation: 0.08, tile: 2.4, quality: 'low', seed: 15 })
+  const brickPavers = M.paving(THREE, { kind: 'herringbone', color: '#94503d', joint: '#5a463c', variation: 0.2, tile: 2, quality: q, seed: 22 })
+  const brickRoad = M.paving(THREE, { kind: 'herringbone', color: '#7c4436', joint: '#4c3c33', variation: 0.18, tile: 2, quality: 'low', seed: 23 })
+  const lawn = M.lawn(THREE, { color: '#5f8a34', worn: 0.18, tile: 3, quality: q, seed: 12 })
+  const kerb = M.concrete(THREE, { color: '#bdbab3', tile: 3, ties: false, quality: 'low', seed: 3 })
+  const whiteConcrete = M.concrete(THREE, { color: '#eeece6', tile: 4, ties: false, quality: 'low', seed: 33 })
+  const rawConcrete = M.concrete(THREE, { color: '#a7a39a', tile: 4, ties: true, quality: 'low', seed: 34 })
+  const interiorFloor = M.floor(THREE, { kind: 'concrete', color: '#8e8a83', polish: 0.6, quality: 'low', seed: 2 })
+  const redLane = new THREE.MeshStandardMaterial({ normalMap: asphalt.normalMap, color: 0xa8483c, roughness: 0.85 })
   const darkMetal = new THREE.MeshStandardMaterial({ color: 0x2b2d30, metalness: 0.7, roughness: 0.38 })
-  const white = new THREE.MeshStandardMaterial({ color: 0xeceae5, roughness: 0.55 })
-  const soil = new THREE.MeshStandardMaterial({ color: 0x3d3128, roughness: 1 })
+  const white = new THREE.MeshStandardMaterial({ color: 0xf1efea, roughness: 0.5 })
+  const roofMat = new THREE.MeshStandardMaterial({ color: 0x55575a, roughness: 0.95 })
+  const paintWhite = new THREE.MeshStandardMaterial({ color: 0xeeeeea, roughness: 0.6 })
 
-  // street houses (materials.js paints 2 × 2 bays per tile: tile = 2 bays × 2 storeys)
+  // Eindhoven's brick: warm red-brown, a darker purple-brown, a yellow buff
   const fac = [
-    M.facade(THREE, { wall: 'brick', color: '#7a3a28', frame: '#efe9dd', bay: 3.2, storey: 3.2, quality: q, seed: 11 }),
-    M.facade(THREE, { wall: 'brick', color: '#5b3a2c', frame: '#2a2a2a', bay: 3.4, storey: 3.2, window: { w: 0.6, h: 0.62, bars: 'grid', sill: true, lintel: true }, quality: q, seed: 12 }),
-    M.facade(THREE, { wall: 'plaster', color: '#e3dccd', frame: '#ffffff', bay: 3, storey: 3.2, quality: q, seed: 13 }),
-  ].map((f, i) => ({ mat: f.material, tile: [[6.4, 6.4], [6.8, 6.4], [6, 6.4]][i] }))
+    M.facade(THREE, { wall: 'brick', color: '#8e4430', frame: '#f1ece2', bay: 3.2, storey: 3.1, window: { w: 0.56, h: 0.6, bars: null, sill: true, lintel: true }, quality: q, seed: 11 }),
+    M.facade(THREE, { wall: 'brick', color: '#5e3a2e', frame: '#2a2a2a', bay: 3.4, storey: 3.1, window: { w: 0.62, h: 0.62, bars: 'grid', sill: true, lintel: true }, quality: 'low', seed: 12 }),
+    M.facade(THREE, { wall: 'brick', color: '#b8925c', frame: '#ffffff', bay: 3, storey: 3.1, window: { w: 0.5, h: 0.6, bars: 'sash', sill: true, lintel: true }, quality: 'low', seed: 13 }),
+  ].map((f) => ({ mat: f.material, tile: [f.tile[0] * 2, f.tile[1] * 2] }))
+  const plasterFac = M.facade(THREE, { wall: 'plaster', color: '#f3f1ea', frame: '#3a3d40', bay: 3.6, storey: 3.9, window: { w: 0.8, h: 0.72, bars: 'grid', sill: false, lintel: false }, quality: 'low', seed: 16 })
+  const witteDame = { mat: plasterFac.material, tile: [plasterFac.tile[0] * 2, plasterFac.tile[1] * 2] }
+  const lichtFac = M.facade(THREE, { wall: 'brick', color: '#cdb98d', frame: '#2f3a34', bay: 3.0, storey: 3.6, window: { w: 0.7, h: 0.66, bars: 'grid', sill: true, lintel: false }, quality: 'low', seed: 17 })
+  const lichttoren = { mat: lichtFac.material, tile: [lichtFac.tile[0] * 2, lichtFac.tile[1] * 2] }
   const shops = [
     M.shopfront(THREE, { color: '#2a2420', fascia: '#1d1d1d', bay: 3.2, storey: 4.2, quality: q, seed: 21 }),
     M.shopfront(THREE, { color: '#3b3f44', fascia: '#e8e3d8', bay: 3.2, storey: 4.2, warm: 0.4, quality: q, seed: 22 }),
   ].map((f) => ({ mat: f.material, tile: [6.4, 4.2] }))
 
-  const admirantGlass = pbrMat(
+  // blue-green curtain walls (photo 6), the gridded office (photo 3), towers
+  const admA = pbrMat(
     THREE,
-    facadeTex(THREE, S, { tile: [3.6, 7.6], cols: 2, rows: 2, wall: [0.3, 0.33, 0.36], win: [0, 1, 0, 1], frame: [0.55, 0.58, 0.6], fw: 0.04, glass: [0.36, 0.46, 0.54], spandrel: [0, 0.22, [0.2, 0.25, 0.3]], blinds: 0.06, seed: 31 }),
-    { envMapIntensity: 1.25, side: THREE.DoubleSide }
+    facadeTex(THREE, s2, { tile: [3.6, 3.8], cols: 2, rows: 2, wall: [0.62, 0.7, 0.72], win: [0, 1, 0, 1], frame: [0.62, 0.7, 0.72], fw: 0.035, glass: [0.22, 0.52, 0.62], spandrel: [0, 0.2, [0.14, 0.4, 0.5]], blinds: 0.05, seed: 31 }),
+    { envMapIntensity: 1.5 }
   )
-  const whiteBlocks = pbrMat(THREE, facadeTex(THREE, s2, { tile: [2.4, 1.2], cols: 2, rows: 2, wall: [0.86, 0.86, 0.84], wallRough: 0.6, joints: true, win: [0, 0, 0, 0], seed: 32 }), { metalness: 0 })
+  const admB = pbrMat(
+    THREE,
+    facadeTex(THREE, s2, { tile: [3.6, 3.8], cols: 2, rows: 2, wall: [0.9, 0.9, 0.88], wallRough: 0.5, win: [0.08, 0.92, 0.1, 0.9], frame: [0.85, 0.86, 0.86], fw: 0.04, mull: 2, glass: [0.26, 0.55, 0.62], blinds: 0.12, seed: 32 }),
+    { envMapIntensity: 1.4 }
+  )
+  const gridOffice = pbrMat(
+    THREE,
+    facadeTex(THREE, s2, { tile: [3.6, 3.6], cols: 2, rows: 2, wall: [0.36, 0.42, 0.48], wallRough: 0.5, win: [0.07, 0.93, 0.1, 0.9], frame: [0.5, 0.56, 0.6], fw: 0.03, glass: [0.3, 0.46, 0.62], blinds: 0.1, seed: 33 }),
+    { envMapIntensity: 1.4 }
+  )
   const lobby = pbrMat(
     THREE,
-    facadeTex(THREE, s2, { tile: [6, 4], cols: 3, rows: 1, wall: [0.15, 0.15, 0.16], win: [0, 1, 0, 1], frame: [0.12, 0.12, 0.13], fw: 0.05, transom: 0.75, glass: [0.18, 0.21, 0.23], blinds: 0, seed: 33 }),
-    { envMapIntensity: 1.1 }
+    facadeTex(THREE, s2, { tile: [6, 4], cols: 3, rows: 1, wall: [0.15, 0.15, 0.16], win: [0, 1, 0, 1], frame: [0.12, 0.12, 0.13], fw: 0.05, transom: 0.75, glass: [0.16, 0.2, 0.23], blinds: 0, seed: 34 }),
+    { envMapIntensity: 1.1, side: THREE.DoubleSide }
   )
-  const ribbon = pbrMat(
+  const resiGrey = pbrMat(THREE, facadeTex(THREE, s2, { tile: [12, 12], cols: 4, rows: 4, wall: [0.86, 0.85, 0.82], win: [0.08, 0.92, 0.18, 0.86], frame: [0.3, 0.3, 0.32], fw: 0.06, mull: 2, glass: [0.3, 0.42, 0.52], blinds: 0.3, seed: 38 }), { envMapIntensity: 1.1 })
+  const resiBeige = pbrMat(THREE, facadeTex(THREE, s2, { tile: [12, 12], cols: 4, rows: 4, wall: [0.84, 0.76, 0.62], win: [0.12, 0.88, 0.0, 0.8], frame: [0.32, 0.32, 0.33], fw: 0.06, mull: 3, glass: [0.3, 0.4, 0.5], blinds: 0.25, seed: 37 }), { envMapIntensity: 1.1 })
+  const towerDark = pbrMat(THREE, facadeTex(THREE, s2, { tile: [6, 12], cols: 4, rows: 4, wall: [0.3, 0.24, 0.2], win: [0.25, 0.75, 0.1, 0.92], frame: [0.2, 0.18, 0.17], fw: 0.05, glass: [0.28, 0.36, 0.44], blinds: 0.15, seed: 39 }), { envMapIntensity: 1.1 })
+  const towerGlass = pbrMat(THREE, facadeTex(THREE, s2, { tile: [9, 12], cols: 6, rows: 3, wall: [0.24, 0.3, 0.36], win: [0.03, 0.97, 0.25, 0.98], frame: [0.45, 0.5, 0.55], fw: 0.05, glass: [0.28, 0.48, 0.66], blinds: 0.08, seed: 40 }), { envMapIntensity: 1.4 })
+  const whiteBlocks = pbrMat(THREE, facadeTex(THREE, s2, { tile: [2.4, 1.2], cols: 2, rows: 2, wall: [0.92, 0.92, 0.9], wallRough: 0.55, joints: true, win: [0, 0, 0, 0], seed: 35 }), { metalness: 0 })
+  const hallBand = pbrMat(THREE, facadeTex(THREE, s2, { tile: [6, 4], cols: 4, rows: 1, wall: [0.9, 0.9, 0.88], wallRough: 0.6, win: [0, 1, 0.2, 0.85], frame: [0.82, 0.82, 0.82], fw: 0.05, glass: [0.28, 0.36, 0.42], blinds: 0.35, seed: 36 }), { envMapIntensity: 1.1 })
+  // the Bijenkorf (Gio Ponti, 1969): small grey-green ceramic tiles, hexagonal windows
+  const HEX = [
+    [2, 3, 1.1],
+    [6.5, 2.4, 0.8],
+    [9.6, 4.2, 1.2],
+    [4, 7.4, 1.0],
+    [8.1, 8.6, 0.9],
+    [1.5, 10.2, 0.7],
+    [10.6, 10.6, 0.8],
+  ]
+  const bijenkorf = pbrMat(
     THREE,
-    facadeTex(THREE, s2, { tile: [6, 4], cols: 4, rows: 1, wall: [0.86, 0.86, 0.84], wallRough: 0.6, win: [0, 1, 0.25, 0.85], frame: [0.8, 0.8, 0.8], fw: 0.05, glass: [0.3, 0.35, 0.38], blinds: 0.3, seed: 34 }),
-    { envMapIntensity: 1.1 }
-  )
-  const piazzaGlass = pbrMat(
-    THREE,
-    facadeTex(THREE, s2, { tile: [9, 8], cols: 6, rows: 2, wall: [0.3, 0.3, 0.32], win: [0, 1, 0, 1], frame: [0.62, 0.64, 0.66], fw: 0.06, glass: [0.34, 0.4, 0.45], blinds: 0, seed: 35 }),
+    pbr(THREE, s2, s2, (u, v, p) => {
+      const x = u * 12
+      const y = v * 12
+      for (const [cx, cy, r] of HEX) {
+        const dx = Math.abs(x - cx)
+        const dy = Math.abs(y - cy)
+        const hd = Math.max(dx * 0.866 + dy * 0.5, dy)
+        if (hd < r) {
+          if (hd > r - 0.12) {
+            p.r = p.g = p.b = 0.18
+            p.h = 0.55
+            p.ro = 0.4
+            p.me = 0.6
+          } else {
+            p.r = 0.2
+            p.g = 0.3
+            p.b = 0.38
+            p.h = 0.25
+            p.ro = 0.06
+            p.me = 1
+          }
+          return
+        }
+      }
+      const tx = x / 0.25
+      const ty = y / 0.25
+      const fx = tx - Math.floor(tx)
+      const fy = ty - Math.floor(ty)
+      const t = hash(Math.floor(tx), Math.floor(ty), 5)
+      const k = 0.88 + t * 0.22
+      p.r = 0.47 * k
+      p.g = 0.53 * k
+      p.b = 0.5 * k
+      p.ro = 0.35
+      p.me = 0.05
+      p.h = 0.6
+      if (fx < 0.08 || fy < 0.08) {
+        p.r *= 0.6
+        p.g *= 0.6
+        p.b *= 0.6
+        p.h = 0.45
+        p.ro = 0.9
+      }
+    }),
     { envMapIntensity: 1.2 }
   )
-  const piazzaPanels = pbrMat(THREE, facadeTex(THREE, s2, { tile: [12, 8], cols: 4, rows: 2, wall: [0.78, 0.74, 0.66], joints: true, win: [0.1, 0.9, 0.6, 0.85], frame: [0.3, 0.3, 0.3], fw: 0.05, glass: [0.3, 0.34, 0.38], seed: 36 }), { envMapIntensity: 1 })
-  const resiBeige = pbrMat(THREE, facadeTex(THREE, S, { tile: [12, 12], cols: 4, rows: 4, wall: [0.8, 0.76, 0.68], win: [0.12, 0.88, 0.0, 0.8], frame: [0.32, 0.32, 0.33], fw: 0.06, mull: 3, glass: [0.3, 0.36, 0.42], blinds: 0.25, seed: 37 }), { envMapIntensity: 1 })
-  const resiGrey = pbrMat(THREE, facadeTex(THREE, s2, { tile: [12, 12], cols: 4, rows: 4, wall: [0.7, 0.7, 0.69], win: [0.08, 0.92, 0.18, 0.86], frame: [0.85, 0.85, 0.85], fw: 0.06, mull: 2, glass: [0.3, 0.35, 0.4], blinds: 0.3, seed: 38 }), { envMapIntensity: 1 })
-  const towerBrown = pbrMat(THREE, facadeTex(THREE, s2, { tile: [6, 12], cols: 4, rows: 4, wall: [0.36, 0.28, 0.23], win: [0.3, 0.7, 0.1, 0.92], frame: [0.2, 0.18, 0.17], fw: 0.05, glass: [0.27, 0.31, 0.34], blinds: 0.15, seed: 39 }), { envMapIntensity: 1 })
-  const towerGlass = pbrMat(THREE, facadeTex(THREE, s2, { tile: [9, 12], cols: 6, rows: 3, wall: [0.24, 0.27, 0.3], win: [0.03, 0.97, 0.25, 0.98], frame: [0.4, 0.42, 0.44], fw: 0.05, glass: [0.32, 0.4, 0.48], blinds: 0.08, seed: 40 }), { envMapIntensity: 1.2 })
+  // vertical dark slats round MANA's door
+  const slats = pbrMat(
+    THREE,
+    pbr(THREE, 128, 128, (u, v, p) => {
+      const f = (u * 10) % 1
+      const k = f < 0.6 ? 0.9 + 0.1 * Math.sin(f * 5) : 0.45
+      p.r = 0.26 * k
+      p.g = 0.26 * k
+      p.b = 0.27 * k
+      p.h = f < 0.6 ? 0.8 : 0.3
+      p.ro = 0.45
+      p.me = 0.5
+    }),
+    {}
+  )
 
-  /* the ground ------------------------------------------------------------------------ */
-  scene.add(flat(THREE, 4000, 4000, asphalt, 6, 0, 0, 0))
-  // 18 Septemberplein
-  scene.add(flat(THREE, 132, 126, squareFlags, 3, -6, 0.04, 29))
-  // pavements along the streets
-  scene.add(flat(THREE, 260, 3, squareFlags, 3, 30, 0.05, -47.5))
-  scene.add(flat(THREE, 4, 240, squareFlags, 3, 78, 0.05, 30))
-  scene.add(flat(THREE, 4, 240, squareFlags, 3, 60, 0.05, 30))
-  scene.add(flat(THREE, 160, 4, squareFlags, 3, 0, 0.05, 94))
-  // the brick street to the west (photo 2)
-  scene.add(flat(THREE, 200, 18, brickPavers, 2, -170, 0.05, 20))
-  // a lawn in the corner pocket between the brick street and the park
-  batch.box(lawn, 46, 0.1, 15, -97, 0, 37.5, [3, 3])
-  // kerbs
-  batch.box(kerb, 260, 0.13, 0.2, 30, 0, -34, [3, 3])
-  batch.box(kerb, 260, 0.13, 0.2, 30, 0, -46, [3, 3])
-  batch.box(kerb, 0.2, 0.13, 240, 62, 0, 30, [3, 3])
-  batch.box(kerb, 0.2, 0.13, 240, 76, 0, 30, [3, 3])
-  batch.box(kerb, 160, 0.13, 0.2, 0, 0, 92, [3, 3])
-  // road markings: dashed centre lines
-  {
-    const dashes = []
-    for (let x = -120; x < 160; x += 6) dashes.push({ x, y: 0.06, z: -40, w: 3, h: 0.01, d: 0.12 })
-    for (let z = -80; z < 150; z += 6) dashes.push({ x: 69, y: 0.06, z, w: 0.12, h: 0.01, d: 3 })
-    instBoxes(THREE, scene, dashes, new THREE.MeshStandardMaterial({ color: 0xd9d8d2, roughness: 0.6 }), { cast: false })
-  }
-  // the park strip: lawn, a path, and the sports pavilion (photo 1)
-  batch.box(lawn, 186, 0.1, 58, -165, 0, 75, [3, 3])
-  scene.add(flat(THREE, 186, 3, asphalt, 6, -165, 0.12, 86))
-  batch.box(kerb, 186, 0.14, 0.12, -165, 0, 87.5, [3, 3])
-  batch.box(kerb, 186, 0.14, 0.12, -165, 0, 84.5, [3, 3])
-
-  /* the Blob --------------------------------------------------------------------------- */
-  const blobGlass = new THREE.MeshPhysicalMaterial({
-    color: 0xa9cddc,
-    metalness: 0.15,
-    roughness: 0.04,
+  // the shells
+  const glassBlue = new THREE.MeshPhysicalMaterial({
+    color: 0x3f7fb4,
+    metalness: 0.45,
+    roughness: 0.05,
     transparent: true,
-    opacity: 0.34,
-    envMapIntensity: 2.4,
+    opacity: 0.66,
+    envMapIntensity: 1.8,
     side: THREE.DoubleSide,
     depthWrite: false,
     clearcoat: 1,
-    clearcoatRoughness: 0.02,
+    clearcoatRoughness: 0.03,
   })
-  const blobWhite = new THREE.MeshStandardMaterial({ color: 0xe7e6e2, roughness: 0.38, metalness: 0.15, side: THREE.DoubleSide })
-  const steel = new THREE.MeshStandardMaterial({ color: 0xe6e6e3, roughness: 0.32, metalness: 0.35 })
-  // where the glides into and out of the café pass through the skin (spots 4 → 5 → 6)
-  const clear = [
-    [-4.4, 11.1, 15.9],
-    [9.2, 17.9, 8.3],
-  ]
-  buildBlob(THREE, scene, { low, rand, glassMat: blobGlass, whiteMat: blobWhite, steelMat: steel, clear })
+  const glassTeal = glassBlue.clone()
+  glassTeal.color.setHex(0x3a96a8)
+  glassTeal.opacity = 0.74
+  const blobWhite = new THREE.MeshStandardMaterial({ color: 0xf4f4f1, roughness: 0.32, metalness: 0.12, side: THREE.DoubleSide, envMapIntensity: 0.9 })
+  const steelWhite = new THREE.MeshStandardMaterial({ color: 0xf0f0ed, roughness: 0.35, metalness: 0.3 })
+  const seamGrey = new THREE.MeshStandardMaterial({ color: 0x9fa3a7, roughness: 0.5, metalness: 0.3 })
+  const silverGreen = new THREE.MeshStandardMaterial({ color: 0xa3b0a6, roughness: 0.3, metalness: 0.7, side: THREE.DoubleSide })
 
-  // MANA's entrance: a timber-slatted portal pushed through the white skin (photo 7)
+  /* the ground ------------------------------------------------------------------------- */
+  scene.add(flat(THREE, 4000, 4000, asphalt, 6, 0, 0, 0))
+  // 18 Septemberplein: grey flags, a ceramic strip down the middle with glass light inserts
+  scene.add(flat(THREE, 108, 132, flags, 3.6, 24, 0.03, 30))
+  scene.add(flat(THREE, 9, 132, ceramic, 2.4, 33, 0.04, 30))
   {
-    const zf = Math.max(blobSouth(-4, 0.3), blobSouth(-4, 5.4), blobSouth(-9, 5.4), blobSouth(1, 5.4)) + 0.35
-    const depth = 6
-    batch.box(slats, 10, 5.4, depth, -4, 0, zf - depth / 2, [2, 2])
-    batch.box(darkMetal, 10.3, 0.35, depth + 0.1, -4, 5.4, zf - depth / 2, [2, 2])
-    batch.box(lobby, 3.4, 3.2, 0.12, -4, 0, zf + 0.02, [6, 4])
-    const sign = lettering(THREE, 'MANA', { w: 5.2, h: 1.1, font: '600 {px}px "Helvetica Neue", Arial, sans-serif', color: '#ff6a2b', px: 160, emissive: 1.6 })
-    sign.position.set(-4, 4.45, zf + 0.08)
+    const inserts = []
+    for (let z = -32; z < 95; z += 3.2) for (const x of [30.5, 33, 35.5]) if (hash(Math.round(x), Math.round(z), 3) < 0.55) inserts.push({ x, y: 0.035, z, w: 0.9, h: 0.02, d: 0.9 })
+    instBoxes(THREE, scene, inserts, new THREE.MeshStandardMaterial({ color: 0xbfd9e6, metalness: 0.6, roughness: 0.06, emissive: 0x9ec8e0, emissiveIntensity: 0.15 }), { cast: false })
+  }
+  // brick pavements: Emmasingel west side, the south street both sides, the Vestdijk east side
+  scene.add(flat(THREE, 6, 360, brickPavers, 2, -45, 0.04, 60))
+  scene.add(flat(THREE, 210, 4, brickPavers, 2, 55, 0.04, 98))
+  scene.add(flat(THREE, 240, 6, brickPavers, 2, 40, 0.04, 111))
+  scene.add(flat(THREE, 10, 400, flags, 3.6, 192, 0.04, 40))
+  scene.add(flat(THREE, 4, 400, flags, 3.6, 158, 0.04, 40))
+  // pavements along the Mathildelaan
+  scene.add(flat(THREE, 600, 3, flags, 3.6, 0, 0.04, -51.5))
+  // the park's brick promenade (photo 2)
+  scene.add(flat(THREE, 12, 150, brickRoad, 2, -24, 0.05, 186))
+  // the park
+  batch.box(lawn, 93, 0.1, 76, 28.5, 0, 152, [3, 3])
+  batch.box(lawn, 93, 0.1, 16, 28.5, 0, 203, [3, 3])
+  batch.box(lawn, 19, 0.1, 36, 84.5, 0, 132, [3, 3])
+  scene.add(flat(THREE, 93, 3, asphalt, 6, 28.5, 0.12, 193.5))
+  batch.box(kerb, 93, 0.14, 0.12, 28.5, 0, 191.9, [3, 3])
+  batch.box(kerb, 93, 0.14, 0.12, 28.5, 0, 195.1, [3, 3])
+  // the hall's forecourt
+  scene.add(flat(THREE, 64, 14, flags, 3.6, 25, 0.05, 218))
+  // red cycle lanes on the Mathildelaan and the Vestdijk
+  scene.add(flat(THREE, 600, 2.2, redLane, 6, 0, 0.035, -37.3))
+  scene.add(flat(THREE, 600, 2.2, redLane, 6, 0, 0.035, -48.7))
+  scene.add(flat(THREE, 2.4, 400, redLane, 6, 185.6, 0.035, 40))
+  scene.add(flat(THREE, 2.4, 400, redLane, 6, 163.4, 0.035, 40))
+  // kerbs
+  for (const z of [-36, -50]) batch.box(kerb, 600, 0.13, 0.2, 0, 0, z, [3, 3])
+  for (const z of [100, 108]) batch.box(kerb, 205, 0.13, 0.2, 57.5, 0, z, [3, 3])
+  for (const x of [-42, -30]) batch.box(kerb, 0.2, 0.13, 132, x, 0, 30, [3, 3])
+  for (const x of [160, 187]) batch.box(kerb, 0.2, 0.13, 400, x, 0, 40, [3, 3])
+  // the Vestdijk's bus lanes: a raised concrete strip each side
+  batch.box(kerb, 0.3, 0.15, 400, 169.8, 0, 40, [3, 3])
+  batch.box(kerb, 0.3, 0.15, 400, 177.2, 0, 40, [3, 3])
+  batch.box(lawn, 2, 0.16, 400, 173.5, 0, 40, [3, 3])
+  batch.box(kerb, 2.3, 0.14, 400, 173.5, 0, 40, [3, 3])
+  {
+    const marks = []
+    for (let x = -300; x < 300; x += 6) if (Math.abs(x - 15) > 6) marks.push({ x, y: 0.05, z: -43, w: 3, h: 0.01, d: 0.12 })
+    for (let x = -40; x < 158; x += 6) marks.push({ x, y: 0.05, z: 104, w: 3, h: 0.01, d: 0.12 })
+    // zebra crossings over the Mathildelaan, the south street and the Vestdijk
+    for (let i = 0; i < 7; i++) marks.push({ x: 9 + i * 1.0, y: 0.05, z: -43, w: 0.5, h: 0.01, d: 13 })
+    for (let i = 0; i < 6; i++) marks.push({ x: -10 + i * 1.0, y: 0.05, z: 104, w: 0.5, h: 0.01, d: 7.5 })
+    for (let i = 0; i < 9; i++) marks.push({ x: 173.5, y: 0.17, z: 0 + i * 1.0, w: 26, h: 0.01, d: 0.5 })
+    instBoxes(THREE, scene, marks, new THREE.MeshStandardMaterial({ color: 0xe8e7e2, roughness: 0.6 }), { cast: false })
+    // bike symbols' white edge lines on the red lanes
+    const lines = []
+    for (let x = -300; x < 300; x += 2) lines.push({ x, y: 0.045, z: -38.3, w: 1, h: 0.01, d: 0.1 }, { x, y: 0.045, z: -47.7, w: 1, h: 0.01, d: 0.1 })
+    instBoxes(THREE, scene, lines, new THREE.MeshStandardMaterial({ color: 0xf2f0ea, roughness: 0.6 }), { cast: false })
+    for (const z of [-20, 60, 140]) {
+      const bus = lettering(THREE, 'BUS', { w: 4.5, h: 1.6, font: '700 {px}px "Helvetica Neue", Arial, sans-serif', color: '#f2f1ec', px: 128 })
+      bus.rotation.x = -Math.PI / 2
+      bus.rotation.z = Math.PI / 2
+      bus.position.set(171.2, 0.06, z)
+      scene.add(bus)
+    }
+  }
+
+  /* the Blob ---------------------------------------------------------------------------- */
+  // the door's direction: south-east, toward the square
+  const EN = unit3(0.62, 0, 0.78)
+  const entAng = Math.atan2(EN[2], EN[0])
+  // where the glides into and out of the café pass through the skin: keep those panels glass
+  const clear = [
+    [10.2, 10.6, 12.9],
+    [9.3, 13.2, 13.4],
+  ]
+  geodesic(THREE, scene, {
+    ax: BLOB.ax,
+    ay: BLOB.ay,
+    az: BLOB.az,
+    y0: BLOB.y0,
+    detail: low ? 5 : 7,
+    rf: blobR,
+    glassMat: glassBlue,
+    solidMat: blobWhite,
+    barMat: steelWhite,
+    seamMat: seamGrey,
+    bar: 0.16,
+    seam: 0.045,
+    // the panels where MANA's portal is pushed through the skin
+    skip: (c) => Math.abs(c[0] * EN[2] - c[2] * EN[0]) < 5.1 && c[1] < 3.8 && c[0] * EN[0] + c[2] * EN[2] > 0,
+    classify(d, c) {
+      if (clear.some((p) => Math.hypot(c[0] - p[0], c[1] - p[1], c[2] - p[2]) < 3.2)) return true
+      const ang = Math.atan2(d[2], d[0])
+      const top = d[1] + 0.22 * Math.sin(ang * 2 + 1.1) + 0.1 * Math.sin(ang * 5 + 0.3)
+      if (top > 0.44) return true
+      // a glass ribbon winding round the body — but not over MANA's white wall
+      let da = Math.abs(ang - entAng)
+      if (da > Math.PI) da = Math.PI * 2 - da
+      const band = d[1] - 0.05 - 0.2 * Math.sin(ang * 2 - 0.6) - 0.06 * Math.sin(ang * 3)
+      if (da > 0.6 && Math.abs(band) < 0.08 && c[1] > 4.5) return true
+      // shop windows low down on the north and west
+      if (da > 1.2 && c[1] < 4.2 && c[1] > 0.3 && Math.sin(ang * 6) > 0.2) return true
+      return false
+    },
+  })
+
+  // MANA's entrance: a dark slatted portal set in the white skin (photo 7)
+  const entRy = Math.atan2(EN[0], EN[2])
+  const at = (dist, side) => [EN[0] * dist + EN[2] * side, EN[2] * dist - EN[0] * side]
+  // the portal's face stands just proud of the skin everywhere across its width
+  let zf = 0
+  for (let side = -5.6; side <= 5.6; side += 0.8) {
+    for (const y of [0.3, 2.8, 5.6, 6.6]) {
+      for (let d = 40; d > 0; d -= 0.1) {
+        const [x, z] = at(d, side)
+        if (insideBlob(x, y, z)) {
+          zf = Math.max(zf, d)
+          break
+        }
+      }
+    }
+  }
+  zf += 0.25
+  {
+    const depth = 7
+    const [px, pz] = at(zf - depth / 2, 0)
+    batch.box(slats, 11, 5.6, depth, px, 0, pz, [1.2, 5.6], entRy)
+    batch.box(darkMetal, 11.3, 0.3, depth + 0.1, px, 5.6, pz, [2, 2], entRy)
+    const [dx, dz] = at(zf + 0.03, 0)
+    batch.box(lobby, 3.2, 3.2, 0.1, dx, 0, dz, [6, 4], entRy)
+    const sign = lettering(THREE, 'MANA', { w: 3.8, h: 0.8, font: '600 {px}px "Helvetica Neue", Arial, sans-serif', color: '#ff6a24', px: 160, emissive: 1.4 })
+    const [sx, sz] = at(zf + 0.08, 0)
+    sign.position.set(sx, 4.5, sz)
+    sign.rotation.y = entRy
     scene.add(sign)
-    const sub = lettering(THREE, 'SOCIAL PERFORMANCE CLUB', { w: 3.6, h: 0.32, font: '500 {px}px "Helvetica Neue", Arial, sans-serif', color: '#f2f0ea', px: 96, emissive: 0.5 })
-    sub.position.set(-1.0, 3.6, zf + 0.08)
+    const sub = lettering(THREE, 'SOCIAL PERFORMANCE CLUB', { w: 3.0, h: 0.26, font: '600 {px}px "Helvetica Neue", Arial, sans-serif', color: '#f2f0ea', px: 80, emissive: 0.4 })
+    const [bx, bz] = at(zf + 0.08, 2.9)
+    sub.position.set(bx, 3.75, bz)
+    sub.rotation.y = entRy
     scene.add(sub)
-    // two feather banners either side of the door
+    const no = lettering(THREE, '12-14', { w: 0.7, h: 0.3, font: '600 {px}px "Helvetica Neue", Arial, sans-serif', color: '#f2f0ea', px: 80 })
+    const [nx, nz] = at(zf + 0.08, -0.9)
+    no.position.set(nx, 3.6, nz)
+    no.rotation.y = entRy
+    scene.add(no)
+    // two black feather banners either side of the door
     const feather = new THREE.Shape()
     feather.moveTo(0, 0.4)
     feather.lineTo(0, 3.6)
@@ -864,68 +1301,97 @@ export function buildEindhoven(THREE, ctx, { light = 'day' } = {}) {
     feather.quadraticCurveTo(0.95, 2, 0.75, 0.9)
     feather.lineTo(0, 0.4)
     const fgeo = new THREE.ShapeGeometry(feather, 8)
-    const fmat = new THREE.MeshStandardMaterial({ color: 0x1b1c1e, roughness: 0.6, side: THREE.DoubleSide })
-    for (const x of [-8.6, 0.8]) {
+    const fmat = new THREE.MeshStandardMaterial({ color: 0x18191b, roughness: 0.6, side: THREE.DoubleSide })
+    const flash = new THREE.MeshStandardMaterial({ color: 0xf2f2ee, roughness: 0.6, side: THREE.DoubleSide })
+    for (const side of [-4.9, 4.7]) {
+      const [fx, fz] = at(zf + 0.9, side)
       const f = new THREE.Mesh(fgeo, fmat)
-      f.position.set(x, 0, zf + 0.9)
-      f.rotation.y = 0.35
+      f.position.set(fx, 0, fz)
+      f.rotation.y = entRy + 0.3
       f.castShadow = true
       scene.add(f)
-      batch.box(darkMetal, 0.05, 4.0, 0.05, x, 0, zf + 0.9, [1, 1])
+      const chev = new THREE.Mesh(new THREE.PlaneGeometry(0.4, 0.08), flash)
+      chev.position.set(0.42, 3.0, 0.01)
+      chev.rotation.z = 0.5
+      f.add(chev)
+      const chev2 = chev.clone()
+      chev2.position.y = 2.7
+      f.add(chev2)
+      batch.box(darkMetal, 0.05, 4.0, 0.05, fx, 0, fz, [1, 1])
     }
-    // the planted bed in front, last year's stalks and new grass (photo 7)
-    batch.box(lawn, 22, 0.16, 7, -4, 0, zf + 9, [3, 3])
+    // the planted bed in front: last year's stalks, new grass, bare soil (photo 7)
+    const [cx, cz] = at(zf + 6.5, 0)
+    batch.box(lawn, 26, 0.12, 8, cx, 0, cz, [3, 3], entRy)
+    const [k1x, k1z] = at(zf + 2.45, 0)
+    batch.box(kerb, 26, 0.18, 0.15, k1x, 0, k1z, [3, 3], entRy)
+    const stalks = []
     const tufts = []
-    for (let i = 0; i < (low ? 50 : 120); i++) tufts.push({ x: range(rand, -14.5, 6.5), y: 0.1, z: zf + range(rand, 5.8, 12.2), w: range(rand, 0.3, 0.7), h: range(rand, 0.3, 1.1), d: range(rand, 0.3, 0.6), r: rand() * 3 })
-    instBoxes(THREE, scene, tufts, new THREE.MeshStandardMaterial({ color: 0x6b5a3e, roughness: 0.95 }), { cast: true })
+    for (let i = 0; i < (low ? 70 : 170); i++) {
+      const [x, z] = at(zf + range(rand, 3, 10.3), range(rand, -12.5, 12.5))
+      if (rand() < 0.45) stalks.push({ x, y: 0.1, z, w: range(rand, 0.25, 0.5), h: range(rand, 0.6, 1.2), d: range(rand, 0.25, 0.5), r: rand() * 3 })
+      else tufts.push({ x, y: 0.08, z, w: range(rand, 0.3, 0.7), h: range(rand, 0.15, 0.4), d: range(rand, 0.3, 0.7), r: rand() * 3 })
+    }
+    // a clump: thin blades leaning out from a common root
+    const blades = []
+    for (let k = 0; k < 9; k++) {
+      const b = new THREE.BoxGeometry(0.035, 1, 0.012).translate(0, 0.5, 0)
+      b.rotateZ(0.12 + (k % 3) * 0.16)
+      b.rotateY((k / 9) * Math.PI * 2 + k * 0.7)
+      blades.push(b)
+    }
+    const clump = mergeGeometries(blades, false)
+    instBoxes(THREE, scene, stalks, new THREE.MeshStandardMaterial({ color: 0xa88a5c, roughness: 0.95 }), { geo: clump })
+    instBoxes(THREE, scene, tufts, new THREE.MeshStandardMaterial({ color: 0x6a9a34, roughness: 0.9 }), { geo: clump.clone(), cast: false })
   }
 
-  // inside: two floors under the dome, the café with its long bar on the upper one
+  // inside: two floors under the shell, the café with its long bar up top (photos 8–13)
   {
     const level = (h) => Math.sqrt(Math.max(0, 1 - ((h - BLOB.y0) / BLOB.ay) ** 2)) * 0.9
-    const f1 = level(5.5)
-    const s1 = new THREE.Mesh(ellipseSlab(THREE, BLOB.ax * f1 - 1, BLOB.az * f1 - 1, 0.4, [-6, 0, 8, 6]), interiorFloor)
-    s1.position.y = 5.5
-    s1.receiveShadow = s1.castShadow = true
-    scene.add(s1)
-    const f2 = level(11)
-    const s2m = new THREE.Mesh(ellipseSlab(THREE, BLOB.ax * f2 - 1.6, BLOB.az * f2 - 1.6, 0.4, [-11, 0, 6.5, 6]), interiorFloor)
-    s2m.position.y = 11
-    s2m.receiveShadow = s2m.castShadow = true
-    scene.add(s2m)
-    // a white ceiling with linear lights over the back of the café
-    batch.box(white, 10, 0.35, 8, 11, 15, -6, [2, 2])
-    const strips = []
-    for (const z of [-8.5, -6, -3.5]) strips.push({ x: 11, y: 14.97, z, w: 7, h: 0.03, d: 0.12 })
-    instBoxes(THREE, scene, strips, new THREE.MeshStandardMaterial({ color: 0xffffff, emissive: 0xfff4e2, emissiveIntensity: 2.2 }), { cast: false })
-    // the bar: black body, pale travertine top, coffee machines, the DJ's decks
-    batch.box(new THREE.MeshStandardMaterial({ color: 0x1c1d1f, roughness: 0.5 }), 9, 1.02, 0.85, 11, 11.4, 3, [2, 2])
-    batch.box(new THREE.MeshStandardMaterial({ color: 0xd9cdb8, roughness: 0.45 }), 9.2, 0.07, 1.0, 11, 12.42, 3, [2, 2])
+    const f1 = level(5.2)
+    const sl1 = new THREE.Mesh(ellipseSlab(THREE, BLOB.ax * f1 - 1.2, BLOB.az * f1 - 1.2, 0.4, [-6, 0, 8, 6]), interiorFloor)
+    sl1.position.y = 5.2
+    sl1.receiveShadow = sl1.castShadow = true
+    scene.add(sl1)
+    const f2 = level(11.8)
+    const sl2 = new THREE.Mesh(ellipseSlab(THREE, BLOB.ax * f2 - 1.6, BLOB.az * f2 - 1.6, 0.4, [-11, 0, 6.5, 6]), interiorFloor)
+    sl2.position.y = 11.8
+    sl2.receiveShadow = sl2.castShadow = true
+    scene.add(sl2)
+    const top = 12.2
+    // the bar: black body, pale stone top, coffee machines, the DJ's decks
+    const barBlack = new THREE.MeshStandardMaterial({ color: 0x1c1d1f, roughness: 0.5 })
+    batch.box(barBlack, 10, 1.02, 0.85, -2, top, -6.6, [2, 2])
+    batch.box(new THREE.MeshStandardMaterial({ color: 0xded3bf, roughness: 0.45 }), 10.2, 0.07, 1.0, -2, top + 1.02, -6.6, [2, 2])
     const chrome = new THREE.MeshStandardMaterial({ color: 0xd8d8d8, metalness: 1, roughness: 0.18 })
-    batch.box(chrome, 0.85, 0.48, 0.55, 13.2, 12.49, 2.85, [1, 1])
-    batch.box(chrome, 0.25, 0.55, 0.25, 14.3, 12.49, 2.9, [1, 1])
-    batch.box(darkMetal, 1.2, 0.12, 0.6, 8.2, 12.49, 2.95, [1, 1])
-    batch.box(new THREE.MeshStandardMaterial({ color: 0x1c1d1f, roughness: 0.5 }), 3, 1.0, 0.8, 4.5, 11.4, -4.5, [2, 2])
-    // pendant lamps hanging from the dome
+    batch.box(chrome, 0.85, 0.48, 0.55, 0.2, top + 1.09, -6.7, [1, 1])
+    batch.box(chrome, 0.25, 0.55, 0.25, 1.3, top + 1.09, -6.6, [1, 1])
+    batch.box(darkMetal, 1.2, 0.12, 0.6, -4.8, top + 1.09, -6.6, [1, 1])
+    batch.box(barBlack, 3, 1.0, 0.8, 5, top, -2.5, [2, 2])
+    // a white wall with the MANA name behind the bar
+    batch.box(white, 9, 3.4, 0.25, -2, top, -9.3, [2, 2])
+    const wall = lettering(THREE, 'M A N A', { w: 3.6, h: 0.7, font: '300 {px}px "Helvetica Neue", Arial, sans-serif', color: '#5c5f63', px: 120 })
+    wall.position.set(-2, top + 2.2, -9.15)
+    scene.add(wall)
+    // pendant lamps hanging from the shell
     const cables = beamBatch(THREE)
     const bulbs = []
     for (const [x, z] of [
-      [8, 3],
-      [11, 3],
-      [14, 3],
-      [6, 8],
-      [12, 9],
+      [-5, -5.5],
+      [-2, -5.5],
+      [1, -5.5],
+      [4, -1],
+      [-1, 1],
     ]) {
-      cables.add(V(x, 18.5, z), V(x, 13.9, z), 0.012)
-      bulbs.push({ x, y: 13.6, z, w: 0.07, h: 0.3, d: 0.07 })
+      cables.add(V(x, 19.5, z), V(x, 15.2, z), 0.012)
+      bulbs.push({ x, y: 14.9, z, w: 0.07, h: 0.3, d: 0.07 })
     }
     scene.add(cables.build(darkMetal, { castShadow: false }))
-    instBoxes(THREE, scene, bulbs, new THREE.MeshStandardMaterial({ color: 0x111111, emissive: 0xffd9a0, emissiveIntensity: 1.4 }), { cast: false })
+    instBoxes(THREE, scene, bulbs, new THREE.MeshStandardMaterial({ color: 0x111111, emissive: 0xffd9a0, emissiveIntensity: 1.6 }), { cast: false })
     // glass balustrades round the voids
     const rail = beamBatch(THREE)
     for (const [cy, hx, hz, rx, rz] of [
-      [5.9, -6, 0, 8, 6],
-      [11.4, -11, 0, 6.5, 6],
+      [5.6, -6, 0, 8, 6],
+      [12.2, -11, 0, 6.5, 6],
     ]) {
       const n = 40
       for (let i = 0; i < n; i++) {
@@ -939,173 +1405,192 @@ export function buildEindhoven(THREE, ctx, { light = 'day' } = {}) {
       }
     }
     scene.add(rail.build(chrome, { castShadow: false }))
-    // a few tables downstairs and potted olive trees up in the café
     const tables = []
-    for (let i = 0; i < 10; i++) {
-      const x = range(rand, -14, 10)
+    for (let i = 0; i < 14; i++) {
+      const x = range(rand, -14, 12)
       const z = range(rand, -9, 9)
-      if (!insideBlob(x, 1, z)) continue
+      if (!insideBlob(x, 1, z) || Math.hypot(x + 6, z) < 8.5) continue
       tables.push({ x, y: 0.05, z, w: 0.8, h: 0.75, d: 0.8 })
     }
-    instBoxes(THREE, scene, tables, new THREE.MeshStandardMaterial({ color: 0x2a2724, roughness: 0.6 }))
-    addForest(THREE, scene, [
-      { x: 15.5, y: 11.4, z: 3, h: 3.2 },
-      { x: 2.5, y: 11.4, z: -7, h: 2.8 },
-      { x: -2, y: 5.9, z: 8, h: 3.4 },
-    ], { species: 'olive', season: 'summer', seed: 4, quality: q })
+    for (const [x, z] of [
+      [3, 2],
+      [6, -1],
+      [2, -2],
+      [6.5, 3.5],
+    ])
+      tables.push({ x, y: top, z, w: 0.75, h: 0.75, d: 0.75 })
+    instBoxes(THREE, scene, tables, new THREE.MeshStandardMaterial({ color: 0x2a2724, roughness: 0.45 }), { geo: new THREE.CylinderGeometry(0.5, 0.5, 1, 18).translate(0, 0.5, 0) })
+    addForest(
+      THREE,
+      scene,
+      [
+        { x: 9, y: top, z: -3, h: 3.0 },
+        { x: -8.5, y: top, z: -5, h: 2.8 },
+        { x: -2, y: 5.6, z: 8, h: 3.4 },
+      ],
+      { species: 'olive', season: 'summer', seed: 4, quality: q }
+    )
   }
 
-  /* around the square --------------------------------------------------------------------- */
-  // the sunken bike park's entrance: a white arched hood over the ramp (photo 5)
+  /* the square: the Bubble, the Tube's entrances, trees ------------------------------------ */
+  geodesic(THREE, scene, {
+    cx: 52,
+    cz: 32,
+    ax: 8.5,
+    ay: 10,
+    az: 8,
+    y0: 1.2,
+    detail: low ? 2 : 3,
+    rf: (dx, dy, dz) => 1 + 0.06 * Math.sin(dx * 4 + dz * 3) - 0.08 * sstep(0.6, 1, dy),
+    glassMat: glassTeal,
+    solidMat: silverGreen,
+    barMat: new THREE.MeshStandardMaterial({ color: 0xc9cdcf, roughness: 0.35, metalness: 0.6 }),
+    seamMat: null,
+    bar: 0.12,
+    classify: (d, c) => !(hash(Math.round(c[0] * 3), Math.round(c[2] * 3) + Math.round(c[1] * 3) * 97, 9) > 0.75 || c[1] < 0.9),
+  })
+  const hornShell = new THREE.MeshStandardMaterial({ map: whiteConcrete.map, normalMap: whiteConcrete.normalMap, roughnessMap: whiteConcrete.roughnessMap, roughness: 0.85, color: 0xffffff, side: THREE.DoubleSide })
+  const hornDark = new THREE.MeshStandardMaterial({ color: 0x1f2022, roughness: 0.9 })
+  // the western entrance: white (photo 5)
+  hornEntrance(THREE, scene, { x: 8, z: 63, ry: 0, shellMat: hornShell, rimMat: white, glassMat: lobby, darkMat: hornDark })
+  // the eastern one, painted with graffiti rings (photo 6)
+  const graffiti = new THREE.MeshStandardMaterial({ map: graffitiTexture(THREE), roughness: 0.6, side: THREE.DoubleSide })
+  hornEntrance(THREE, scene, { x: 44, z: -29, ry: Math.PI / 2, shellMat: graffiti, rimMat: white, glassMat: lobby, darkMat: hornDark })
+  // the canopy over Piazza's front (Fuksas): glass on a steel grid, leaning out over the square
   {
-    const R = 3.3
-    const len = 15
-    const shell = new THREE.CylinderGeometry(R, R, len, 28, 1, true, -Math.PI / 2, Math.PI)
-    shell.rotateX(-Math.PI / 2)
-    const uv = shell.attributes.uv
-    for (let i = 0; i < uv.count; i++) uv.setXY(i, uv.getX(i) * 2.6, uv.getY(i) * 3.7)
-    const hood = new THREE.Mesh(shell, new THREE.MeshStandardMaterial({ map: whiteConcrete.map, normalMap: whiteConcrete.normalMap, roughnessMap: whiteConcrete.roughnessMap, roughness: 1, side: THREE.DoubleSide }))
-    hood.position.set(-46, 0, 47)
-    hood.castShadow = hood.receiveShadow = true
-    scene.add(hood)
-    const lip = new THREE.TorusGeometry(R, 0.22, 8, 28, Math.PI)
-    batch.add(whiteConcrete, lip, -46, 0, 47 + len / 2)
-    // glass and mesh panels down one side, a dark ramp inside
-    batch.box(lobby, 0.12, 2.6, len - 2, -49.1, 0, 47, [6, 4])
-    // the ramp going down into the dark (the square's paving can't be cut, so it's painted)
-    batch.box(new THREE.MeshStandardMaterial({ color: 0x1e1e20, roughness: 0.9 }), 5.4, 0.04, len - 0.5, -46, 0.05, 47, [2, 2])
-    // a weathered steel pillar beside it
-    batch.box(new THREE.MeshStandardMaterial({ color: 0x7a4a2e, roughness: 0.7, metalness: 0.4 }), 0.9, 9, 0.9, -51, 0, 43, [1, 1])
+    const g = new THREE.PlaneGeometry(14, 76, 1, 1)
+    g.rotateX(-Math.PI / 2)
+    g.rotateZ(0.34)
+    const canopy = new THREE.Mesh(g, glassTeal)
+    canopy.position.set(73, 13.2, 36)
+    scene.add(canopy)
+    const grid = beamBatch(THREE)
+    const ca = Math.cos(0.34)
+    const sa = Math.sin(0.34)
+    for (let z = -2; z <= 74; z += 3.8) grid.add(V(73 - 7 * ca, 13.2 - 7 * sa, z), V(73 + 7 * ca, 13.2 + 7 * sa, z), 0.12, 0.3)
+    for (let i = -3; i <= 3; i++) grid.add(V(73 + i * 2.33 * ca, 13.2 + i * 2.33 * sa, -2), V(73 + i * 2.33 * ca, 13.2 + i * 2.33 * sa, 74), 0.1, 0.2)
+    for (let z = 2; z <= 72; z += 11.4) {
+      grid.add(V(68, 0, z), V(68, 9.6, z), 0.36)
+      grid.add(V(68, 9.6, z), V(66.6, 10.8, z - 3), 0.14)
+      grid.add(V(68, 9.6, z), V(66.6, 10.8, z + 3), 0.14)
+    }
+    scene.add(grid.build(steelWhite))
   }
 
-  // the Admirant: a tall, rounded glass tower at the square's north-west corner
+  /* buildings ----------------------------------------------------------------------------- */
+  const roofCap = (x0, x1, z0, z1, h) => blk(roofMat, x0 - 0.2, x1 + 0.2, z0 - 0.2, z1 + 0.2, h, 0.5, [4, 4])
+  // the Admirant offices north of the Mathildelaan (photo 6) and the skybridge between them
+  blk(admA, -62, 4, -104, -54, 0, 33, [3.6, 3.8])
+  roofCap(-62, 4, -104, -54, 33)
+  blk(lobby, -61.6, 3.6, -103.6, -53.8, 0, 4.2, [6, 4])
+  blk(admB, 22, 86, -104, -54, 0, 26, [3.6, 3.8])
+  roofCap(22, 86, -104, -54, 26)
+  blk(lobby, 22.4, 85.6, -103.6, -53.8, 0, 4.2, [6, 4])
+  blk(admA, 3.5, 22.5, -67, -60, 7.4, 3.8, [3.6, 3.8])
+  blk(white, 3.5, 22.5, -67.2, -59.8, 11.2, 0.4, [2, 2])
+  blk(white, 3.5, 22.5, -67.2, -59.8, 7.0, 0.4, [2, 2])
   {
-    const g = roundTower(THREE, { a: 15, b: 10.5, h: 52, n: 2.6, bulge: 0.06, taper: 0.05, twist: 0.12, tile: [3.6, 7.6] })
-    const t = new THREE.Mesh(g, admirantGlass)
-    t.position.set(-54, 0, -22)
-    t.rotation.y = 0.3
-    t.castShadow = t.receiveShadow = true
-    scene.add(t)
-    const cap = new THREE.Mesh(new THREE.CylinderGeometry(1, 1, 0.8, 56), darkMetal)
-    cap.scale.set(15 * 0.95 * 1.07, 1, 10.5 * 0.95 * 1.07)
-    cap.position.set(-54, 52, -22)
-    cap.rotation.y = 0.3 - 0.12
-    scene.add(cap)
+    const sup = lettering(THREE, 'SUPERMARKT', { w: 7, h: 0.9, font: '700 {px}px "Helvetica Neue", Arial, sans-serif', color: '#ffc93a', px: 128, emissive: 1.8 })
+    sup.position.set(-14, 3.4, -53.5)
+    scene.add(sup)
+    const adm = lettering(THREE, 'ADMIRANT', { w: 9, h: 1.2, font: '600 {px}px "Helvetica Neue", Arial, sans-serif', color: '#ffffff', px: 128, emissive: 0.3 })
+    adm.position.set(54, 23, -53.7)
+    scene.add(adm)
   }
-  // Piazza shopping centre to the north-east, its glass front on the street
+  // the Lichttoren: cream brick, a tower with a glass lantern on the corner
+  blk(lichttoren.mat, -104, -50, -33, 16, 0, 21.6, lichttoren.tile)
+  roofCap(-104, -50, -33, 16, 21.6)
+  blk(shops[0].mat, -50.2, -49.9, -20, 12, 0, 4.2, shops[0].tile)
   {
-    const body = new THREE.Mesh(boxGeo(THREE, 90, 24, 54, [12, 8]), [piazzaPanels, piazzaPanels, darkMetal, darkMetal, piazzaGlass, piazzaPanels])
-    body.position.set(65, 0, -73)
-    body.castShadow = body.receiveShadow = true
-    scene.add(body)
-    batch.box(darkMetal, 40, 0.8, 3.2, 50, 6, -47.6, [2, 2])
-    const word = lettering(THREE, 'PIAZZA', { w: 14, h: 2.6, font: '700 {px}px "Helvetica Neue", Arial, sans-serif', color: '#f3f1ec', px: 160, emissive: 0.4 })
-    word.position.set(50, 18, -45.9)
+    const tx = -58
+    const tz = -27
+    blk(lichttoren.mat, tx - 5, tx + 5, tz - 5, tz + 5, 0, 36, lichttoren.tile)
+    blk(whiteConcrete, tx - 5.6, tx + 5.6, tz - 5.6, tz + 5.6, 36, 1, [4, 4])
+    const lantern = new THREE.Mesh(new THREE.CylinderGeometry(4.2, 4.2, 6, 8, 1, true), glassTeal)
+    lantern.position.set(tx, 40, tz)
+    scene.add(lantern)
+    const ribs = beamBatch(THREE)
+    for (let i = 0; i < 8; i++) {
+      const a = (i / 8) * Math.PI * 2 + Math.PI / 8
+      ribs.add(V(tx + Math.cos(a) * 4.15, 37, tz + Math.sin(a) * 4.15), V(tx + Math.cos(a) * 4.15, 43, tz + Math.sin(a) * 4.15), 0.18)
+    }
+    scene.add(ribs.build(darkMetal))
+    const dome = new THREE.Mesh(new THREE.SphereGeometry(4.5, 16, 8, 0, Math.PI * 2, 0, Math.PI / 2), new THREE.MeshStandardMaterial({ color: 0x6d8f86, metalness: 0.6, roughness: 0.4 }))
+    dome.scale.y = 0.55
+    dome.position.set(tx, 43, tz)
+    dome.castShadow = true
+    scene.add(dome)
+    batch.box(darkMetal, 0.25, 4, 0.25, tx, 45.2, tz, [1, 1])
+  }
+  // De Witte Dame: the white Philips factory of 1928, big steel windows
+  blk(witteDame.mat, -108, -50, 24, 94, 0, 27.3, witteDame.tile)
+  roofCap(-108, -50, 24, 94, 27.3)
+  blk(whiteConcrete, -50.4, -49.6, 24, 94, 27.3, 0.9, [4, 4])
+  // Piazza (shops) and the Bijenkorf on the square's east side
+  blk(resiBeige, 80, 156, 24, 90, 4.6, 16.4, [12, 12])
+  blk(shops[1].mat, 79.8, 156, 24, 90, 0, 4.6, shops[1].tile)
+  roofCap(80, 156, 24, 90, 21)
+  {
+    const word = lettering(THREE, 'PIAZZA', { w: 14, h: 2.6, font: '700 {px}px "Helvetica Neue", Arial, sans-serif', color: '#ffffff', px: 160, emissive: 0.4 })
+    word.position.set(79.6, 17.5, 57)
+    word.rotation.y = -Math.PI / 2
     scene.add(word)
   }
-  // the square's south side: shops under offices, a café with a big glass canopy
+  blk(bijenkorf, 96, 156, -34, 20, 0, 24, [12, 12])
+  blk(lobby, 95.8, 156, -34, 20, 0, 4.4, [6, 4])
+  blk(darkMetal, 95.5, 156.5, -34.5, 20.5, 24, 1.4, [2, 2])
   {
-    let x = -64
-    let k = 0
-    while (x < 58) {
-      const w = range(rand, 12, 20)
-      const h = 4.2 + 3.2 * Math.floor(range(rand, 3, 6))
-      const f = fac[k % 3]
-      const s = shops[k % 2]
-      batch.box(f.mat, w, h - 1, 16, x + w / 2, 1, 106, f.tile)
-      batch.box(brick, w, 1, 16, x + w / 2, 0, 106, [2, 2])
-      batch.box(s.mat, w - 0.4, 4.2, 0.3, x + w / 2, 0, 97.95, s.tile)
-      batch.box(kerb, w + 0.3, 0.45, 16.3, x + w / 2, h, 106, [3, 3])
-      x += w + 0.2
-      k++
-    }
-    batch.box(new THREE.MeshStandardMaterial({ color: 0xcfd6da, metalness: 0.6, roughness: 0.15, transparent: false }), 26, 0.25, 6, 14, 4.6, 95, [2, 2])
-    const cafe = lettering(THREE, 'EETCAFÉ', { w: 9, h: 1.6, font: '700 {px}px Georgia, serif', color: '#ffd04a', px: 140, emissive: 1.2 })
-    cafe.rotation.y = Math.PI
-    cafe.position.set(14, 6.2, 97.6)
-    scene.add(cafe)
+    const bk = lettering(THREE, 'de Bijenkorf', { w: 12, h: 2, font: 'italic 600 {px}px Georgia, serif', color: '#1d1d1d', px: 140 })
+    bk.position.set(95.6, 18.5, -7)
+    bk.rotation.y = -Math.PI / 2
+    scene.add(bk)
   }
-  // the Vestdijk: a row of five- to eight-storey blocks east of the road
+  // the gridded office block south of the centre (photo 3)
+  blk(gridOffice, 96, 150, 118, 146, 0, 54, [3.6, 3.6])
+  blk(lobby, 95.8, 150.2, 117.8, 146.2, 0, 4.8, [6, 4])
+  roofCap(96, 150, 118, 146, 54)
+  blk(darkMetal, 110, 136, 124, 140, 54.5, 3.5, [2, 2])
+  // the sports hall where the run starts (photo 1): white blocks, a ribbon window, a long canopy
   {
-    let z = -26
-    let k = 0
-    while (z < 140) {
-      const d = range(rand, 14, 22)
-      const h = 4.2 + 3.2 * Math.floor(range(rand, 4, 8))
-      const mat = k % 2 ? resiGrey : fac[(k + 1) % 3].mat
-      const tile = k % 2 ? [12, 12] : fac[(k + 1) % 3].tile
-      batch.box(mat, 22, h - 1, d, 92, 1, z + d / 2, tile)
-      batch.box(brick, 22, 1, d, 92, 0, z + d / 2, [2, 2])
-      batch.box(shops[k % 2].mat, 0.3, 4.2, d - 0.4, 80.95, 0, z + d / 2, shops[k % 2].tile)
-      batch.box(kerb, 22.3, 0.45, d + 0.3, 92, h, z + d / 2, [3, 3])
-      z += d + 0.2
-      k++
-    }
-  }
-
-  // the brick street: houses both sides, shops below (photo 2)
-  const street = (x0, x1, zc, front) => {
-    let x = x0
-    let k = Math.floor(rand() * 3)
-    while (x < x1 - 5) {
-      const w = Math.min(x1 - x, range(rand, 6, 11))
-      const h = 4.2 + 3.2 * Math.floor(range(rand, 2, 4.4))
-      const f = fac[k % 3]
-      const s = shops[k % 2]
-      batch.box(f.mat, w, h - 1, 17, x + w / 2, 1, zc, f.tile)
-      batch.box(brick, w, 1, 17, x + w / 2, 0, zc, [2, 2])
-      batch.box(s.mat, w - 0.3, 4.2, 0.3, x + w / 2, 0, front, s.tile)
-      batch.box(kerb, w + 0.25, 0.4, 17.3, x + w / 2, h, zc, [3, 3])
-      x += w + 0.1
-      k++
-    }
-  }
-  street(-262, -75, 2.5, 11.1)
-  street(-262, -122, 37.5, 28.9)
-  // the far side of the park: houses behind the pavilion
-  street(-262, -205, 112, 103.4)
-  street(-122, -66, 112, 103.4)
-
-  // the sports pavilion: white block walls, a dark glazed ground floor, a long thin canopy (photo 1)
-  {
-    const x0 = -196
-    const x1 = -128
-    batch.box(whiteBlocks, 60, 15, 22, -164, 0, 123, [2.4, 1.2])
-    batch.box(ribbon, 60.2, 4, 22.2, -164, 10, 123, [6, 4])
-    batch.box(whiteConcrete, 60.6, 0.6, 22.6, -164, 15, 123, [4, 4])
-    batch.box(kerb, x1 - x0, 0.45, 12, (x0 + x1) / 2, 0, 106, [3, 3])
-    for (let i = 0; i < 3; i++) batch.box(kerb, 16, 0.15 * (i + 1), 0.35, -160, 0, 100 - (2 - i) * 0.35 - 0.175, [3, 3])
-    batch.box(lobby, x1 - x0 - 6, 4, 0.3, (x0 + x1) / 2, 0.45, 111.6, [6, 4])
-    batch.box(white, x1 - x0 + 2, 0.55, 13, (x0 + x1) / 2, 4.9, 105.6, [2, 2])
-    const cols = []
-    for (let x = x0 + 2; x <= x1; x += 6.5) cols.push({ x, y: 0.45, z: 99.8, w: 0.16, h: 4.45, d: 0.16 })
-    instBoxes(THREE, scene, cols, darkMetal)
-    const name = lettering(THREE, 'SPORTCENTRUM', { w: 18, h: 0.5, font: '500 {px}px "Helvetica Neue", Arial, sans-serif', color: '#2c2e31', px: 100 })
-    name.rotation.y = Math.PI
-    name.position.set(-162, 5.2, 99.05)
-    scene.add(name)
-    // a spiral escape stair caged on the hall's corner
-    const cage = beamBatch(THREE)
-    const cx = -131.5
-    const cz = 126
-    for (let y = 1; y < 14; y += 0.9) {
-      for (let i = 0; i < 16; i++) {
-        const a0 = (i / 16) * Math.PI * 2
-        const a1 = ((i + 1) / 16) * Math.PI * 2
-        cage.add(V(cx + Math.cos(a0) * 1.6, y, cz + Math.sin(a0) * 1.6), V(cx + Math.cos(a1) * 1.6, y, cz + Math.sin(a1) * 1.6), 0.04)
+    const x0 = -5
+    const x1 = 55
+    blk(whiteBlocks, x0, x1, 225, 249, 0, 15, [2.4, 1.2])
+    blk(hallBand, x0 - 0.1, x1 + 0.1, 224.9, 249.1, 10, 4, [6, 4])
+    blk(whiteConcrete, x0 - 0.3, x1 + 0.3, 224.7, 249.3, 15, 0.6, [4, 4])
+    blk(lobby, x0 + 2, x1 - 2, 224.7, 225.1, 0, 4.4, [6, 4])
+    // the canopy: a thin white slab on slender posts, a railing round its roof terrace
+    blk(white, x0 - 2, x1 + 2, 211, 225, 4.6, 0.55, [2, 2])
+    const posts = []
+    for (let x = x0; x <= x1; x += 6.5) posts.push({ x, y: 0, z: 212, w: 0.16, h: 4.6, d: 0.16 })
+    instBoxes(THREE, scene, posts, darkMetal)
+    const rail = beamBatch(THREE)
+    for (let x = x0 - 1.8; x < x1 + 1.8; x += 1.6) rail.add(V(x, 5.15, 211.2), V(x, 6.2, 211.2), 0.05)
+    rail.add(V(x0 - 1.8, 6.2, 211.2), V(x1 + 1.8, 6.2, 211.2), 0.07)
+    rail.add(V(x0 - 1.8, 5.7, 211.2), V(x1 + 1.8, 5.7, 211.2), 0.04)
+    // a caged ladder up the facade
+    const lx = 30
+    for (let y = 5; y < 15.4; y += 0.3) rail.add(V(lx - 0.25, y, 224.7), V(lx + 0.25, y, 224.7), 0.03)
+    rail.add(V(lx - 0.25, 5, 224.7), V(lx - 0.25, 15.6, 224.7), 0.05)
+    rail.add(V(lx + 0.25, 5, 224.7), V(lx + 0.25, 15.6, 224.7), 0.05)
+    for (let y = 7; y < 15.4; y += 0.9) {
+      for (let i = 0; i < 8; i++) {
+        const a0 = (i / 8) * Math.PI
+        const a1 = ((i + 1) / 8) * Math.PI
+        rail.add(V(lx + Math.cos(a0) * 0.42, y, 224.7 - Math.sin(a0) * 0.7), V(lx + Math.cos(a1) * 0.42, y, 224.7 - Math.sin(a1) * 0.7), 0.03)
       }
     }
-    for (let i = 0; i < 8; i++) {
-      const a = (i / 8) * Math.PI * 2
-      cage.add(V(cx + Math.cos(a) * 1.6, 0, cz + Math.sin(a) * 1.6), V(cx + Math.cos(a) * 1.6, 14, cz + Math.sin(a) * 1.6), 0.06)
+    for (let i = 0; i <= 4; i++) {
+      const a = (i / 4) * Math.PI
+      rail.add(V(lx + Math.cos(a) * 0.42, 7, 224.7 - Math.sin(a) * 0.7), V(lx + Math.cos(a) * 0.42, 15.6, 224.7 - Math.sin(a) * 0.7), 0.03)
     }
-    scene.add(cage.build(darkMetal))
-    // white picnic tables and benches on the grass
+    scene.add(rail.build(paintWhite))
+    // steps and white picnic tables on the grass
+    for (let i = 0; i < 3; i++) blk(kerb, 10, 26, 205.4 + i * 0.4, 211, 0, 0.15 * (i + 1), [3, 3])
     const planks = []
     for (const [x, z] of [
-      [-146, 94],
-      [-176, 95],
-      [-120, 60],
+      [12, 198.5],
+      [44, 199],
+      [-6, 170],
     ]) {
       planks.push({ x, y: 0.72, z, w: 1.9, h: 0.06, d: 0.8 }, { x, y: 0.42, z: z - 0.65, w: 1.9, h: 0.05, d: 0.3 }, { x, y: 0.42, z: z + 0.65, w: 1.9, h: 0.05, d: 0.3 })
       for (const dx of [-0.75, 0.75]) planks.push({ x: x + dx, y: 0, z, w: 0.08, h: 0.72, d: 1.5 })
@@ -1113,134 +1598,281 @@ export function buildEindhoven(THREE, ctx, { light = 'day' } = {}) {
     instBoxes(THREE, scene, planks, white)
   }
 
-  /* station-area towers to the north, fading into the haze (photo 5) ---------------------------- */
+  // brick streets of town houses and flats around the centre
+  const row = (x0, x1, z0, z1, axis, hMin, hMax, faceShop = 0) => {
+    // a run of buildings along `axis` ('x' or 'z') filling the rectangle
+    let p = axis === 'x' ? x0 : z0
+    const end = axis === 'x' ? x1 : z1
+    let k = Math.floor(rand() * 3)
+    while (p < end - 4) {
+      const w = Math.min(end - p, range(rand, 7, 16))
+      const h = 3.1 * Math.round(range(rand, hMin, hMax)) + 1
+      const f = fac[k % 3]
+      if (axis === 'x') {
+        blk(f.mat, p, p + w, z0, z1, 0, h, f.tile)
+        roofCap(p, p + w, z0, z1, h)
+        if (faceShop) blk(shops[k % 2].mat, p + 0.2, p + w - 0.2, faceShop > 0 ? z1 - 0.1 : z0 - 0.05, faceShop > 0 ? z1 + 0.05 : z0 + 0.1, 0, 4.2, shops[k % 2].tile)
+      } else {
+        blk(f.mat, x0, x1, p, p + w, 0, h, f.tile)
+        roofCap(x0, x1, p, p + w, h)
+        if (faceShop) blk(shops[k % 2].mat, faceShop > 0 ? x1 - 0.1 : x0 - 0.05, faceShop > 0 ? x1 + 0.05 : x0 + 0.1, p + 0.2, p + w - 0.2, 0, 4.2, shops[k % 2].tile)
+      }
+      p += w + 0.15
+      k++
+    }
+  }
+  // west of the park, south of De Witte Dame
+  row(-110, -50, 114, 140, 'x', 3, 5, 1)
+  row(-80, -50, 146, 250, 'z', 3, 5, 1)
+  // east of the park
+  row(78, 92, 152, 250, 'z', 3, 5, -1)
+  // behind the hall
+  row(-60, 100, 258, 276, 'x', 3, 6)
+  // west of the Lichttoren and De Witte Dame
+  row(-150, -114, -120, -56, 'z', 4, 7)
+  row(-150, -114, -30, 110, 'z', 4, 7)
+  // north of the Admirant
+  row(-80, 90, -150, -114, 'x', 5, 8, -1)
+  // the Vestdijk's west side north of the Mathildelaan
+  row(100, 156, -104, -56, 'x', 5, 8)
+  row(100, 156, -150, -114, 'x', 5, 8)
+  // the Vestdijk's east side north of the Lightyards site
+  row(200, 236, -150, 20, 'z', 4, 8, -1)
+
+  // the Lightyards site behind its printed hoarding (photo 4)
+  {
+    const fx = 197.5
+    const z0 = 28
+    const z1 = 176
+    const banner = new THREE.Mesh(new THREE.PlaneGeometry(z1 - z0, 2.0), new THREE.MeshStandardMaterial({ map: hoardingTexture(THREE), roughness: 0.7, side: THREE.DoubleSide }))
+    banner.material.map.repeat.set((z1 - z0) / 9, 1)
+    banner.rotation.y = -Math.PI / 2
+    banner.position.set(fx, 1.15, (z0 + z1) / 2)
+    banner.castShadow = banner.receiveShadow = true
+    scene.add(banner)
+    const fence = beamBatch(THREE)
+    for (let z = z0; z <= z1; z += 3.5) fence.add(V(fx + 0.05, 0, z), V(fx + 0.05, 2.25, z), 0.05)
+    fence.add(V(fx + 0.05, 2.2, z0), V(fx + 0.05, 2.2, z1), 0.04)
+    scene.add(fence.build(new THREE.MeshStandardMaterial({ color: 0x9a9da0, metalness: 0.8, roughness: 0.35 })))
+    // the blue name board in front
+    const board = lettering(THREE, 'Lightyards Mussentuin', { w: 3.4, h: 0.36, font: '600 {px}px "Helvetica Neue", Arial, sans-serif', color: '#ffffff', px: 96 })
+    blk(new THREE.MeshStandardMaterial({ color: 0x2a74c4, roughness: 0.5 }), fx - 0.32, fx - 0.26, 85.1, 88.9, 2.15, 0.5, [1, 1])
+    board.position.set(fx - 0.34, 2.4, 87)
+    board.rotation.y = -Math.PI / 2
+    scene.add(board)
+    for (const z of [85.4, 88.6]) blk(darkMetal, fx - 0.33, fx - 0.25, z - 0.04, z + 0.04, 0, 2.15, [1, 1])
+    // the site: a rising concrete tower, a finished brick one, a crane
+    const cx = 240
+    const cz = 110
+    blk(rawConcrete, cx - 6, cx + 6, cz - 5, cz + 5, 0, 60, [4, 4])
+    for (let y = 3.2; y < 50; y += 3.2) blk(rawConcrete, cx - 13, cx + 13, cz - 12, cz + 12, y, 0.3, [4, 4])
+    const cols = []
+    for (const x of [-12.6, -6, 0, 6, 12.6]) for (const z of [-11.6, 11.6]) cols.push({ x: cx + x, y: 0, z: cz + z, w: 0.5, h: 50, d: 0.5 })
+    instBoxes(THREE, scene, cols, rawConcrete)
+    blk(gridOffice, cx - 13, cx + 13, cz - 12, cz + 12, 0, 22, [3.6, 3.6])
+    blk(fac[0].mat, 215, 245, 30, 60, 0, 44, fac[0].tile)
+    roofCap(215, 245, 30, 60, 44)
+    blk(resiGrey, 215, 250, 140, 175, 0, 30, [12, 12])
+    roofCap(215, 250, 140, 175, 30)
+    // the sparrow garden: soil and young planting inside the fence
+    batch.box(lawn, 16, 0.08, 148, 206, 0, 102, [3, 3])
+  }
+
+  /* the station area and its towers to the north (photo 5) -------------------------------------- */
   {
     const towers = [
-      [-30, -150, 24, 92, 22, resiBeige, [12, 12]],
-      [30, -170, 22, 78, 22, resiGrey, [12, 12]],
-      [-90, -190, 20, 104, 20, towerBrown, [6, 12]],
-      [90, -150, 30, 60, 24, towerGlass, [9, 12]],
-      [150, -210, 26, 88, 24, resiBeige, [12, 12]],
-      [-160, -140, 28, 54, 22, resiGrey, [12, 12]],
-      [10, -260, 26, 120, 26, towerGlass, [9, 12]],
-      [-60, -300, 24, 96, 24, resiBeige, [12, 12]],
-      [120, -320, 30, 70, 30, towerBrown, [6, 12]],
-      [-200, -260, 30, 64, 24, towerGlass, [9, 12]],
-      [-10, -110, 40, 30, 24, resiGrey, [12, 12]],
-      [-110, -100, 40, 26, 24, piazzaPanels, [12, 8]],
+      // x, z, w, d, h, material, tile
+      [95, -215, 22, 22, 90, towerDark, [6, 12]], // the dark tower over the Vestdijk
+      [-20, -230, 26, 18, 62, resiGrey, [12, 12]],
+      [45, -300, 24, 24, 84, rawConcrete, [4, 4]], // going up, cranes on top
+      [150, -175, 40, 16, 40, resiGrey, [12, 12]],
+      [-80, -205, 20, 20, 72, resiBeige, [12, 12]],
+      [200, -260, 24, 24, 70, towerGlass, [9, 12]],
+      [-150, -300, 26, 22, 55, towerGlass, [9, 12]],
+      [-40, -320, 22, 22, 100, towerGlass, [9, 12]],
+      [130, -330, 26, 26, 76, resiBeige, [12, 12]],
     ]
-    for (const [x, z, w, h, d, mat, tile] of towers) {
+    for (const [x, z, w, d, h, mat, tile] of towers) {
       batch.box(mat, w, h, d, x, 0, z, tile)
-      batch.box(darkMetal, w * 0.5, 3, d * 0.5, x, h, z, [2, 2])
+      batch.box(roofMat, w + 0.4, 0.6, d + 0.4, x, h, z, [4, 4])
+      if (mat !== rawConcrete) batch.box(darkMetal, w * 0.5, 3, d * 0.5, x, h + 0.6, z, [2, 2])
     }
-    // balconies on the beige towers' south faces
-    for (const [x, z, w, h, d, mat] of towers) {
-      if (mat !== resiBeige) continue
-      for (let y = 6; y < h - 3; y += 3) for (let i = 0; i < 3; i++) batch.box(white, w / 3 - 1.2, 0.2, 1.4, x - w / 3 + (i * w) / 3, y, z + d / 2 + 0.7, [2, 2])
-    }
+    // balconies on the white slab
+    for (let y = 4; y < 38; y += 3.1) blk(white, 131, 169, -166.6, -165.6, y, 0.2, [2, 2])
+    // the station: a long low hall, glass along the front, a slim tower with a clock
+    blk(lobby, -150, 150, -400, -376, 0, 12, [6, 4])
+    blk(whiteConcrete, -152, 152, -402, -374, 12, 1.2, [4, 4])
+    blk(whiteConcrete, -46, -38, -382, -374, 0, 44, [4, 4])
+    const clock = new THREE.Mesh(new THREE.CircleGeometry(2.4, 32), new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.4 }))
+    clock.position.set(-42, 38, -373.9)
+    scene.add(clock)
+    addCranes(
+      THREE,
+      scene,
+      [
+        { x: 45, z: -300, h: 96, jib: 44, a: 2.4 },
+        { x: 70, z: -270, h: 70, jib: 38, a: 0.6 },
+        { x: 252, z: 98, h: 72, jib: 42, a: 2.8 },
+      ].slice(0, low ? 2 : 3),
+      new THREE.MeshStandardMaterial({ color: 0xf2c230, roughness: 0.5, metalness: 0.3 })
+    )
     // and the rest of the city, lower, all round
     const unit = new THREE.BoxGeometry(1, 1, 1).translate(0, 0.5, 0)
     const uvs = unit.attributes.uv.array
     for (let i = 0; i < uvs.length; i++) uvs[i] *= 3
     const per = [[], [], []]
-    for (let i = 0; i < (low ? 180 : 360); i++) {
-      const x = range(rand, -800, 800)
-      const z = range(rand, -800, 800)
-      if (x > -280 && x < 120 && z > -100 && z < 150) continue
-      per[i % 3].push({ x, z, w: range(rand, 20, 44), h: range(rand, 12, 30), d: range(rand, 14, 22), r: Math.floor(rand() * 2) * (Math.PI / 2) })
+    for (let i = 0; i < (low ? 160 : 320); i++) {
+      const x = range(rand, -700, 700)
+      const z = range(rand, -700, 700)
+      if (x > -175 && x < 270 && z > -170 && z < 290) continue
+      if (x > -200 && x < 230 && z > -420 && z < -160) continue
+      per[i % 3].push({ x, z, w: range(rand, 20, 44), h: range(rand, 12, 32), d: range(rand, 14, 24), r: Math.floor(rand() * 2) * (Math.PI / 2) })
     }
     instBoxes(THREE, scene, per[0], resiGrey, { cast: false, geo: unit })
-    instBoxes(THREE, scene, per[1], piazzaPanels, { cast: false, geo: unit.clone() })
+    instBoxes(THREE, scene, per[1], fac[0].mat, { cast: false, geo: unit.clone() })
     instBoxes(THREE, scene, per[2], resiBeige, { cast: false, geo: unit.clone() })
   }
 
-  /* trees: bare limes along the streets, fresh birches in the park --------------------------- */
+  /* trees: bare limes along the streets, young trees in the brick, fresh birches in the park ------ */
   const bare = []
-  for (let x = -255; x <= -102; x += 11) {
-    bare.push({ x: x + range(rand, -1, 1), z: 13.2, h: range(rand, 9, 12) })
-    bare.push({ x: x + 5 + range(rand, -1, 1), z: 26.8, h: range(rand, 9, 12) })
+  // the promenade's old trees (photo 2)
+  for (let z = 118; z < 250; z += 9) bare.push({ x: -31 + range(rand, -0.5, 0.5), z, h: range(rand, 14, 18) }, { x: -17 + range(rand, -0.5, 0.5), z: z + 4.5, h: range(rand, 14, 18) })
+  // the Emmasingel
+  for (let z = -28; z < 96; z += 11) bare.push({ x: -45.5, z, h: range(rand, 9, 12) })
+  // the Mathildelaan
+  for (let x = -24; x < 78; x += 11) if (Math.abs(x - 13) > 8 && (x < 26 || x > 60)) bare.push({ x, z: -33.2, h: range(rand, 9, 12) })
+  // the Vestdijk median and the Lightyards garden
+  for (let z = -140; z < 240; z += 14) if (Math.abs(z - 100) > 14 && Math.abs(z - 4) > 8) bare.push({ x: 173.5, z, h: range(rand, 8, 11) })
+  for (let z = 34; z < 172; z += 7) bare.push({ x: range(rand, 201, 212), z: z + range(rand, -2, 2), h: range(rand, 9, 15) })
+  const young = []
+  // the south street's young trees (photo 3)
+  for (let x = -15; x < 155; x += 10) young.push({ x, z: 113.3, h: range(rand, 6, 8) })
+  young.push({ x: -2, z: 208, h: 6.5 })
+  for (let x = -16; x < 78; x += 12) young.push({ x, z: 97.5, h: range(rand, 6, 7.5) })
+  // a few on the square and by MANA's bed
+  young.push({ x: -22, z: 34, h: 7 }, { x: 60, z: 70, h: 7.5 }, { x: 64, z: 4, h: 7 }, { x: -16, z: 60, h: 7 }, { x: -24, z: 80, h: 7.5 })
+  {
+    const [tx, tz] = at(zf + 4.5, -14.5)
+    young.push({ x: tx, z: tz, h: 6.5 })
   }
-  for (let z = -24; z < 140; z += 12) bare.push({ x: 58.5, z, h: range(rand, 10, 14) }, { x: 79.5, z: z + 6, h: range(rand, 10, 14) })
-  for (let x = -34; x < 57; x += 13) bare.push({ x, z: -29, h: range(rand, 10, 13) })
-  bare.push({ x: -86, z: 44, h: 11 }, { x: -100, z: 42, h: 12 }, { x: -60, z: 70, h: 10 }, { x: -62, z: 86, h: 11 }, { x: 40, z: 60, h: 9 }, { x: 46, z: 30, h: 9 }, { x: -24, z: 30, h: 8 })
+  // and the park's trees
+  for (let i = 0; i < 16; i++) bare.push({ x: range(rand, -10, 70), z: range(rand, 120, 180), h: range(rand, 10, 16) })
   addForest(THREE, scene, low ? bare.filter((_, i) => i % 2 === 0) : bare, { species: 'lime', season: 'winter', seed: 7, quality: q })
-  const park = []
-  for (let x = -250; x < -80; x += 9) {
-    if (x < -138 || x > -102) park.push({ x: x + range(rand, -2, 2), z: range(rand, 49, 58), h: range(rand, 8, 13) })
-    if (x < -192 || x > -125) park.push({ x: x + range(rand, -2, 2), z: range(rand, 93, 101), h: range(rand, 7, 11) })
-  }
-  addForest(THREE, scene, low ? park.filter((_, i) => i % 2 === 0) : park, { species: 'birch', season: 'summer', seed: 3, quality: q })
-  addWillow(THREE, scene, -171, 96, rand, { low })
+  addForest(THREE, scene, low ? young.filter((_, i) => i % 2 === 0) : young, { species: 'plane', season: 'winter', seed: 9, quality: q })
+  const fresh = [
+    { x: -10, z: 205, h: 9 },
+    { x: 66, z: 206, h: 10 },
+    { x: 8, z: 140, h: 11 },
+    { x: 86, z: 124, h: 9 },
+    { x: 82, z: 143, h: 8 },
+    { x: 60, z: 150, h: 10 },
+    { x: 214, z: 60, h: 8 },
+    { x: 214, z: 130, h: 9 },
+    { x: 205, z: 160, h: 6 },
+    { x: 205, z: 48, h: 5 },
+  ]
+  addForest(THREE, scene, fresh, { species: 'birch', season: 'summer', seed: 3, quality: q })
+  addWillow(THREE, scene, 2, 201, rand, { low })
 
-  /* street furniture --------------------------------------------------------------------------- */
+  /* street furniture ------------------------------------------------------------------------------- */
   const lamps = []
-  for (let x = -60; x <= 50; x += 22) lamps.push({ x, z: 88 }, { x, z: -26, r: Math.PI })
-  for (let z = -10; z <= 80; z += 22) lamps.push({ x: -66, z }, { x: 56, z, r: Math.PI })
-  for (const x of [-240, -205, -120, -95]) lamps.push({ x, z: 89, r: Math.PI })
+  for (let x = -20; x <= 70; x += 22) lamps.push({ x, z: -34.8, r: Math.PI / 2 }, { x, z: 95, r: -Math.PI / 2 })
+  for (let z = -20; z <= 90; z += 22) lamps.push({ x: -27.5, z }, { x: 76, z, r: Math.PI })
+  for (let z = -120; z <= 240; z += 26) lamps.push({ x: 173.5, z, r: 0 }, { x: 173.5, z: z + 0.01, r: Math.PI })
+  for (let z = 122; z <= 240; z += 24) lamps.push({ x: -28.6, z })
   addLampPosts(THREE, scene, lamps, { height: 8 })
-  const bollards = []
-  for (let x = -255; x < -76; x += 2.5) bollards.push({ x, z: 11.6, w: 0.16, h: 0.85, d: 0.16 }, { x: x + 1.2, z: 28.4, w: 0.16, h: 0.85, d: 0.16 })
-  instBoxes(THREE, scene, bollards, darkMetal)
   const bins = []
   for (const [x, z] of [
-    [-40, 56],
+    [16, 74],
     [-20, 30],
-    [20, 40],
-    [-140, 84],
-    [-96, 26],
-  ]) bins.push({ x, z, w: 0.5, h: 1.05, d: 0.5 })
-  instBoxes(THREE, scene, bins, new THREE.MeshStandardMaterial({ color: 0x232426, metalness: 0.5, roughness: 0.4 }))
+    [40, 45],
+    [-28, 160],
+    [60, 196.5],
+    [74, 111.5],
+    [189, 92],
+  ])
+    bins.push({ x, z, w: 1, h: 1, d: 1 })
+  instBoxes(THREE, scene, bins, new THREE.MeshStandardMaterial({ color: 0x2b2c2e, metalness: 0.5, roughness: 0.45 }), { geo: new THREE.CylinderGeometry(0.28, 0.28, 1.05, 12).translate(0, 0.525, 0) })
+  const bollards = []
+  for (let x = -18; x < 76; x += 2.4) bollards.push({ x, z: 96.6, w: 0.14, h: 0.8, d: 0.14 })
+  for (let z = -30; z < 94; z += 2.4) bollards.push({ x: -29.2, z, w: 0.14, h: 0.8, d: 0.14 })
+  instBoxes(THREE, scene, bollards, darkMetal)
   addBikes(
     THREE,
     scene,
     [
-      { x: -30, z: 72, len: 22, dir: 0 },
-      { x: 30, z: 80, len: 26, dir: 0 },
-      { x: -134.5, z: 25.8, len: 7, dir: 0, fill: 0.7 },
-      { x: -194.5, z: 14.2, len: 7, dir: 0, fill: 0.7 },
-      { x: 50, z: 20, len: 20, dir: Math.PI / 2 },
-    ].slice(0, low ? 3 : 5),
+      { x: -6, z: 72, len: 14, dir: Math.PI / 2 },
+      { x: 17, z: 74, len: 12, dir: Math.PI / 2 },
+      { x: 30, z: -32.5, len: 16, dir: 0 },
+      { x: -21, z: 150, len: 10, dir: Math.PI / 2, fill: 0.7 },
+      { x: 192, z: 70, len: 14, dir: Math.PI / 2 },
+      { x: 120, z: 112, len: 12, dir: 0 },
+    ].slice(0, low ? 3 : 6),
     rand
   )
-  // traffic on the Vestdijk and in front of Piazza
+  // the no-parking sign and the blue street sign on the south street (photo 3)
+  {
+    const pole = (x, z, h) => batch.box(new THREE.MeshStandardMaterial({ color: 0xc9cbcd, metalness: 0.7, roughness: 0.35 }), 0.07, h, 0.07, x, 0, z, [1, 1])
+    pole(86, 109.2, 2.9)
+    const disc = new THREE.Mesh(new THREE.CircleGeometry(0.32, 24), new THREE.MeshStandardMaterial({ map: signTexture(THREE, 'disc'), roughness: 0.5 }))
+    disc.position.set(86, 2.55, 109.15)
+    disc.rotation.y = Math.PI
+    scene.add(disc)
+    const plate = new THREE.Mesh(new THREE.PlaneGeometry(1.0, 0.25), new THREE.MeshStandardMaterial({ map: signTexture(THREE, 'plate', 'Kerkstraat'), roughness: 0.5, side: THREE.DoubleSide }))
+    plate.position.set(86.5, 3.05, 109.2)
+    scene.add(plate)
+    pole(-36, 96.6, 3.2)
+    const plate2 = new THREE.Mesh(new THREE.PlaneGeometry(1.0, 0.25), new THREE.MeshStandardMaterial({ map: signTexture(THREE, 'plate', 'Emmasingel'), roughness: 0.5, side: THREE.DoubleSide }))
+    plate2.position.set(-36, 3.0, 96.5)
+    plate2.rotation.y = Math.PI / 2
+    scene.add(plate2)
+  }
+  // traffic: cars on the Mathildelaan and the Vestdijk, buses in their lanes
   const cars = []
-  for (let z = -20; z < 140; z += range(rand, 7, 16)) {
-    if (rand() > 0.75) continue
+  for (let z = -140; z < 240; z += range(rand, 8, 18)) {
+    if (rand() > 0.6 || (z > 80 && z < 120)) continue
     const south = rand() < 0.5
-    cars.push({ x: south ? 66.5 : 71.5, z, r: south ? Math.PI / 2 : -Math.PI / 2 })
+    cars.push({ x: south ? 165 : 182, z, r: south ? Math.PI / 2 : -Math.PI / 2 })
   }
-  for (let x = -110; x < 150; x += range(rand, 8, 18)) {
-    if (rand() > 0.6 || Math.abs(x - 69) < 8) continue
+  for (let x = -150; x < 155; x += range(rand, 8, 18)) {
+    if (rand() > 0.55 || Math.abs(x - 12) < 9) continue
     const east = rand() < 0.5
-    cars.push({ x, z: east ? -37.5 : -42.5, r: east ? 0 : Math.PI })
+    cars.push({ x, z: east ? -40.5 : -45.5, r: east ? 0 : Math.PI })
   }
+  for (const x of [-34, 40]) cars.push({ x, z: 102, r: 0 })
   addCars(THREE, scene, low ? cars.filter((_, i) => i % 2 === 0) : cars, rand)
+  addBuses(THREE, scene, [
+    { x: 171.15, z: 30, r: Math.PI / 2 },
+    { x: 175.85, z: -70, r: -Math.PI / 2 },
+  ])
 
   batch.build(scene)
 
-  /* light, the flight in, the viewpoints ----------------------------------------------------- */
-  world.focusShadows(V(-60, 0, 45), 125)
+  /* light, the flight in, the viewpoints --------------------------------------------------------- */
+  world.focusShadows(V(60, 0, 90), 160)
 
   const spots = [
-    // 0 · the park strip: runners' path, the white sports pavilion and its canopy, the willow (photo 1)
-    { pos: V(-150, 1.6, 74), look: V(-160, 6, 125) },
-    // 1 · down the brick street between bare trees (photo 2)
-    { pos: V(-90, 1.7, 21), look: V(-200, 5, 19) },
-    // 2 · on 18 Septemberplein: the bike park's white hood, towers ahead, the Blob to the right (photo 5)
-    { pos: V(-38, 1.7, 62), look: V(-30, 12, -80) },
-    // 3 · the Admirant rising over the square, the Blob's glass beside it (photos 3, 6)
-    { pos: V(-22, 1.7, 52), look: V(-46, 22, -40) },
-    // 4 · MANA's door in the Blob's white skin, the planted bed in front (photo 7)
-    { pos: V(-12, 1.6, 33), look: V(-1, 7.5, 10) },
-    // 5 · inside: the café under the glass lattice, looking out over the square (photos 8–13)
-    { pos: V(4, 13.05, -3), look: V(30, 9, 40) },
-    // 6 · above the square: the Blob, the Admirant and the city beyond
-    { pos: V(34, 26, 62), look: V(-6, 6, -6) },
+    // 0 · the start (photo 1): the runners' path through the park, the white hall, its canopy, the willow
+    { pos: V(22, 1.6, 180), look: V(24, 9, 224) },
+    // 1 · the brick promenade between old bare trees, looking north to the centre (photo 2)
+    { pos: V(-24, 1.7, 199.5), look: V(-20, 9, 110) },
+    // 2 · the brick pavement of the south street, young trees, the gridded office tower (photo 3)
+    { pos: V(55, 1.7, 110.4), look: V(110, 16, 140) },
+    // 3 · on the Vestdijk's cycle lane by the Lightyards hoarding (photo 4)
+    { pos: V(185.5, 1.6, 104), look: V(205, 4, 84) },
+    // 4 · 18 Septemberplein: the white Tube entrance left, the Bubble right, towers ahead (photo 5)
+    { pos: V(22, 1.7, 86), look: V(26, 15, -40) },
+    // 5 · the Admirant's blue glass and skybridge over the Mathildelaan, the graffiti Tube right (photo 6)
+    { pos: V(44, 1.7, -14), look: V(8, 11, -62) },
+    // 6 · the Blob: MANA's door in the white skin, the planted bed in front (photo 7)
+    { pos: V(21, 1.6, 26.5), look: V(1, 8, 2) },
+    // 7 · inside: the café under the glass lattice (photos 8–13)
+    { pos: V(8, 13.85, 6), look: V(-8, 14.5, -6) },
   ]
   const end = spots[0]
   const path = {
-    positions: [V(140, 170, -160), V(30, 80, 40), V(-90, 30, 66), V(-140, 5.5, 71), end.pos.clone()],
-    targets: [V(-10, 10, 0), V(-70, 8, 50), V(-150, 6, 110), V(-158, 5.5, 122), end.look.clone()],
+    positions: [V(170, 170, -130), V(95, 75, 55), V(42, 26, 128), V(22, 4.5, 160), end.pos.clone()],
+    targets: [V(0, 10, 0), V(10, 8, 100), V(22, 8, 200), V(24, 7, 222), end.look.clone()],
     fov: 50,
     near: 0.3,
     spots,

@@ -6,6 +6,16 @@
   "cover": "/photos/src-mana-01.jpg",
   "intro": "",
   "scene": "eindhoven",
+  "locations": [
+    {
+      "scene": "eindhoven",
+      "photos": "1-7"
+    },
+    {
+      "scene": "blob",
+      "photos": "8-13"
+    }
+  ],
   "place": "Eindhoven city centre",
   "city": "Eindhoven",
   "photos": [

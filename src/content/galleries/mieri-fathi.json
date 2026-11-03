@@ -6,6 +6,17 @@
   "cover": "/photos/mieri-fathi-01.jpg",
   "intro": "",
   "scene": "coast",
+  "locations": [
+    {
+      "scene": "cityhall",
+      "photos": "1-7",
+      "city": "Rotterdam"
+    },
+    {
+      "scene": "coast",
+      "photos": "8-14"
+    }
+  ],
   "place": "The dunes and the beach, at sunset",
   "hero": "/photos/mieri-fathi-08.jpg",
   "heroAlt": "A couple walking hand in hand along a sandy path through tall golden dune grass toward the sea",

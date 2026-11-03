@@ -243,6 +243,7 @@ the whole place gets a gentle white balance and saturation taken from them
 |---|---|
 | **Place** | The 3D world: Paris, Amsterdam canals, Leidseplein, Dunes and beach, University campus (TU/e), Erasmus University, Eindhoven (the Blob), City waterfront at sunset / at night, On the water at night (party boat), Light-filled country house, Studio, Graduation hall, or None. |
 | **Where it was shot** | Your note of the exact spot, e.g. "Trocadéro, Paris". Not shown to visitors (the story uses it only when City is empty). |
+| **Several places in one shoot** | When a shoot moved (City Hall, then the dunes), list each place with its photo numbers; the experience moves from one place to the next as the photos do. |
 | **City** | What the experience shows ("Pre-wedding · Paris") — only the city, never the exact spot. Empty shows just the type of shoot. |
 | **The moment** | The photo on the print, and the first one shown; the sky is read from it. A project needs both a Place and a Moment to appear in the tour. |
 | **Describe the moment photo** | Alt text for screen readers and Google. |

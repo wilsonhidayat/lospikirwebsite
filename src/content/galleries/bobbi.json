@@ -6,6 +6,22 @@
   "cover": "/photos/bobbi-02.jpg",
   "intro": "",
   "scene": "studio",
+  "locations": [
+    {
+      "scene": "studio",
+      "photos": "1-10"
+    },
+    {
+      "scene": "amsterdam",
+      "photos": "11",
+      "city": "Amsterdam"
+    },
+    {
+      "scene": "park",
+      "photos": "12-18",
+      "city": "Amsterdam"
+    }
+  ],
   "place": "The studio, and Amsterdam in autumn",
   "city": "Amsterdam",
   "photos": [

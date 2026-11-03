@@ -56,28 +56,11 @@ export default function Journey({ items, variant = 'home', landing = null, skip 
     return photo ? 'photo' : 'gradient'
   }, [])
 
-  // the shape of every project's moment photo, known before the memories show
-  const [aspects, setAspects] = useState(() => items.map(() => 0))
-  useEffect(() => {
-    if (!home) return
-    let alive = true
-    items.forEach((it, i) => {
-      const img = new Image()
-      img.onload = () => alive && setAspects((a) => a.map((v, k) => (k === i ? img.naturalWidth / img.naturalHeight : v)))
-      img.src = it.hero
-    })
-    return () => {
-      alive = false
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
-
   const item = items[chapter]
-  const photos = useMemo(() => {
-    const list = item.photos.length ? item.photos : [{ src: item.hero, alt: item.alt }]
-    const heroIdx = list.findIndex((p) => p.src === item.hero)
-    return heroIdx > 0 ? [list[heroIdx], ...list.filter((_, i) => i !== heroIdx)] : list
-  }, [item])
+  // the photos in the order they're shown, each with the place it belongs to
+  // (a gallery can span several places) and the viewpoint it uses there
+  const seq = useMemo(() => sequence(item), [item])
+  const photos = seq.photos
   const current = photos[Math.min(photo, photos.length - 1)]
   const name = item.title || item.caption
   const last = photo === photos.length - 1
@@ -130,7 +113,8 @@ export default function Journey({ items, variant = 'home', landing = null, skip 
   // gallery pages: straight into the place
   useEffect(() => {
     if (home) return
-    getViewer().then((v) => v?.enter(items[0]))
+    const first = sequence(items[0])
+    getViewer().then((v) => v?.enter(first.locs[0].item, first.spot[0]))
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
@@ -204,8 +188,19 @@ export default function Journey({ items, variant = 'home', landing = null, skip 
     snd.setMuted(!on)
     if (on) {
       snd.start()
-      snd.setPlace(stage === 'place' ? item.scene : null)
+      snd.setPlace(stage === 'place' ? seq.locs[seq.loc[photo]]?.scene : null)
     }
+  }
+
+  // the chapter in view gets its place ready, so stepping in is quick
+  const preloadTimer = useRef(0)
+  const preloadSoon = (i) => {
+    clearTimeout(preloadTimer.current)
+    preloadTimer.current = setTimeout(() => {
+      const it = items[i]
+      if (!it || !viewerRef.current) return
+      viewerRef.current.preload(sequence(it).locs[0].item)
+    }, 650)
   }
 
   // finished, or left: back to the title, and the page scrolls on to the rest
@@ -227,6 +222,7 @@ export default function Journey({ items, variant = 'home', landing = null, skip 
     const it = items[i]
     const aspect = imgEl?.naturalWidth ? imgEl.naturalWidth / imgEl.naturalHeight : 0.75
     const from = imgEl?.getBoundingClientRect()
+    const first = sequence(it)
     setChapter(i)
     setPhoto(0)
     setDir(1)
@@ -235,8 +231,8 @@ export default function Journey({ items, variant = 'home', landing = null, skip 
     else setPhotoOn(true)
     setStage('place')
     setPhase('loading')
-    soundRef.current?.setPlace(it.scene)
-    getViewer().then((v) => (v ? v.enter(it) : setPhase('arrived')))
+    soundRef.current?.setPlace(first.locs[0].scene)
+    getViewer().then((v) => (v ? v.enter(first.locs[0].item, first.spot[0]) : setPhase('arrived')))
   }
 
   const goPhoto = useCallback(
@@ -244,9 +240,18 @@ export default function Journey({ items, variant = 'home', landing = null, skip 
       if (next < 0 || next >= photos.length || next === photo) return
       setDir(next > photo ? 1 : -1)
       setPhoto(next)
-      viewerRef.current?.photo(next)
+      const v = viewerRef.current
+      const loc = seq.loc[next]
+      if (loc !== seq.loc[photo]) {
+        // on to another place of the same shoot: it develops in around the photo
+        soundRef.current?.setPlace(seq.locs[loc].scene)
+        v?.enter(seq.locs[loc].item, seq.spot[next])
+      } else v?.photo(seq.spot[next])
+      // get the next place of the shoot ready before it's needed
+      const ahead = seq.loc[Math.min(photos.length - 1, next + 2)]
+      if (ahead !== loc) v?.preload(seq.locs[ahead].item)
     },
-    [photo, photos]
+    [photo, photos, seq]
   )
 
   // back to the line of memories — on the next print when the story moves on
@@ -425,7 +430,7 @@ export default function Journey({ items, variant = 'home', landing = null, skip 
       {/* Memories */}
       <AnimatePresence>
         {stage === 'memories' && (
-          <Memories key="memories" items={items} aspects={aspects} start={chapter} onOpen={openMemory} onBack={backToLanding} onFinish={finish} skipLink={exitPill} noCopy={noCopy} />
+          <Memories key="memories" items={items} start={chapter} onOpen={openMemory} onBack={backToLanding} onFinish={finish} onActive={preloadSoon} skipLink={exitPill} noCopy={noCopy} />
         )}
       </AnimatePresence>
 
@@ -461,8 +466,19 @@ export default function Journey({ items, variant = 'home', landing = null, skip 
 
             {home && <div className="mem__skip">{exitPill}</div>}
             <p className="pv__hint label" aria-hidden="true">Scroll to move through the story</p>
+            {photos.length > 1 && (
+              <>
+                <button type="button" className="pv__nav pv__nav--prev" aria-label="Previous photo" disabled={photo === 0} onClick={() => goPhoto(photo - 1)}>
+                  <Chevron dir={-1} />
+                </button>
+                <button type="button" className="pv__nav pv__nav--next" aria-label="Next photo" disabled={last} onClick={() => goPhoto(photo + 1)}>
+                  <Chevron dir={1} />
+                </button>
+              </>
+            )}
             <div className="pv__stage">
               <motion.div className="pv__frame" layout transition={SPRING} style={{ visibility: photoOn ? 'visible' : 'hidden' }}>
+                <div className="pv__float">
                 <AnimatePresence initial={false} custom={dir} mode="popLayout">
                   <motion.img
                     key={current?.src}
@@ -470,10 +486,10 @@ export default function Journey({ items, variant = 'home', landing = null, skip 
                     alt={altFor(current, photo)}
                     className="pv__photo"
                     custom={dir}
-                    initial={{ opacity: 0, x: dir * 90, rotateY: dir * 10 }}
-                    animate={{ opacity: 1, x: 0, rotateY: 0 }}
-                    exit={{ opacity: 0, x: -dir * 90, rotateY: -dir * 10 }}
-                    transition={SPRING}
+                    variants={reduced ? FADE : WIND}
+                    initial="enter"
+                    animate="center"
+                    exit="exit"
                     drag={photos.length > 1 ? 'x' : false}
                     dragSnapToOrigin
                     dragElastic={0.2}
@@ -485,19 +501,7 @@ export default function Journey({ items, variant = 'home', landing = null, skip 
                     {...noCopy}
                   />
                 </AnimatePresence>
-                {photos.length > 1 && photo > 0 && (
-                  <button type="button" className="pv__arrow pv__arrow--prev" aria-label="Previous photo" onClick={() => goPhoto(photo - 1)}>
-                    <Chevron dir={-1} />
-                  </button>
-                )}
-                {photos.length > 1 && !last && (
-                  <button type="button" className="pv__arrow pv__arrow--next" aria-label="Next photo" onClick={() => goPhoto(photo + 1)}>
-                    <Chevron dir={1} />
-                  </button>
-                )}
-                <p className="pv__credit">
-                  © <img src="/logo-bone.png" alt="Lospikir" {...noCopy} />
-                </p>
+                </div>
                 <div className="pv__below">
                   <p className="pv__count label" aria-hidden="true">
                     {String(photo + 1).padStart(2, '0')} <span>/</span> {String(photos.length).padStart(2, '0')}
@@ -522,18 +526,18 @@ export default function Journey({ items, variant = 'home', landing = null, skip 
             </div>
 
             <div className="pv__story">
-              <p className="label pv__kind">{shootLine(item)}</p>
+              <p className="label pv__kind">{shootLine({ ...item, city: seq.locs[seq.loc[photo]]?.city || item.city })}</p>
               <h2 className="display pv__name">{name}</h2>
               <AnimatePresence mode="wait">
                 <motion.p
-                  key={storyLine(item, photo, photos.length)}
+                  key={storyLine({ ...item, city: seq.locs[seq.loc[photo]]?.city || item.city }, photo, photos.length)}
                   className="pv__line"
                   initial={{ opacity: 0, y: 8 }}
                   animate={{ opacity: 1, y: 0 }}
                   exit={{ opacity: 0, y: -6 }}
                   transition={{ duration: 0.45 }}
                 >
-                  {storyLine(item, photo, photos.length)}
+                  {storyLine({ ...item, city: seq.locs[seq.loc[photo]]?.city || item.city }, photo, photos.length)}
                 </motion.p>
               </AnimatePresence>
             </div>
@@ -546,6 +550,37 @@ export default function Journey({ items, variant = 'home', landing = null, skip 
       </p>
     </section>
   )
+}
+
+/**
+ * Next / previous: the photo is caught by the wind — it lifts, turns and
+ * blows away, and the next one drifts in, flutters and settles.
+ */
+const WIND = {
+  enter: (d) => ({ opacity: 0, x: d * 380, y: -36, rotate: d * 8, rotateY: d * 30, rotateX: 12 }),
+  center: {
+    opacity: 1,
+    x: 0,
+    y: 0,
+    rotate: 0,
+    rotateY: 0,
+    rotateX: 0,
+    transition: { type: 'spring', stiffness: 60, damping: 11, mass: 1.15, opacity: { duration: 0.4 } },
+  },
+  exit: (d) => ({
+    opacity: 0,
+    x: -d * 640,
+    y: -110,
+    rotate: -d * 17,
+    rotateY: -d * 38,
+    rotateX: 22,
+    transition: { duration: 0.8, ease: [0.5, 0, 0.75, 0.35] },
+  }),
+}
+const FADE = {
+  enter: { opacity: 0 },
+  center: { opacity: 1, transition: { duration: 0.3 } },
+  exit: { opacity: 0, transition: { duration: 0.2 } },
 }
 
 /** Where the photo sits in a place, for a given aspect ratio (CSS px). Matches journey.css. */
@@ -570,272 +605,152 @@ function Chevron({ dir }) {
 }
 
 /**
- * The memories: a long line of twine with every project hanging from it as
- * an instant print. Scroll sideways (wheel, trackpad, drag, swipe, arrow
- * keys); the print in the middle comes forward and its name is written large
- * beneath. Click it to go in.
+ * The memories, as chapters: the chosen shoot fills the screen behind its
+ * title (what it was, where, how many photos), with every chapter in a row
+ * along the bottom. Scroll, swipe or use the arrow keys to move along the
+ * row; Step into the shoot (or click the chosen card) goes in.
  */
-function Memories({ items, aspects, start = 0, onOpen, onBack, onFinish, skipLink, noCopy }) {
-  const trackRef = useRef(null)
-  const lineRef = useRef(null)
-  const wallRef = useRef(null)
+function Memories({ items, start = 0, onOpen, onBack, onFinish, onActive, skipLink, noCopy }) {
+  const rowRef = useRef(null)
+  const bgRef = useRef(null)
+  const rootRef = useRef(null)
   const cardRefs = useRef([])
   const [active, setActive] = useState(start)
-  const wide = aspects.map((a) => a > 1.1)
-  const drag = useRef(null)
   const activeRef = useRef(start)
+  activeRef.current = active
+  const reduced = useReducedMotion()
 
-  // centre the starting print before the first paint
-  useLayoutEffect(() => {
-    const el = cardRefs.current[start]
-    const track = trackRef.current
-    if (el && track) track.scrollLeft = el.offsetLeft + el.offsetWidth / 2 - track.clientWidth / 2
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
+  const select = (i, smooth = true) => {
+    const k = Math.max(0, Math.min(items.length - 1, i))
+    setActive(k)
+    const el = cardRefs.current[k]
+    const row = rowRef.current
+    if (el && row) row.scrollTo({ left: el.offsetLeft + el.offsetWidth / 2 - row.clientWidth / 2, behavior: smooth && !reduced ? 'smooth' : 'auto' })
+  }
+  useLayoutEffect(() => select(start, false), []) // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => onActive?.(active), [active]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  // each print leans back the further it is from the middle
+  const open = () => onOpen(activeRef.current, bgRef.current)
+  const selectRef = useRef(select)
+  selectRef.current = select
+  const openRef = useRef(open)
+  openRef.current = open
+
+  // the wheel moves one chapter per flick; arrow keys too
   useEffect(() => {
-    const track = trackRef.current
-    let raf = 0
-    const update = () => {
-      raf = 0
-      const mid = track.clientWidth / 2
-      let best = 0
-      let bestD = Infinity
-      cardRefs.current.forEach((el, i) => {
-        if (!el) return
-        const c = el.offsetLeft + el.offsetWidth / 2 - track.scrollLeft
-        const d = (c - mid) / Math.max(1, el.offsetWidth)
-        const a = Math.min(1, Math.abs(d))
-        el.style.setProperty('--d', d.toFixed(3))
-        el.style.setProperty('--a', a.toFixed(3))
-        el.style.zIndex = String(100 - Math.round(Math.abs(d) * 10))
-        if (Math.abs(d) < bestD) {
-          bestD = Math.abs(d)
-          best = i
-        }
-      })
-      // the wall moves with the line (a little slower: it sits behind it)
-      if (wallRef.current) wallRef.current.style.backgroundPosition = `${(-track.scrollLeft * 0.9).toFixed(1)}px 0`
-      if (best !== activeRef.current) {
-        activeRef.current = best
-        setActive(best)
+    let acc = 0
+    let last = 0
+    let quietUntil = 0
+    const onWheel = (e) => {
+      e.preventDefault()
+      const now = performance.now()
+      if (now - last > 220) acc = 0
+      last = now
+      if (now < quietUntil) {
+        quietUntil = now + 160
+        return
+      }
+      acc += Math.abs(e.deltaX) > Math.abs(e.deltaY) ? e.deltaX : e.deltaY
+      if (Math.abs(acc) > 45) {
+        selectRef.current(activeRef.current + (acc > 0 ? 1 : -1))
+        acc = 0
+        quietUntil = now + 420
       }
     }
-    const onScroll = () => {
-      if (!raf) raf = requestAnimationFrame(update)
-    }
-    // the twine runs the whole length of the line
-    const sizeLine = () => drawLine(track, lineRef.current, cardRefs.current)
-    sizeLine()
-    const ro = new ResizeObserver(() => {
-      sizeLine()
-      onScroll()
-    })
-    ro.observe(track)
-    // a vertical wheel scrolls the line sideways
-    const onWheel = (e) => {
-      if (Math.abs(e.deltaY) <= Math.abs(e.deltaX)) return
+    const onKey = (e) => {
+      if (e.target.closest?.('input, textarea, select')) return
+      if (e.key === 'ArrowRight' || e.key === 'ArrowDown') selectRef.current(activeRef.current + 1)
+      else if (e.key === 'ArrowLeft' || e.key === 'ArrowUp') selectRef.current(activeRef.current - 1)
+      else if (e.key === 'Enter' && document.activeElement === document.body) openRef.current()
+      else return
       e.preventDefault()
-      track.scrollBy({ left: e.deltaY * 1.1, behavior: 'auto' })
     }
-    update()
-    track.addEventListener('scroll', onScroll, { passive: true })
-    track.addEventListener('wheel', onWheel, { passive: false })
-    window.addEventListener('resize', onScroll)
+    const el = rootRef.current
+    el?.addEventListener('wheel', onWheel, { passive: false })
+    window.addEventListener('keydown', onKey)
     return () => {
-      track.removeEventListener('scroll', onScroll)
-      track.removeEventListener('wheel', onWheel)
-      window.removeEventListener('resize', onScroll)
-      ro.disconnect()
-      cancelAnimationFrame(raf)
+      el?.removeEventListener('wheel', onWheel)
+      window.removeEventListener('keydown', onKey)
     }
   }, [])
 
-  // the prints change width once their photos' shapes are known: keep the
-  // active one in the middle
-  const wideKey = wide.join()
-  useLayoutEffect(() => {
-    const el = cardRefs.current[activeRef.current]
-    const track = trackRef.current
-    if (track) drawLine(track, lineRef.current, cardRefs.current)
-    if (el && track) track.scrollLeft = el.offsetLeft + el.offsetWidth / 2 - track.clientWidth / 2
-    track?.dispatchEvent(new Event('scroll'))
-  }, [wideKey])
-
-  const centre = (i, smooth = true) => {
-    const el = cardRefs.current[i]
-    const track = trackRef.current
-    if (!el || !track) return
-    track.scrollTo({ left: el.offsetLeft + el.offsetWidth / 2 - track.clientWidth / 2, behavior: smooth ? 'smooth' : 'auto' })
-  }
-
-  // keyboard: ← → move along the line, Enter opens
-  useEffect(() => {
-    const onKey = (e) => {
-      if (e.target.closest?.('input, textarea, select')) return
-      if (e.key === 'ArrowRight') centre(Math.min(items.length - 1, activeRef.current + 1))
-      else if (e.key === 'ArrowLeft') centre(Math.max(0, activeRef.current - 1))
-      else if (e.key === 'Enter' && document.activeElement === document.body) {
-        const el = cardRefs.current[activeRef.current]
-        onOpen(activeRef.current, el?.querySelector('img'))
-      } else return
-      e.preventDefault()
-    }
-    window.addEventListener('keydown', onKey)
-    return () => window.removeEventListener('keydown', onKey)
-  })
-
-  // mouse drag (touch scrolls natively)
-  const onDown = (e) => {
-    if (e.pointerType !== 'mouse') return
-    drag.current = { x: e.clientX, left: trackRef.current.scrollLeft, moved: false }
-  }
-  const onMove = (e) => {
-    const d = drag.current
-    if (!d) return
-    const dx = e.clientX - d.x
-    if (Math.abs(dx) > 5) d.moved = true
-    trackRef.current.scrollLeft = d.left - dx
-  }
-  const onUp = () => {
-    const d = drag.current
-    drag.current = null
-    if (d?.moved) centre(activeRef.current)
-  }
-
-  const click = (i, e) => {
-    if (drag.current?.moved) return
-    if (i !== activeRef.current) centre(i)
-    else onOpen(i, e.currentTarget.querySelector('img'))
-  }
-
   const it = items[active]
+  const count = it.photos?.length || 1
+  const line = shootLine(it)
+  const lastOne = active === items.length - 1
 
   return (
-    <motion.div className="mem" initial={{ opacity: 0 }} animate={{ opacity: 1, transition: { duration: 0.7 } }} exit={{ opacity: 0, transition: { duration: 0.6 } }}>
-      <div className="mem__wall" ref={wallRef} aria-hidden="true" />
-      <div className="mem__light" aria-hidden="true" />
+    <motion.div ref={rootRef} className="mx" initial={{ opacity: 0 }} animate={{ opacity: 1, transition: { duration: 0.7 } }} exit={{ opacity: 0, transition: { duration: 0.6 } }}>
+      <AnimatePresence initial={false}>
+        <motion.img
+          key={it.hero}
+          ref={bgRef}
+          className="mx__bg"
+          src={it.hero}
+          alt=""
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1, transition: { duration: 0.9 } }}
+          exit={{ opacity: 0, transition: { duration: 0.9 } }}
+          {...noCopy}
+        />
+      </AnimatePresence>
+      <div className="mx__scrim" aria-hidden="true" />
+
       <button type="button" className="jr__pill jr__back" onClick={onBack}>
         ← Home
       </button>
       <div className="mem__skip">{skipLink}</div>
-      <div className="mem__intro">
-        <p className="label mem__eyebrow">{site.tour?.memoriesEyebrow || 'Step into a shoot'}</p>
-        <p className="mem__lede">{site.tour?.memoriesIntro}</p>
+
+      <div className="mx__info">
+        <p className="label mx__eyebrow">
+          {site.tour?.memoriesEyebrow || 'Step into a shoot'} <span aria-hidden="true">·</span> Chapter {String(active + 1).padStart(2, '0')} / {String(items.length).padStart(2, '0')}
+        </p>
+        <AnimatePresence mode="wait">
+          <motion.div key={it.slug} initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }} transition={{ duration: 0.35 }}>
+            <h2 className="display mx__title">{it.title || it.caption}</h2>
+            <p className="mx__detail">
+              {line}
+              {line ? ' · ' : ''}
+              {count} photos
+            </p>
+          </motion.div>
+        </AnimatePresence>
+        <p className="mx__lede">{site.tour?.memoriesIntro}</p>
+        <div className="mx__actions">
+          <button type="button" className="btn btn--pill mx__play" onClick={open}>
+            <svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true">
+              <path d="M7 4.5v15l12-7.5z" fill="currentColor" />
+            </svg>
+            Step into the shoot
+          </button>
+          {lastOne && (
+            <button type="button" className="jr__pill mx__finish" onClick={onFinish}>
+              Finish the experience
+            </button>
+          )}
+        </div>
       </div>
 
-      <div className="mem__track" ref={trackRef} onPointerDown={onDown} onPointerMove={onMove} onPointerUp={onUp} onPointerLeave={onUp}>
-        <svg className="mem__line" ref={lineRef} aria-hidden="true" />
+      <div className="mx__row" ref={rowRef} role="listbox" aria-label="Chapters">
         {items.map((m, i) => (
           <button
             key={m.slug}
             ref={(el) => (cardRefs.current[i] = el)}
             type="button"
-            className={`mem__card${wide[i] ? ' mem__card--wide' : ''}${i === active ? ' is-active' : ''}`}
-            style={{ '--sway': `${(i * 0.73) % 2}s` }}
-            onClick={(e) => click(i, e)}
-            aria-label={i === active ? `Open ${m.title || m.caption}` : m.title || m.caption}
+            role="option"
+            aria-selected={i === active}
+            className={`mx__card${i === active ? ' is-active' : ''}`}
+            onClick={() => (i === active ? open() : select(i))}
           >
-            <span className="mem__peg" aria-hidden="true" />
-            <span className="mem__print">
-              <span className="mem__window">
-                <img
-                  src={m.hero}
-                  alt={m.alt || ''}
-                  loading={Math.abs(i - start) < 4 ? 'eager' : 'lazy'}
-                  decoding="async"
-                  {...noCopy}
-                />
-              </span>
-              <span className="mem__hand">{m.title || m.caption}</span>
-              <span className="mem__shade" aria-hidden="true" />
+            <span className="mx__thumb">
+              <img src={m.hero} alt={m.alt || ''} loading={Math.abs(i - start) < 6 ? 'eager' : 'lazy'} decoding="async" {...noCopy} />
             </span>
+            <span className="mx__name">{m.title || m.caption}</span>
           </button>
         ))}
       </div>
-
-      <div className="mem__caption">
-        <AnimatePresence mode="wait">
-          <motion.h2
-            key={it.slug}
-            className="display mem__name"
-            initial={{ opacity: 0, y: 14 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -10 }}
-            transition={{ duration: 0.35 }}
-          >
-            {it.title || it.caption}
-          </motion.h2>
-        </AnimatePresence>
-        <p className="mem__detail">{shootLine(it)}</p>
-        <p className="mem__meta label">
-          {String(active + 1).padStart(2, '0')} / {String(items.length).padStart(2, '0')}
-          <span aria-hidden="true"> · </span>
-          <span className="mem__hint">Click the print to step in</span>
-        </p>
-        <AnimatePresence>
-          {active === items.length - 1 && (
-            <motion.button key="fin" type="button" className="btn btn--pill mem__finish" onClick={onFinish} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}>
-              Finish the experience
-            </motion.button>
-          )}
-        </AnimatePresence>
-      </div>
     </motion.div>
   )
-}
-
-/**
- * The string of fairy lights: a wire that sags between the pegs, with a warm
- * bulb every ~50 px and the glow each bulb throws on the wall.
- */
-const SVG_NS = 'http://www.w3.org/2000/svg'
-function drawLine(track, svg, cards) {
-  if (!svg || !track) return
-  const W = track.scrollWidth
-  const Y = 24 // where the pegs grip the wire
-  const pegs = cards.filter(Boolean).map((el) => el.offsetLeft + el.offsetWidth / 2)
-  const pts = [0, ...pegs, W]
-  let d = `M0 ${Y + 10}`
-  for (let i = 1; i < pts.length; i++) {
-    const a = pts[i - 1]
-    const b = pts[i]
-    const sag = Math.min(46, (b - a) * 0.075)
-    const ya = i === 1 ? Y + 10 : Y
-    const yb = i === pts.length - 1 ? Y + 10 : Y
-    d += ` Q${((a + b) / 2).toFixed(1)} ${(Math.max(ya, yb) + sag * 2).toFixed(1)} ${b.toFixed(1)} ${yb}`
-  }
-  svg.setAttribute('width', W)
-  svg.setAttribute('height', 140)
-  svg.setAttribute('viewBox', `0 0 ${W} 140`)
-  svg.style.width = `${W}px`
-  svg.innerHTML = `
-    <defs>
-      <radialGradient id="mem-glow"><stop offset="0" stop-color="#ffd9a0" stop-opacity="0.9"/><stop offset="0.35" stop-color="#ffb866" stop-opacity="0.32"/><stop offset="1" stop-color="#ff9a40" stop-opacity="0"/></radialGradient>
-      <radialGradient id="mem-pool"><stop offset="0" stop-color="#ffbe7a" stop-opacity="0.16"/><stop offset="1" stop-color="#ffbe7a" stop-opacity="0"/></radialGradient>
-      <radialGradient id="mem-bulb" cx="0.4" cy="0.35"><stop offset="0" stop-color="#fffaf0"/><stop offset="0.6" stop-color="#ffe2b0"/><stop offset="1" stop-color="#e7a35a"/></radialGradient>
-    </defs>
-    <g class="mem__pools"></g>
-    <path d="${d}" fill="none" stroke="#1c1612" stroke-width="2.2" stroke-linecap="round"/>
-    <path d="${d}" fill="none" stroke="#5a4636" stroke-width="0.8" stroke-linecap="round" transform="translate(0 -0.6)"/>
-    <g class="mem__bulbs"></g>`
-  const path = svg.querySelectorAll('path')[0]
-  const pools = svg.querySelector('.mem__pools')
-  const bulbs = svg.querySelector('.mem__bulbs')
-  const len = path.getTotalLength()
-  let poolsHtml = ''
-  let bulbsHtml = ''
-  let k = 0
-  for (let s = 18; s < len; s += 52, k++) {
-    const p = path.getPointAtLength(s)
-    const x = p.x.toFixed(1)
-    const y = (p.y + 7).toFixed(1)
-    poolsHtml += `<circle cx="${x}" cy="${(p.y + 30).toFixed(1)}" r="70" fill="url(#mem-pool)"/>`
-    bulbsHtml += `<g class="mem__bulb" style="--k:${(k * 0.37) % 3}s"><line x1="${x}" y1="${p.y.toFixed(1)}" x2="${x}" y2="${(p.y + 4).toFixed(1)}" stroke="#1c1612" stroke-width="1.6"/><circle class="mem__halo" cx="${x}" cy="${y}" r="15" fill="url(#mem-glow)"/><ellipse cx="${x}" cy="${y}" rx="2.6" ry="3.4" fill="url(#mem-bulb)"/></g>`
-  }
-  pools.innerHTML = poolsHtml
-  bulbs.innerHTML = bulbsHtml
 }
 
 /** "Pre-wedding · Paris" — what kind of shoot, and the city. */
@@ -864,4 +779,50 @@ function storyLine(it, photo, count) {
   const where = it.city || ((it.place || '').split(',')[0] || 'the place').replace(/^(The|A|An) /, (w) => w.toLowerCase())
   const line = lines[i].replace('{place}', where)
   return line.charAt(0).toUpperCase() + line.slice(1)
+}
+
+/**
+ * A gallery's photos in showing order, with the place each belongs to.
+ *   locations: [{ scene, photos: '1-7', city?, views?: [spot…] }] — photo
+ *   numbers count from 1 in the gallery's own order. Without locations the
+ *   whole gallery is one place (its `scene`).
+ * The moment photo (hero) comes first, then the rest of its place, then the
+ * other places in order. Returns { photos, loc[i], spot[i], locs[] }, where
+ * locs[k].item is what the viewer loads for that place.
+ */
+export function sequence(item) {
+  const all = item.photos.length ? item.photos : [{ src: item.hero, alt: item.alt }]
+  const parse = (r) => {
+    const out = []
+    for (const part of String(r ?? '').split(',')) {
+      const [a, b] = part.split('-').map((n) => parseInt(n, 10))
+      if (!a) continue
+      for (let n = a; n <= (b || a); n++) if (n >= 1 && n <= all.length) out.push(n - 1)
+    }
+    return out
+  }
+  let locs = (item.locations || []).map((l) => ({ ...l, idx: parse(l.photos) })).filter((l) => l.idx.length)
+  if (!locs.length) locs = [{ scene: item.scene, idx: all.map((_, i) => i) }]
+  // photos no location claims stay with the first
+  const claimed = new Set(locs.flatMap((l) => l.idx))
+  all.forEach((_, i) => !claimed.has(i) && locs[0].idx.push(i))
+  // the hero's place goes first, the hero first within it
+  const heroAt = Math.max(0, all.findIndex((p) => p.src === item.hero))
+  const hk = Math.max(0, locs.findIndex((l) => l.idx.includes(heroAt)))
+  locs = [locs[hk], ...locs.filter((_, k) => k !== hk)]
+  const photos = []
+  const loc = []
+  const spot = []
+  locs.forEach((l, k) => {
+    const views = Array.isArray(l.views) ? l.views : null
+    const order = k === 0 && l.idx.includes(heroAt) ? [heroAt, ...l.idx.filter((i) => i !== heroAt)] : l.idx
+    order.forEach((i, r) => {
+      photos.push(all[i])
+      loc.push(k)
+      spot.push(views ? Number(views[l.idx.indexOf(i)] ?? r) : r)
+    })
+    const hero = k === 0 ? item.hero || all[order[0]].src : all[order[0]].src
+    l.item = { ...item, scene: l.scene, hero }
+  })
+  return { photos, loc, spot, locs }
 }

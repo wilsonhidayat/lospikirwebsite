@@ -39,6 +39,60 @@ const STREET_HALF = 12 // facade to facade 24 m
 
 /* --- small helpers -------------------------------------------------------- */
 
+/**
+ * Weathering for stone (and lawns): large honey/cream patches in world space,
+ * so neighbouring blocks never share one flat tone, and dark rain streaks
+ * running down vertical faces only. Uniform-free, patched into the standard
+ * shader once per material.
+ */
+const WEATHER_GLSL = /* glsl */ `
+  varying vec3 vWPos;
+  float wHash(vec2 p) { p = fract(p * vec2(123.34, 456.21)); p += dot(p, p + 45.32); return fract(p.x * p.y); }
+  float wNoise(vec2 p) {
+    vec2 i = floor(p); vec2 f = fract(p); vec2 u = f * f * (3.0 - 2.0 * f);
+    return mix(mix(wHash(i), wHash(i + vec2(1.0, 0.0)), u.x), mix(wHash(i + vec2(0.0, 1.0)), wHash(i + vec2(1.0, 1.0)), u.x), u.y);
+  }
+`
+function weather(mat, { mottle = 0.14, warm = 0.08, streaks = 0.2, key = 'stone' } = {}) {
+  const f = (v) => v.toFixed(4)
+  mat.onBeforeCompile = (sh) => {
+    sh.vertexShader = sh.vertexShader.replace('#include <common>', '#include <common>\nvarying vec3 vWPos;').replace(
+      '#include <project_vertex>',
+      `#include <project_vertex>
+      {
+        vec4 wp = vec4(transformed, 1.0);
+        #ifdef USE_INSTANCING
+          wp = instanceMatrix * wp;
+        #endif
+        vWPos = (modelMatrix * wp).xyz;
+      }`
+    )
+    sh.fragmentShader = sh.fragmentShader.replace('#include <common>', '#include <common>\n' + WEATHER_GLSL).replace(
+      '#include <emissivemap_fragment>',
+      `#include <emissivemap_fragment>
+      {
+        vec3 wn = inverseTransformDirection(normal, viewMatrix);
+        float vert = 1.0 - smoothstep(0.55, 0.85, abs(wn.y));
+        vec2 q = vWPos.xz + vec2(vWPos.y * 0.37);
+        float big = wNoise(q * 0.031) * 0.6 + wNoise(q * 0.13 + 7.0) * 0.4;
+        float fine = wNoise(q * 0.9 + vec2(0.0, vWPos.y * 0.9));
+        vec3 c = diffuseColor.rgb;
+        c *= 1.0 + (big - 0.5) * ${f(mottle)} + (fine - 0.5) * ${f(mottle * 0.35)};
+        // warmer honey where the stone has been in the sun, cooler cream elsewhere
+        c *= mix(vec3(1.0 - ${f(warm * 0.4)}, 1.0, 1.0 + ${f(warm * 0.5)}), vec3(1.0 + ${f(warm)}, 1.0 + ${f(warm * 0.25)}, 1.0 - ${f(warm * 1.4)}), big);
+        // rain streaks down the walls: thin, long, darker and a little grey-brown
+        float s = wNoise(vec2((vWPos.x + vWPos.z) * 1.1, vWPos.y * 0.05 + (vWPos.x - vWPos.z) * 0.013));
+        float streak = smoothstep(0.6, 0.95, s) * vert * ${f(streaks)};
+        c = mix(c, c * vec3(0.78, 0.76, 0.74), streak);
+        diffuseColor.rgb = c;
+      }`
+    )
+  }
+  mat.customProgramCacheKey = () => 'paris-weather-' + key
+  mat.needsUpdate = true
+  return mat
+}
+
 function uvScale(geo, s) {
   const uv = geo.attributes.uv
   for (let i = 0; i < uv.count; i++) uv.setXY(i, uv.getX(i) * s, uv.getY(i) * s)
@@ -110,7 +164,7 @@ function addCars(THREE, scene, spots, seed) {
   const mBody = new THREE.InstancedMesh(body, paint, spots.length)
   const mCab = new THREE.InstancedMesh(cabin, glass, spots.length)
   const mWheel = new THREE.InstancedMesh(wheels, tyre, spots.length)
-  const cols = [0x1c1d20, 0xd9d9d6, 0x8d9194, 0x2b3a55, 0x5a1e1e, 0xe8e6e0, 0x3b3f44, 0x6c6f73, 0x24402f]
+  const cols = [0x1c1d20, 0xeceae4, 0x9aa0a6, 0x1f4f96, 0xa3161f, 0xf4f3ee, 0x2d3036, 0x5e6a74, 0x1d5a48, 0xc8b27a, 0x0f2c5c, 0xb8432a]
   const m = new THREE.Matrix4()
   const q = new THREE.Quaternion()
   const c = new THREE.Color()
@@ -186,18 +240,18 @@ function friezeTexture(THREE) {
     512,
     128,
     (g, w, h) => {
-      g.fillStyle = '#7b624d'
+      g.fillStyle = '#8c6445'
       g.fillRect(0, 0, w, h)
-      g.fillStyle = '#90765f'
+      g.fillStyle = '#a87e55'
       g.fillRect(0, 0, w, 12)
-      g.fillStyle = '#4a392c'
+      g.fillStyle = '#5a3d27'
       g.fillRect(0, 12, w, 4)
       g.fillRect(0, h - 10, w, 10)
       const n = 8
       for (let i = 0; i < n; i++) {
         const cx = (i + 0.5) * (w / n)
         const r = w / n / 2 - 7
-        g.fillStyle = '#261d17'
+        g.fillStyle = '#2a1c12'
         g.beginPath()
         g.moveTo(cx - r, h - 14)
         g.lineTo(cx - r, 50)
@@ -205,7 +259,7 @@ function friezeTexture(THREE) {
         g.lineTo(cx + r, h - 14)
         g.closePath()
         g.fill()
-        g.strokeStyle = 'rgba(150,120,95,0.6)'
+        g.strokeStyle = 'rgba(176,130,88,0.65)'
         g.lineWidth = 2
         g.beginPath()
         g.moveTo(cx - r, h - 14)
@@ -223,8 +277,9 @@ function friezeTexture(THREE) {
 
 function buildEiffel(THREE, { low = false } = {}) {
   const group = new THREE.Group()
-  // "Eiffel Tower brown": a warm bronze, a little sheen on the paint
-  const iron = new THREE.MeshStandardMaterial({ color: 0x7d6049, roughness: 0.58, metalness: 0.32 })
+  // "Eiffel Tower brown": a warm bronze-brown paint with a soft satin sheen
+  // (low metalness, so the blue sky doesn't wash the colour out of it)
+  const iron = new THREE.MeshStandardMaterial({ color: 0x7e5c3d, roughness: 0.5, metalness: 0.2, envMapIntensity: 0.8 })
   const beams = beamBatch(THREE)
   const P = (x, y, z) => new THREE.Vector3(x, y, z)
   const levels = towerLevels()
@@ -352,7 +407,7 @@ function buildEiffel(THREE, { low = false } = {}) {
   group.add(beams.build(iron))
 
   // platforms: deck, the frieze of arches round the edge, a railing on top
-  const deck = new THREE.MeshStandardMaterial({ color: 0x5d4836, roughness: 0.7, metalness: 0.3 })
+  const deck = new THREE.MeshStandardMaterial({ color: 0x744e33, roughness: 0.6, metalness: 0.18 })
   const frieze = friezeTexture(THREE)
   const ring = (h, half, band, deckThick) => {
     const slab = new THREE.Mesh(new THREE.BoxGeometry(half * 2 - 1, deckThick, half * 2 - 1), deck)
@@ -363,7 +418,7 @@ function buildEiffel(THREE, { low = false } = {}) {
     tex.wrapS = THREE.RepeatWrapping
     tex.repeat.set(Math.max(2, Math.round((half * 2) / 8)), 1)
     tex.needsUpdate = true
-    const mat = new THREE.MeshStandardMaterial({ map: tex, roughness: 0.65, metalness: 0.3 })
+    const mat = new THREE.MeshStandardMaterial({ map: tex, roughness: 0.55, metalness: 0.15 })
     for (let s = 0; s < 4; s++) {
       const sideMesh = new THREE.Mesh(new THREE.BoxGeometry(half * 2, band, 1.2), mat)
       const r = (s * Math.PI) / 2
@@ -376,7 +431,7 @@ function buildEiffel(THREE, { low = false } = {}) {
   ring(57.6, outer(57.6) + 3.4, 6.2, 2.2)
   ring(115.7, outer(115.7) + 2.4, 4.2, 1.8)
   // 1st floor glass pavilions, 2nd floor houses (pale, glazed)
-  const pav = new THREE.MeshStandardMaterial({ color: 0x8a786a, roughness: 0.25, metalness: 0.4 })
+  const pav = new THREE.MeshStandardMaterial({ color: 0x8f6d52, roughness: 0.22, metalness: 0.35 })
   for (const [x, z, w, d] of [
     [0, 30, 40, 5],
     [0, -30, 40, 5],
@@ -420,32 +475,54 @@ function buildEiffel(THREE, { low = false } = {}) {
 
 /* --- the scene ---------------------------------------------------------- */
 
-export function buildParis(THREE, ctx, { light = 'overcast' } = {}) {
+export function buildParis(THREE, ctx, { light = 'day' } = {}) {
+  // The photos' skies are pale and hazy; this place is shown on a clear,
+  // deep-blue day instead, so the sky read from the hero photo is ignored.
+  ctx.sky = null
   const world = createWorld(THREE, ctx, light, {
-    // a soft morning sun from the east, behind thin cloud
-    sun: { elevation: 30, azimuth: 212 },
-    fog: { density: 0.00055 },
-    sunIntensity: 1.5,
+    // a high-ish sun behind the Trocadéro (from +Z, a little west): it lights
+    // the tower's face toward the terrace, the parapets and the stairs, and
+    // leaves the sky opposite it at its deepest blue
+    sun: { elevation: 40, azimuth: 322 },
+    sky: { zenith: 0x2a63c2, horizon: 0xa9c9ec, ground: 0x9d9a8c, sun: 0xfff1d8, cloudLit: 0xffffff, cloudShade: 0xc4d1e4, clouds: 0.2 },
+    // a whisper of haze only, so the far city stays crisp
+    fog: { density: 0.00021 },
+    sunColor: 0xfff0d9,
+    sunIntensity: 2.35,
+    hemi: [0xeee9df, 0xbb9d6e, 1.1],
   })
   const { scene } = world
   const rand = seeded(1889)
   const low = ctx.quality === 'low'
   const B = batcher(THREE, scene)
+  // stone that receives but doesn't cast sun shadows (see the pavilions below)
+  const BN = batcher(THREE, scene)
 
   /* materials: painted once, shared everywhere */
   const q = ctx.quality
-  const stone = M.paving(THREE, { kind: 'flags', color: '#d8cdb6', joint: '#b9ad97', unit: 0.55, variation: 0.06, tile: 4, quality: q, seed: 21 })
+  // Paris limestone (pierre de Lutèce) in sun: honey and cream, never grey
+  const stone = M.paving(THREE, { kind: 'flags', color: '#e3c995', joint: '#b2966b', unit: 0.55, variation: 0.1, tile: 4, quality: q, seed: 21 })
+  stone.normalScale = new THREE.Vector2(1.5, 1.5)
+  weather(stone, { mottle: 0.16, warm: 0.09, streaks: 0.22, key: 'stone' })
   const STONE_T = [4, 4]
-  const flags = M.paving(THREE, { kind: 'flags', color: '#d2c8b5', joint: '#9d9483', unit: 0.9, variation: 0.08, tile: 6, quality: q, seed: 22 })
-  const asphalt = M.asphalt(THREE, { color: '#46474a', tile: 6, quality: q, seed: 23 })
-  const pave = M.paving(THREE, { kind: 'flags', color: '#9f9a92', joint: '#6f6b65', unit: 0.4, tile: 3, quality: q, seed: 24 })
-  const lawn = M.lawn(THREE, { color: '#5d7a35', worn: 0.12, stripes: true, tile: 4, quality: q, seed: 25 })
+  const flags = M.paving(THREE, { kind: 'flags', color: '#d9c094', joint: '#a08560', unit: 0.9, variation: 0.1, tile: 6, quality: q, seed: 22 })
+  weather(flags, { mottle: 0.12, warm: 0.06, streaks: 0, key: 'flags' })
+  // the stone's shade side: less of the blue sky in it, so shadows stay warm
+  stone.envMapIntensity = 0.75
+  flags.envMapIntensity = 0.7
+  const asphalt = M.asphalt(THREE, { color: '#57534e', tile: 6, quality: q, seed: 23 })
+  const pave = M.paving(THREE, { kind: 'flags', color: '#bcae96', joint: '#7d7262', unit: 0.4, tile: 3, quality: q, seed: 24 })
+  // the Champ de Mars and the Trocadéro lawns: lush, mown, in full sun
+  const lawn = M.lawn(THREE, { color: '#4d812e', worn: 0.06, stripes: true, tile: 4, quality: q, seed: 25 })
   Object.assign(lawn, { polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -4 })
+  weather(lawn, { mottle: 0.22, warm: 0.1, streaks: 0, key: 'lawn' })
+  // the pale ochre stabilised sand of the garden walks
   const gravel = flags.clone()
-  gravel.color = new THREE.Color(0xd9cdb4)
+  gravel.color = new THREE.Color(0xf0dcb2)
   gravel.polygonOffset = true
   gravel.polygonOffsetFactor = -1
   gravel.polygonOffsetUnits = -2
+  weather(gravel, { mottle: 0.12, warm: 0.07, streaks: 0, key: 'gravel' })
 
   /* the ground: the city at y = 0, cut by the Seine */
   for (const [z0, z1] of [
@@ -468,7 +545,7 @@ export function buildParis(THREE, ctx, { light = 'overcast' } = {}) {
 
   /* --- the Seine, its quays and the Pont d'Iéna --------------------------- */
   const tickers = []
-  const seineMat = waterMaterial(THREE, { palette: { ...world.light, water: { deep: 0x4d5852, shallow: 0x73807a, stroke: 0xf2f1ee } }, scale: 0.7, strokes: 0.6 })
+  const seineMat = waterMaterial(THREE, { palette: { ...world.light, water: { deep: 0x1f4a66, shallow: 0x3a7596, stroke: 0xf2f1ee } }, scale: 0.7, strokes: 0.6 })
   tickers.push((t) => seineMat.userData.tick(t))
   const seine = new THREE.Mesh(new THREE.PlaneGeometry(5200, RIVER_N - RIVER_S), seineMat)
   seine.rotation.x = -Math.PI / 2
@@ -587,8 +664,9 @@ export function buildParis(THREE, ctx, { light = 'overcast' } = {}) {
   }
 
   /* --- the Trocadéro: gardens, basin, terraces, stairs, Chaillot ---------- */
-  const gold = new THREE.MeshStandardMaterial({ color: 0xd8ad4c, roughness: 0.28, metalness: 1 })
-  const jetMat = new THREE.MeshBasicMaterial({ color: new THREE.Color(0xf4f7fa).multiplyScalar(1.05), transparent: true, opacity: 0.42, depthWrite: false })
+  // gilded bronze: warm gold that catches the sun (a touch rough so it doesn't just mirror the blue sky)
+  const gold = new THREE.MeshStandardMaterial({ color: 0xf0bf4a, roughness: 0.32, metalness: 1, emissive: 0x3a2400, emissiveIntensity: 0.25 })
+  const jetMat = new THREE.MeshBasicMaterial({ color: new THREE.Color(0xf2f8ff).multiplyScalar(1.12), transparent: true, opacity: 0.5, depthWrite: false })
   const jets = []
   const statue = (x, y, z, ry = 0, scale = 1) => {
     // a gilded figure on a stone pedestal: body, head, a raised arm
@@ -605,9 +683,13 @@ export function buildParis(THREE, ctx, { light = 'overcast' } = {}) {
 
   // lower gardens: gravel walks, lawns, and the long Varsovie basin
   flat(gravel, 6, 0, 425, 280, 190)
-  for (const sx of [-1, 1]) flat(lawn, 4, sx * 72, 428, 84, 170, 0.04)
+  for (const sx of [-1, 1]) {
+    flat(lawn, 4, sx * 72, 428, 84, 170, 0.04)
+    // the wooded lawns on both flanks of the gardens, under the plane avenues
+    flat(lawn, 4, sx * 190, 428, 100, 190, 0.04)
+  }
   const BASIN = { x: 22, z0: 360, z1: 505 }
-  const basinMat = waterMaterial(THREE, { palette: { ...world.light, water: { deep: 0x5c6c70, shallow: 0x8a9aa0, stroke: 0xf2f1ee } }, scale: 0.18, strokes: 0.4 })
+  const basinMat = waterMaterial(THREE, { palette: { ...world.light, water: { deep: 0x175f8f, shallow: 0x3c9bc9, stroke: 0xf2f1ee } }, scale: 0.32, strokes: 0.4 })
   tickers.push((t) => basinMat.userData.tick(t))
   const basin = new THREE.Mesh(new THREE.PlaneGeometry(BASIN.x * 2, BASIN.z1 - BASIN.z0), basinMat)
   basin.rotation.x = -Math.PI / 2
@@ -750,9 +832,11 @@ export function buildParis(THREE, ctx, { light = 'overcast' } = {}) {
       cope.rotateZ(-sx * ang)
       cope.translate(sx * (FLIGHT.x0 + run / 2), (PARVIS_Y + TERRACE_Y) / 2 + 1.1 - 0.02, FLIGHT.z0 - 0.4)
       B.add(stone, cope)
-      // the pavilion's great stone flank on the other side of the flight
-      B.box(stone, STONE_T, 46, 32, 46, sx * (FLIGHT.x0 + 23), 0, FLIGHT.z1 + 23)
-      B.box(stone, STONE_T, 47, 0.8, 47, sx * (FLIGHT.x0 + 23), 32, FLIGHT.z1 + 23)
+      // the pavilion's great stone flank on the other side of the flight; it
+      // casts no sun shadow, so the flights stay in warm light (the sun comes
+      // from behind the pavilions and would otherwise drown the stairs in shade)
+      BN.box(stone, STONE_T, 46, 32, 46, sx * (FLIGHT.x0 + 23), 0, FLIGHT.z1 + 23)
+      BN.box(stone, STONE_T, 47, 0.8, 47, sx * (FLIGHT.x0 + 23), 32, FLIGHT.z1 + 23)
     }
   }
 
@@ -761,9 +845,9 @@ export function buildParis(THREE, ctx, { light = 'overcast' } = {}) {
   {
     const fac = M.facade(THREE, {
       wall: 'stone',
-      color: '#ddd3be',
-      frame: '#3b3c3a',
-      glass: '#20262b',
+      color: '#e6cc9a',
+      frame: '#3a3628',
+      glass: '#1c2a38',
       bay: 4.6,
       storey: 7.5,
       window: { w: 0.5, h: 0.74, bars: 'grid', sill: true, lintel: false },
@@ -771,6 +855,7 @@ export function buildParis(THREE, ctx, { light = 'overcast' } = {}) {
       quality: q,
       seed: 31,
     })
+    weather(fac.material, { mottle: 0.14, warm: 0.08, streaks: 0.2, key: 'chaillot' })
     const R = 205
     const C = 545
     const H = 40
@@ -824,7 +909,27 @@ export function buildParis(THREE, ctx, { light = 'overcast' } = {}) {
   const cdmTrees = []
   for (let z = -160; z >= -620; z -= 13) for (const x of [-106, 106]) cdmTrees.push({ x: x + range(rand, -0.6, 0.6), z: z + range(rand, -0.6, 0.6), h: range(rand, 12, 16) })
   const allPlanes = gardenTrees.concat(cdmTrees)
-  addForest(THREE, scene, low ? allPlanes.filter((_, i) => i % 2 === 0) : allPlanes, { species: 'plane', seed: 7, quality: q })
+  const forest = addForest(THREE, scene, low ? allPlanes.filter((_, i) => i % 2 === 0) : allPlanes, { species: 'plane', seed: 7, quality: q })
+  // summer planes in full sun: a richer, more saturated green, each tree its own shade
+  {
+    const leafTint = new THREE.Color(0.95, 1.08, 0.8)
+    const c = new THREE.Color()
+    const seen = new Set()
+    for (const mesh of forest.meshes || []) {
+      const mat = mesh.material
+      if (!mat || !mat.alphaTest || !mesh.isInstancedMesh) continue
+      if (!seen.has(mat)) {
+        seen.add(mat)
+        mat.color.copy(leafTint)
+      }
+      for (let i = 0; i < mesh.count; i++) {
+        c.setHSL(range(rand, 0.2, 0.3), range(rand, 0.15, 0.35), range(rand, 0.46, 0.56))
+        c.multiplyScalar(2.3)
+        mesh.setColorAt(i, c)
+      }
+      if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true
+    }
+  }
 
   /* --- Haussmann: limestone, iron balconies, zinc mansards ---------------- */
   const BAY = 3.6
@@ -835,9 +940,9 @@ export function buildParis(THREE, ctx, { light = 'overcast' } = {}) {
   const MAN = { low: 3.4, lowIn: 1.3, high: 1.6, highIn: 4.5 }
   const fac = M.facade(THREE, {
     wall: 'stone',
-    color: '#e3d8c2',
-    frame: '#ece7dc',
-    glass: '#242a30',
+    color: '#ecd9b4',
+    frame: '#f1ebdf',
+    glass: '#1e2b3a',
     bay: BAY,
     storey: ST,
     window: { w: 0.42, h: 0.72, bars: 'sash', sill: true, lintel: false },
@@ -845,13 +950,18 @@ export function buildParis(THREE, ctx, { light = 'overcast' } = {}) {
     quality: q,
     seed: 41,
   })
-  const facWarm = fac.material.clone()
-  facWarm.color = new THREE.Color(0xf2e9da)
-  const facGrey = fac.material.clone()
-  facGrey.color = new THREE.Color(0xe6e6e2)
-  const facades = [fac.material, facWarm, facGrey]
-  const shop = M.shopfront(THREE, { color: '#2c2a27', frame: '#1d2421', fascia: '#24302b', awning: '#7a1f24', bay: BAY, storey: GROUND, warm: 0.55, quality: q, seed: 42 })
-  const zinc = M.roof(THREE, { kind: 'zinc', color: '#7f878d', tile: 2, quality: q, seed: 43 })
+  // a few tones of the same limestone: honey, cream, a pale near-white
+  // restoration, a slightly sandier one (the far city adds instance colours)
+  const facVariant = (hex, key) => {
+    const m = fac.material.clone()
+    m.color = hex.isColor ? hex : new THREE.Color(hex)
+    return weather(m, { mottle: 0.12, warm: 0.07, streaks: 0.24, key })
+  }
+  weather(fac.material, { mottle: 0.12, warm: 0.07, streaks: 0.24, key: 'fac0' })
+  const facades = [fac.material, facVariant(0xfff0dc, 'fac1'), facVariant(0xf2d4a4, 'fac2'), facVariant(new THREE.Color(1.05, 1.06, 1.1), 'fac3')]
+  const shop = M.shopfront(THREE, { color: '#2c2a27', frame: '#1d2421', fascia: '#1f3a30', awning: '#8a1d24', bay: BAY, storey: GROUND, warm: 0.55, quality: q, seed: 42 })
+  // zinc mansards: the blue-grey of Paris roofs, a little metallic so they pick up the sky
+  const zinc = M.roof(THREE, { kind: 'zinc', color: '#71859a', tile: 2, quality: q, seed: 43 })
   const ironMat = new THREE.MeshStandardMaterial({ color: 0x17191a, roughness: 0.5, metalness: 0.6 })
 
   /** A mansard: a steep lower slope and a shallow upper one, UVs in metres (u along the eaves, v up the slope). */
@@ -1060,7 +1170,10 @@ export function buildParis(THREE, ctx, { light = 'overcast' } = {}) {
 
   // café awnings and terrace tables on the corner blocks
   if (cafes.length) {
-    const awn = new THREE.MeshStandardMaterial({ color: 0x7c1d22, roughness: 0.8 })
+    // canvas awnings: café red, bottle green, navy, a mustard one (instance colours)
+    const awn = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.8 })
+    const awnCols = [0x9b1c24, 0x1f5a3c, 0x1d2f5e, 0x9b1c24, 0xc8952c, 0x7a1830]
+    const awnC = new THREE.Color()
     const awnGeo = new THREE.BoxGeometry(BAY - 0.15, 0.08, 2.4).rotateX(0.32).translate(0, 3.25, 1.15)
     const valance = new THREE.BoxGeometry(BAY - 0.15, 0.32, 0.04).translate(0, 2.72, 2.3)
     const awnings = new THREE.InstancedMesh(mergeGeometries([awnGeo, valance], false), awn, cafes.length)
@@ -1079,6 +1192,7 @@ export function buildParis(THREE, ctx, { light = 'overcast' } = {}) {
     cafes.forEach((c, i) => {
       m4.makeRotationY(c.ry).setPosition(c.p.x, 0.14, c.p.z)
       awnings.setMatrixAt(i, m4)
+      awnings.setColorAt(i, awnC.setHex(awnCols[Math.floor(i / 3) % awnCols.length]))
       const tx = c.p.x + c.nx * 1.4
       const tz = c.p.z + c.nz * 1.4
       m4.makeRotationY(c.ry).setPosition(tx, 0.14, tz)
@@ -1120,6 +1234,9 @@ export function buildParis(THREE, ctx, { light = 'overcast' } = {}) {
   B.box(stone, STONE_T, 720, PARVIS_Y, 400, 0, 0, 1200)
   flat(asphalt, 6, 0, 1200, 720, 400, PARVIS_Y + 0.02)
   const m4 = new THREE.Matrix4()
+  const tone = new THREE.Color()
+  const STONE_TONES = [0xffffff, 0xfff1dc, 0xf3d6a6, 0xffe8c4, 0xe9ddca, 0xfbe2b6, 0xf7f3ec, 0xeccb97]
+  const ZINC_TONES = [0xffffff, 0xdfe8f2, 0xc7d0da, 0xe8ecef, 0xb3bfcc]
   const qy = new THREE.Quaternion()
   const yAx = new THREE.Vector3(0, 1, 0)
   sizes.forEach(([w, d], si) => {
@@ -1127,25 +1244,23 @@ export function buildParis(THREE, ctx, { light = 'overcast' } = {}) {
     if (!list.length) return
     const bodyGeo = M.box(THREE, w, H, d, fac.material, fac.tile).geometry
     const manGeo = mansardGeo(w, d).translate(0, H, 0)
-    const bodies = facades.map((mat) => new THREE.InstancedMesh(bodyGeo, mat, list.length))
-    const counts = facades.map(() => 0)
+    // one instanced mesh per block size; every block its own limestone tone
+    // and its own zinc (instance colours), so the city reads as many buildings
+    const bodies = new THREE.InstancedMesh(bodyGeo, fac.material, list.length)
     const roofs = new THREE.InstancedMesh(manGeo, zinc, list.length)
     list.forEach((b, i) => {
       qy.setFromAxisAngle(yAx, b.ry)
       const hk = range(rand, 0.92, 1.06)
       m4.compose(new THREE.Vector3(b.x, b.y, b.z), qy, new THREE.Vector3(1, hk, 1))
-      const mi = i % facades.length
-      bodies[mi].setMatrixAt(counts[mi]++, m4)
+      bodies.setMatrixAt(i, m4)
+      bodies.setColorAt(i, tone.setHex(pick(rand, STONE_TONES)))
       m4.compose(new THREE.Vector3(b.x, b.y + H * (hk - 1), b.z), qy, new THREE.Vector3(1, 1, 1))
       roofs.setMatrixAt(i, m4)
+      roofs.setColorAt(i, tone.setHex(pick(rand, ZINC_TONES)))
     })
-    bodies.forEach((mesh, mi) => {
-      mesh.count = counts[mi]
-      mesh.receiveShadow = true
-      mesh.castShadow = false
-      scene.add(mesh)
-    })
-    scene.add(roofs)
+    bodies.receiveShadow = true
+    bodies.castShadow = false
+    scene.add(bodies, roofs)
   })
 
   // dormers, chimneys and iron for the detailed blocks
@@ -1168,8 +1283,8 @@ export function buildParis(THREE, ctx, { light = 'overcast' } = {}) {
     })
     dormerMesh.castShadow = true
     scene.add(dormerMesh, winMesh)
-    const stack = new THREE.InstancedMesh(new THREE.BoxGeometry(2.4, 2.4, 0.9).translate(0, 1.2, 0), new THREE.MeshStandardMaterial({ color: 0xcfc3ad, roughness: 0.9 }), chimneys.length)
-    const pots = new THREE.InstancedMesh(new THREE.CylinderGeometry(0.13, 0.15, 0.6, 8).translate(0, 2.7, 0), new THREE.MeshStandardMaterial({ color: 0xa9563a, roughness: 0.85 }), chimneys.length * 4)
+    const stack = new THREE.InstancedMesh(new THREE.BoxGeometry(2.4, 2.4, 0.9).translate(0, 1.2, 0), new THREE.MeshStandardMaterial({ color: 0xe0c99f, roughness: 0.9 }), chimneys.length)
+    const pots = new THREE.InstancedMesh(new THREE.CylinderGeometry(0.13, 0.15, 0.6, 8).translate(0, 2.7, 0), new THREE.MeshStandardMaterial({ color: 0xbc5a36, roughness: 0.85 }), chimneys.length * 4)
     chimneys.forEach((c, i) => {
       m4.makeTranslation(c.x, c.y, c.z)
       stack.setMatrixAt(i, m4)
@@ -1189,6 +1304,7 @@ export function buildParis(THREE, ctx, { light = 'overcast' } = {}) {
   }
 
   B.flush()
+  BN.flush({ shadow: false })
 
   /* --- viewpoints ------------------------------------------------------- */
   const spot = (px, py, pz, lx, ly, lz) => ({ pos: new THREE.Vector3(px, py, pz), look: new THREE.Vector3(lx, ly, lz) })

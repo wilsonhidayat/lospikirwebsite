@@ -24,6 +24,8 @@ export const galleries = Object.entries(files)
       scene: data.scene && data.scene !== 'none' ? data.scene : null,
       place: data.place || '',
       city: data.city || '',
+      // one gallery, several places: [{ scene, photos: '1-7', city?, views?: [spot, …] }]
+      locations: Array.isArray(data.locations) ? data.locations.filter((l) => l && l.scene) : [],
       hero: data.hero || data.cover || null,
       alt: data.heroAlt || '',
       featured: Number(data.featured) || 0,

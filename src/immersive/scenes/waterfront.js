@@ -12,9 +12,14 @@
  *    Rotterdam and the other Wilhelminapier towers lit across the Maas, quay
  *    lamps and a slanted-bar railing, long broken reflections on the river.
  *  • 'party-boat' — a 56 m river cruise boat moored at a timber jetty at
- *    night; its upper deck is a party room — dark low ceiling, violet and blue
- *    neon along the ceiling edges, a DJ booth with speakers, a red-lit bar and
- *    a glossy floor — that you can stand in.
+ *    night; its upper deck is a packed party room you can stand in: a low
+ *    grey ceiling with downlights, magenta LED strips along both ceiling edges
+ *    and blue ones under the sills, big windows on the city, the DJ booth
+ *    forward (CDJs, mixer, speaker stacks, a truss of amber bulbs and blue
+ *    effect lights, the exit door behind), a red mosaic bar aft with a mirrored,
+ *    back-lit bottle wall and a BAR sign, a lounge with white sofas and
+ *    screens, a mirror ball, moving-head beams in haze, and a crowd of
+ *    instanced low-poly people with coloured rim light.
  *
  * Metres. Water at y = 0. In every place the river runs along X; the viewer's
  * bank is on +Z.
@@ -23,7 +28,7 @@ import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js'
 import { createWorld, waterMaterial, nightWindows } from '../world.js'
 import * as M from '../materials.js'
 import { addForest } from '../trees.js'
-import { beamBatch, paintTexture, seeded, range, pick, glowTexture, scaleBoxUVs } from '../utils.js'
+import { beamBatch, paintTexture, seeded, range, pick, glowTexture, scaleBoxUVs, noiseNormalMap } from '../utils.js'
 
 export function buildWaterfront(THREE, ctx, opts = {}) {
   if (opts.partyBoat) return buildPartyBoat(THREE, ctx)
@@ -1539,6 +1544,506 @@ function buildRotterdam(THREE, ctx) {
 /* 3. The party boat, moored at a timber jetty at night                     */
 /* ======================================================================== */
 
+/* --- party boat kit: textures, crowd, light beams, haze ---------------------- */
+
+/** Red glass mosaic (2.5 cm tiles) for the bar; `sparkle` adds glitter tiles. One texture = 0.5 m. */
+function mosaicTexture(THREE, { sparkle = false, seed = 31 } = {}) {
+  return paintTexture(
+    THREE,
+    256,
+    256,
+    (g, w) => {
+      const rand = seeded(seed)
+      g.fillStyle = '#2a0204'
+      g.fillRect(0, 0, w, w)
+      const n = 20
+      const u = w / n
+      for (let i = 0; i < n; i++) {
+        for (let j = 0; j < n; j++) {
+          const l = 38 + rand() * 14
+          g.fillStyle = `hsl(${(356 + rand() * 6) % 360}, 92%, ${l}%)`
+          g.fillRect(i * u + 1.2, j * u + 1.2, u - 2.4, u - 2.4)
+          // a soft highlight on each glass tile
+          g.fillStyle = `rgba(255,190,190,${(0.08 + rand() * 0.12).toFixed(3)})`
+          g.fillRect(i * u + 2, j * u + 2, (u - 4) * 0.5, (u - 4) * 0.35)
+          if (sparkle && rand() < 0.16) {
+            g.fillStyle = `rgba(255,${200 + Math.floor(rand() * 55)},${180 + Math.floor(rand() * 75)},${(0.6 + rand() * 0.4).toFixed(2)})`
+            g.fillRect(i * u + 1.2, j * u + 1.2, u - 2.4, u - 2.4)
+          }
+        }
+      }
+    },
+    { kind: 'color' }
+  )
+}
+
+/** A green emergency-exit sign: running figure, door, arrow. */
+function exitTexture(THREE) {
+  return paintTexture(
+    THREE,
+    256,
+    96,
+    (g, w, h) => {
+      g.fillStyle = '#f4fff6'
+      g.fillRect(0, 0, w, h)
+      g.fillStyle = '#10a54c'
+      g.fillRect(4, 4, w * 0.66, h - 8)
+      g.fillStyle = '#f4fff6'
+      // the door
+      g.fillRect(w * 0.44, 14, w * 0.17, h - 28)
+      g.fillStyle = '#10a54c'
+      g.fillRect(w * 0.47, 18, w * 0.11, h - 36)
+      // the running figure
+      g.fillStyle = '#f4fff6'
+      g.beginPath()
+      g.arc(w * 0.27, 22, 8, 0, Math.PI * 2)
+      g.fill()
+      g.lineCap = 'round'
+      g.strokeStyle = '#f4fff6'
+      g.lineWidth = 9
+      const P = (pts) => {
+        g.beginPath()
+        g.moveTo(pts[0][0] * w, pts[0][1] * h)
+        for (const p of pts.slice(1)) g.lineTo(p[0] * w, p[1] * h)
+        g.stroke()
+      }
+      P([[0.25, 0.38], [0.22, 0.62]])
+      P([[0.22, 0.62], [0.28, 0.76], [0.27, 0.9]])
+      P([[0.22, 0.62], [0.16, 0.74], [0.1, 0.72]])
+      P([[0.15, 0.48], [0.25, 0.4], [0.33, 0.5], [0.37, 0.44]])
+      // the arrow
+      g.strokeStyle = '#10a54c'
+      g.lineWidth = 10
+      P([[0.76, 0.5], [0.94, 0.5]])
+      P([[0.82, 0.3], [0.76, 0.5], [0.82, 0.7]])
+    },
+    { kind: 'color' }
+  )
+}
+
+/** Generic screens: 'tv' (red glitter loop), 'menu' (chalk-style price list). */
+function screenTexture(THREE, kind, seed = 5) {
+  const [w, h] = kind === 'menu' ? [128, 192] : [256, 144]
+  return paintTexture(
+    THREE,
+    w,
+    h,
+    (g) => {
+      const rand = seeded(seed)
+      if (kind === 'menu') {
+        g.fillStyle = '#0a0a0b'
+        g.fillRect(0, 0, w, h)
+        g.strokeStyle = 'rgba(255,255,255,0.85)'
+        g.lineWidth = 2
+        g.strokeRect(6, 6, w - 12, h - 12)
+        g.fillStyle = 'rgba(255,255,255,0.9)'
+        g.fillRect(24, 16, w - 48, 9)
+        for (let y = 40; y < h - 16; y += 11) {
+          g.fillStyle = `rgba(255,255,255,${(0.45 + rand() * 0.4).toFixed(2)})`
+          g.fillRect(14, y, 30 + rand() * 50, 4)
+          g.fillRect(w - 30, y, 16, 4)
+        }
+        return
+      }
+      const grd = g.createRadialGradient(w * 0.5, h * 0.5, 4, w * 0.5, h * 0.5, w * 0.6)
+      grd.addColorStop(0, '#ff3b3b')
+      grd.addColorStop(1, '#6a0208')
+      g.fillStyle = grd
+      g.fillRect(0, 0, w, h)
+      for (let i = 0; i < 700; i++) {
+        g.fillStyle = `rgba(255,${120 + Math.floor(rand() * 135)},${120 + Math.floor(rand() * 100)},${(rand() * 0.8).toFixed(2)})`
+        const r = 1 + rand() * 3
+        g.beginPath()
+        g.arc(rand() * w, rand() * h, r, 0, Math.PI * 2)
+        g.fill()
+      }
+      g.fillStyle = 'rgba(255,255,255,0.92)'
+      g.beginPath()
+      g.arc(w * 0.5, h * 0.5, h * 0.2, 0, Math.PI * 2)
+      g.fill()
+      g.fillStyle = '#b3060f'
+      g.beginPath()
+      g.arc(w * 0.5, h * 0.5, h * 0.13, 0, Math.PI * 2)
+      g.fill()
+    },
+    { kind: 'color' }
+  )
+}
+
+/** "BAR" in marquee bulbs on black (for additive blending). */
+function barSignTexture(THREE) {
+  return paintTexture(
+    THREE,
+    512,
+    192,
+    (g, w, h) => {
+      g.fillStyle = '#000'
+      g.fillRect(0, 0, w, h)
+      g.font = `900 ${Math.round(h * 0.86)}px Arial, Helvetica, sans-serif`
+      g.textAlign = 'center'
+      g.textBaseline = 'middle'
+      g.fillStyle = '#c4141c'
+      g.fillText('BAR', w / 2, h * 0.54)
+      const img = g.getImageData(0, 0, w, h).data
+      // bulbs on a grid wherever the letters are
+      for (let y = 8; y < h; y += 15) {
+        for (let x = 8; x < w; x += 15) {
+          if (img[(y * w + x) * 4] < 120) continue
+          const grd = g.createRadialGradient(x, y, 0, x, y, 7)
+          grd.addColorStop(0, 'rgba(255,236,220,1)')
+          grd.addColorStop(0.45, 'rgba(255,90,80,0.9)')
+          grd.addColorStop(1, 'rgba(255,30,30,0)')
+          g.fillStyle = grd
+          g.fillRect(x - 7, y - 7, 14, 14)
+        }
+      }
+    },
+    { kind: 'color' }
+  )
+}
+
+/** A vertical 0→1 gradient (bright at v = 1), for light washes on walls, ceilings and floors. */
+function washTexture(THREE, falloff = 2.2) {
+  return paintTexture(
+    THREE,
+    8,
+    128,
+    (g, w, h) => {
+      const img = g.createImageData(w, h)
+      for (let y = 0; y < h; y++) {
+        const v = Math.pow(1 - y / (h - 1), falloff)
+        const c = Math.round(255 * v)
+        for (let x = 0; x < w; x++) {
+          const i = (y * w + x) * 4
+          img.data[i] = img.data[i + 1] = img.data[i + 2] = c
+          img.data[i + 3] = 255
+        }
+      }
+      g.putImageData(img, 0, 0)
+    },
+    { kind: 'color' }
+  )
+}
+
+/**
+ * Low-poly people, a handful of body/pose variants. Every vertex carries a
+ * `part` id (0 skin, 1 top, 2 bottom, 3 hair, 4 shoes, 5 bottle, 6 phone,
+ * 7 forearm — sleeve or skin) so one material can dress each instance.
+ * Local frame: feet on y = 0, facing +Z, ~1.76 m (men) / 1.68 m (women).
+ */
+function personVariants(THREE) {
+  const yA = new THREE.Vector3(0, 1, 0)
+  const one = new THREE.Vector3(1, 1, 1)
+  const m4 = new THREE.Matrix4()
+  const q = new THREE.Quaternion()
+  const v3 = (a) => new THREE.Vector3(a[0], a[1], a[2])
+
+  function build({ female = false, R = 'down', L = 'down', hair = 'short', prop = null, stance = 0.1 }) {
+    const parts = []
+    const add = (geo, part) => {
+      const g = geo.index ? geo.toNonIndexed() : geo
+      for (const k of Object.keys(g.attributes)) if (k !== 'position' && k !== 'normal') g.deleteAttribute(k)
+      if (!g.attributes.normal) g.computeVertexNormals()
+      g.setAttribute('part', new THREE.Float32BufferAttribute(new Float32Array(g.attributes.position.count).fill(part), 1))
+      parts.push(g)
+    }
+    const limb = (a, b, ra, rb, part, seg = 7) => {
+      const A = v3(a)
+      const B = v3(b)
+      const d = B.clone().sub(A)
+      const len = d.length() || 0.001
+      q.setFromUnitVectors(yA, d.normalize())
+      m4.compose(A.clone().add(B).multiplyScalar(0.5), q, one)
+      add(new THREE.CylinderGeometry(rb, ra, len, seg, 1, true).applyMatrix4(m4), part)
+    }
+    const ball = (c, r, part, s = [1, 1, 1], w = 7, h = 5) => add(new THREE.SphereGeometry(r, w, h).scale(s[0], s[1], s[2]).translate(c[0], c[1], c[2]), part)
+
+    const k = female ? 0.955 : 1 // vertical scale of the joints
+    const Y = (y) => y * k
+    const hipX = female ? 0.088 : 0.095
+    // legs: baggy trousers / jeans, a little apart
+    for (const s of [-1, 1]) {
+      const hip = [s * hipX, Y(0.93), 0]
+      const knee = [s * (hipX + stance * 0.25), Y(0.5), 0.015]
+      const ankle = [s * (hipX + stance * 0.4), Y(0.085), 0]
+      limb(hip, knee, female ? 0.082 : 0.094, female ? 0.058 : 0.072, 2)
+      ball(knee, female ? 0.058 : 0.07, 2, [1, 1, 1], 6, 4)
+      limb(knee, ankle, female ? 0.056 : 0.07, female ? 0.044 : 0.064, 2)
+      add(new THREE.BoxGeometry(female ? 0.08 : 0.1, 0.07, female ? 0.22 : 0.25).translate(ankle[0], 0.035, 0.04), 4)
+    }
+    // pelvis and torso (an elliptical lathe)
+    ball([0, Y(0.94), 0], female ? 0.178 : 0.168, 2, [1, 0.62, female ? 0.78 : 0.72], 8, 5)
+    const prof = female
+      ? [[0.0, 0.92], [0.168, 0.94], [0.148, 1.04], [0.128, 1.12], [0.148, 1.22], [0.166, 1.3], [0.168, 1.37], [0.14, 1.42], [0.05, 1.45], [0.0, 1.455]]
+      : [[0.0, 0.84], [0.178, 0.86], [0.172, 0.95], [0.166, 1.08], [0.176, 1.2], [0.192, 1.32], [0.196, 1.39], [0.16, 1.45], [0.07, 1.48], [0.0, 1.485]]
+    add(new THREE.LatheGeometry(prof.map(([r, y]) => new THREE.Vector2(r, female ? y : y)), 10).scale(1, 1, female ? 0.68 : 0.62), 1)
+    // neck, head, hair
+    const neckTop = female ? 1.5 : 1.54
+    limb([0, female ? 1.4 : 1.44, 0], [0, neckTop, 0.008], female ? 0.046 : 0.056, female ? 0.042 : 0.052, 0, 6)
+    const hc = [0, female ? 1.565 : 1.625, 0.014]
+    const hr = female ? 0.098 : 0.104
+    ball(hc, hr, 0, [0.84, 1.1, 1.0], 10, 8)
+    // nose and ears, so a head reads as a face
+    add(new THREE.BoxGeometry(0.024, 0.042, 0.03).translate(0, hc[1] - 0.012, hc[2] + hr * 0.98), 0)
+    for (const s of [-1, 1]) ball([s * hr * 0.84, hc[1] - 0.005, hc[2] - 0.01], 0.022, 0, [0.5, 1, 0.8], 5, 4)
+    if (hair !== 'none') {
+      add(new THREE.SphereGeometry(hr * 1.08, 10, 5, 0, Math.PI * 2, 0, Math.PI * 0.56).rotateX(-0.42).scale(0.9, 1.06, 1.02).translate(hc[0], hc[1] + 0.012, hc[2] - 0.004), 3)
+    }
+    if (hair === 'long') {
+      add(new THREE.CylinderGeometry(0.088, 0.072, 0.34, 10, 1, false).scale(1, 1, 0.62).translate(0, hc[1] - 0.18, -0.07), 3)
+    } else if (hair === 'bun') {
+      ball([0, hc[1] + 0.07, -0.085], 0.05, 3, [1, 1, 1], 6, 5)
+    }
+    // arms
+    const shY = female ? 1.37 : 1.415
+    const shX = female ? 0.172 : 0.2
+    const pose = (name, s) => {
+      const S = [s * shX, shY, 0]
+      const off = (p, d) => [p[0] + d[0], p[1] + d[1], p[2] + d[2]]
+      let E
+      let Wr
+      switch (name) {
+        case 'drink':
+          E = off(S, [s * 0.04, -0.26, 0.05])
+          Wr = off(E, [-s * 0.07, 0.07, 0.23])
+          break
+        case 'raise':
+          E = off(S, [s * 0.1, 0.25, 0.05])
+          Wr = off(E, [s * 0.02, 0.26, 0.05])
+          break
+        case 'up':
+          E = off(S, [s * 0.14, 0.24, 0.0])
+          Wr = off(E, [s * 0.08, 0.24, 0.04])
+          break
+        case 'phone':
+          E = off(S, [s * 0.02, -0.14, 0.2])
+          Wr = off(E, [-s * 0.08, 0.18, 0.14])
+          break
+        case 'dance':
+          E = off(S, [s * 0.13, -0.2, 0.06])
+          Wr = off(E, [-s * 0.06, 0.13, 0.21])
+          break
+        case 'hip':
+          E = off(S, [s * 0.17, -0.2, -0.05])
+          Wr = off(E, [-s * 0.09, -0.19, 0.06])
+          break
+        case 'decks':
+          E = off(S, [s * 0.05, -0.27, 0.1])
+          Wr = off(E, [-s * 0.02, -0.05, 0.27])
+          break
+        default:
+          E = off(S, [s * 0.04, -0.28, -0.02])
+          Wr = off(E, [s * 0.01, -0.25, 0.05])
+      }
+      ball(S, female ? 0.052 : 0.058, 1, [1, 1, 1], 6, 4)
+      limb(S, E, female ? 0.047 : 0.053, female ? 0.04 : 0.045, 7)
+      ball(E, female ? 0.039 : 0.044, 7, [1, 1, 1], 5, 4)
+      limb(E, Wr, female ? 0.037 : 0.042, female ? 0.03 : 0.034, 7)
+      const dir = v3(Wr).sub(v3(E)).normalize()
+      const H = v3(Wr).addScaledVector(dir, 0.05)
+      ball([H.x, H.y, H.z], female ? 0.036 : 0.042, 0, [0.85, 1.15, 0.75], 6, 4)
+      return H
+    }
+    const hR = pose(R, -1)
+    pose(L, 1)
+    if (prop === 'bottle') {
+      add(new THREE.CylinderGeometry(0.03, 0.032, 0.17, 7).translate(hR.x, hR.y + 0.02, hR.z), 5)
+      add(new THREE.CylinderGeometry(0.012, 0.026, 0.08, 6).translate(hR.x, hR.y + 0.145, hR.z), 5)
+    } else if (prop === 'phone') {
+      add(new THREE.BoxGeometry(0.075, 0.15, 0.012).rotateX(0.25).translate(hR.x, hR.y + 0.05, hR.z + 0.02), 6)
+    }
+    const geo = mergeGeometries(parts, false)
+    geo.computeBoundingSphere()
+    return geo
+  }
+
+  return {
+    A: build({ R: 'drink', L: 'down', hair: 'short', prop: 'bottle', stance: 0.12 }),
+    B: build({ female: true, R: 'drink', L: 'hip', hair: 'long', prop: 'bottle', stance: 0.05 }),
+    C: build({ R: 'raise', L: 'dance', hair: 'short', stance: 0.25 }),
+    D: build({ female: true, R: 'up', L: 'up', hair: 'long', stance: 0.12 }),
+    E: build({ R: 'phone', L: 'down', hair: 'short', prop: 'phone', stance: 0.1 }),
+    F: build({ female: true, R: 'dance', L: 'dance', hair: 'bun', stance: 0.15 }),
+    G: build({ R: 'decks', L: 'decks', hair: 'short', stance: 0.2 }),
+  }
+}
+
+/**
+ * The crowd's material: per-instance clothes / skin / hair colours, a bounce
+ * on the beat, and a coloured rim light picked from where the person stands
+ * (magenta by the side LED strips, blue mid-room, red at the bar and the
+ * decks, warm lamp light outside).
+ */
+function crowdMaterial(THREE, uTime, uBeat, floorY) {
+  const mat = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.74, metalness: 0 })
+  mat.onBeforeCompile = (sh) => {
+    sh.uniforms.uTime = uTime
+    sh.uniforms.uBeat = uBeat
+    sh.vertexShader = sh.vertexShader
+      .replace(
+        '#include <common>',
+        `#include <common>
+attribute float part;
+attribute vec4 aTop;
+attribute vec4 aBot;
+attribute vec4 aSkin;
+attribute vec3 aHair;
+uniform float uTime;
+varying vec3 vPCol;
+varying vec3 vPW;
+varying float vGlow;
+varying float vLY;`
+      )
+      .replace(
+        '#include <begin_vertex>',
+        `#include <begin_vertex>
+{
+  float ph = aSkin.w;
+  float en = aBot.w;
+  float bt = uTime * 13.0 + ph;
+  float bob = 0.5 + 0.5 * sin(bt);
+  transformed.y -= en * 0.045 * bob * smoothstep(0.25, 0.95, position.y);
+  transformed.x += en * 0.035 * sin(bt * 0.5) * smoothstep(0.7, 1.7, position.y);
+  float arm = step(1.52, position.y) * step(0.13, abs(position.x));
+  transformed.x += arm * en * 0.07 * sin(bt * 0.5 + 0.8);
+  transformed.z += arm * en * 0.05 * cos(bt);
+  vec3 pc = aSkin.rgb;
+  vGlow = 0.0;
+  if (part > 0.5 && part < 1.5) pc = aTop.rgb;
+  else if (part > 1.5 && part < 2.5) pc = aBot.rgb;
+  else if (part > 2.5 && part < 3.5) pc = aHair;
+  else if (part > 3.5 && part < 4.5) pc = fract(ph * 3.17) > 0.75 ? vec3(0.62) : vec3(0.035);
+  else if (part > 4.5 && part < 5.5) pc = vec3(0.2, 0.09, 0.025);
+  else if (part > 5.5 && part < 6.5) { pc = vec3(0.03); vGlow = 1.0; }
+  else if (part > 6.5) pc = aTop.w > 0.5 ? aTop.rgb : aSkin.rgb;
+  vPCol = pc;
+  vLY = position.y;
+  vec4 pw = vec4(transformed, 1.0);
+  #ifdef USE_INSTANCING
+  pw = instanceMatrix * pw;
+  #endif
+  vPW = (modelMatrix * pw).xyz;
+}`
+      )
+    sh.fragmentShader = sh.fragmentShader
+      .replace(
+        '#include <common>',
+        `#include <common>
+uniform float uBeat;
+varying vec3 vPCol;
+varying vec3 vPW;
+varying float vGlow;
+varying float vLY;
+vec3 rimTint(vec3 p) {
+  if (p.y < ${(floorY - 0.6).toFixed(2)}) return vec3(1.0, 0.62, 0.3) * 0.12;
+  float side = smoothstep(1.4, 3.5, abs(p.z));
+  vec3 c = mix(vec3(0.2, 0.32, 1.0), vec3(1.0, 0.16, 0.86), side * 0.85);
+  c = mix(c, vec3(1.0, 0.05, 0.05), 1.0 - smoothstep(-10.5, -6.5, p.x));
+  c = mix(c, vec3(1.0, 0.18, 0.12), smoothstep(9.0, 12.5, p.x) * 0.65);
+  return c;
+}`
+      )
+      .replace(
+        '#include <color_fragment>',
+        `#include <color_fragment>
+diffuseColor.rgb *= vPCol * mix(0.32, 0.8, smoothstep(0.2, 1.55, vLY));`
+      )
+      .replace(
+        '#include <emissivemap_fragment>',
+        `#include <emissivemap_fragment>
+{
+  float fr = 1.0 - abs(dot(normalize(normal), normalize(vViewPosition)));
+  fr = fr * fr * fr;
+  totalEmissiveRadiance += rimTint(vPW) * fr * (0.55 + 0.45 * uBeat) * smoothstep(0.3, 1.2, vLY);
+  totalEmissiveRadiance += vec3(0.7, 0.82, 1.0) * 1.1 * vGlow;
+}`
+      )
+  }
+  return mat
+}
+
+/** Additive light shafts (open cones, apex at the origin, along +Y), instanced. */
+function beamMaterial(THREE, opacity) {
+  return new THREE.ShaderMaterial({
+    uniforms: { uOpacity: { value: opacity } },
+    vertexShader: `
+varying vec3 vN;
+varying vec3 vV;
+varying float vT;
+varying vec3 vC;
+void main() {
+  vec4 p = vec4(position, 1.0);
+  vec3 n = normal;
+  #ifdef USE_INSTANCING
+  p = instanceMatrix * p;
+  n = mat3(instanceMatrix) * n;
+  #endif
+  vC = vec3(1.0);
+  #ifdef USE_INSTANCING_COLOR
+  vC = instanceColor;
+  #endif
+  vec4 mv = modelViewMatrix * p;
+  vN = normalize(normalMatrix * n);
+  vV = -mv.xyz;
+  vT = uv.y;
+  gl_Position = projectionMatrix * mv;
+}`,
+    fragmentShader: `
+uniform float uOpacity;
+varying vec3 vN;
+varying vec3 vV;
+varying float vT;
+varying vec3 vC;
+void main() {
+  float f = abs(dot(normalize(vN), normalize(vV)));
+  float a = f * f * f * f * pow(1.0 - vT, 1.3) * smoothstep(0.0, 0.03, vT) * smoothstep(0.6, 3.2, length(vV)) * uOpacity;
+  gl_FragColor = vec4(vC * 1.6, a);
+}`,
+    transparent: true,
+    depthWrite: false,
+    blending: THREE.AdditiveBlending,
+    side: THREE.DoubleSide,
+  })
+}
+
+/** Soft camera-facing haze puffs, instanced (position = instance origin, size = instance scale). */
+function hazeMaterial(THREE, opacity) {
+  return new THREE.ShaderMaterial({
+    uniforms: { uOpacity: { value: opacity } },
+    vertexShader: `
+varying vec2 vUv;
+varying vec3 vC;
+void main() {
+  vUv = uv - 0.5;
+  vec3 c = vec3(0.0);
+  float s = 1.0;
+  #ifdef USE_INSTANCING
+  c = instanceMatrix[3].xyz;
+  s = length(instanceMatrix[0].xyz);
+  #endif
+  vC = vec3(1.0);
+  #ifdef USE_INSTANCING_COLOR
+  vC = instanceColor;
+  #endif
+  vec4 mv = modelViewMatrix * vec4(c, 1.0);
+  mv.xy += position.xy * s;
+  gl_Position = projectionMatrix * mv;
+}`,
+    fragmentShader: `
+uniform float uOpacity;
+varying vec2 vUv;
+varying vec3 vC;
+void main() {
+  float r = length(vUv) * 2.0;
+  float a = 1.0 - smoothstep(0.0, 1.0, r);
+  gl_FragColor = vec4(vC, a * a * uOpacity);
+}`,
+    transparent: true,
+    depthWrite: false,
+    blending: THREE.AdditiveBlending,
+  })
+}
+
 function buildPartyBoat(THREE, ctx) {
   const low = ctx.quality === 'low'
   const q = ctx.quality
@@ -1552,23 +2057,38 @@ function buildPartyBoat(THREE, ctx) {
   // the boat: axis along X, bow at +X, starboard (+Z) against the jetty
   const MAIN = 1.4 // main deck
   const UP = 4.2 // upper (party) deck floor
-  const CEIL = 6.85 // party room ceiling
+  const CEIL = UP + 2.85 // party room ceiling (underside of the roof)
   const JETTY = 0.75
   const QUAY = 2.4
+  const E = (h) => UP + h
+
+  // the party room: x −15 (aft, the bar) … +15 (forward, the DJ), walls at z ±W
+  const roomX0 = -15
+  const roomX1 = 15
+  const W = 3.8
+  const IN = W - 0.1 // inner face of the wall lining
+  const sillTop = E(0.85)
+  const winTop = E(2.25)
+  const BAR_X = -11.2 // front face of the bar counter
+  const DECK_X = 11.4 // front face of the DJ booth
 
   /* --- the tour --------------------------------------------------------- */
 
-  const S0 = V(-13.4, UP + 1.5, 0)
+  const S0 = V(13.95, E(1.78), -0.3)
   const spots = [
-    { pos: S0, look: V(15, UP + 1.15, -0.4) }, // behind the DJ booth, down the party room
-    { pos: V(-5, UP + 1.45, 1.6), look: V(-14, UP + 1.25, -0.6) }, // on the floor, facing the decks and speakers
-    { pos: V(3.5, UP + 1.5, 1.2), look: V(13, UP + 0.9, -2.8) }, // toward the red bar
-    { pos: V(21.5, MAIN + 1.6, -0.3), look: V(44, 4.5, 14) }, // out on the bow deck, the flag and the quay lights
-    { pos: V(34, JETTY + 1.6, 8.6), look: V(-8, 4.6, 1.2) }, // on the jetty by the bow (the reference)
-    { pos: V(-30, 13, 22), look: V(2, 3, -1) }, // above the jetty: the whole boat lit up
-    { pos: V(-21, UP + 1.65, 0), look: V(-60, 5.5, 20) }, // the aft sundeck, the flag and the city
+    { pos: S0, look: V(-6, E(1.12), 0.4) }, // 0 behind the DJ booth: over the decks, down the packed room to the bar
+    { pos: V(8.2, E(1.6), -0.45), look: V(13.6, E(1.5), 0.15) }, // 1 on the floor facing the decks, speakers, exit sign
+    { pos: V(9.7, E(1.5), -3.0), look: V(12.6, E(1.3), 0.7) }, // 2 beside the booth, in the red light
+    { pos: V(9.0, E(1.86), 1.7), look: V(-14, E(1.1), -0.4) }, // 3 held up over the crowd, down the room to the BAR sign
+    { pos: V(2.2, E(1.55), -2.85), look: V(10.5, E(1.6), 2.4) }, // 4 in the crowd by the port windows
+    { pos: V(-3.0, E(1.55), 1.3), look: V(-8.6, E(1.45), -3.7) }, // 5 the lounge: sofa, screens, aluminium wall
+    { pos: V(-6.0, E(1.62), -0.8), look: V(-14, E(1.3), -1.0) }, // 6 at the red bar
+    { pos: V(34, JETTY + 1.6, 8.6), look: V(-8, 4.6, 1.2) }, // 7 on the jetty by the bow (photo 01)
+    { pos: V(-30, 13, 22), look: V(2, 3, -1) }, // 8 above the jetty: the whole boat lit up
   ]
-  const arrival = [V(-150, 45, -40), V(-80, 14, -8), V(-36, UP + 2.4, 0), V(-21, UP + 1.75, 0), S0.clone()]
+  const INSIDE = 7
+  // fly in over the bow and through the front door, behind the decks
+  const arrival = [V(150, 40, -50), V(70, 13, -14), V(30, E(2.4), -2.6), V(17.6, E(1.78), 0), S0.clone()]
   const clear = clearOfTour(spots, arrival)
 
   /* --- materials -------------------------------------------------------- */
@@ -1578,7 +2098,7 @@ function buildPartyBoat(THREE, ctx) {
   const pave = M.paving(THREE, { kind: 'setts', color: '#6f6a63', joint: '#34322e', unit: 0.2, tile: 3, wet: 0.4, quality: q, seed: 93 })
   const asphalt = M.asphalt(THREE, { color: '#2c2d30', tile: 6, quality: q, seed: 94 })
   const quayBrick = M.brick(THREE, { color: '#4e3027', mortar: '#615851', dirt: 0.35, tile: 2, quality: q, seed: 95 })
-  const floorMat = M.floor(THREE, { kind: 'tile', color: '#26262c', tileSize: 0.6, polish: 0.92, tile: 4, quality: q, seed: 96 })
+  const floorMat = M.floor(THREE, { kind: 'tile', color: '#1c1c22', tileSize: 0.6, polish: 0.96, tile: 4, quality: q, seed: 96 })
   const fBrick = M.facade(THREE, { wall: 'brick', color: '#5d3a2c', mortar: '#7a6f66', frame: '#2a2a2a', glass: '#1a2026', bay: 3, storey: 3.1, window: { w: 0.62, h: 0.66, bars: null, sill: true, lintel: false }, night: 0.45, quality: q, seed: 97 })
   const fPale = M.facade(THREE, { wall: 'plaster', color: '#bdb7ad', frame: '#333333', glass: '#1a2026', bay: 3.2, storey: 3.1, window: { w: 0.7, h: 0.62, bars: null, sill: true, lintel: false }, night: 0.4, quality: q, seed: 98 })
   const fGlass = M.facade(THREE, { wall: 'curtain', color: '#2b333a', frame: '#3c4148', glass: '#1a2129', bay: 1.8, storey: 3.4, night: 0.5, quality: q, seed: 99 })
@@ -1588,18 +2108,46 @@ function buildPartyBoat(THREE, ctx) {
   const hullDark = std(THREE, 0x2a2f31, 0.45, 0.45)
   const hullWhite = std(THREE, 0xe6e2d8, 0.38, 0.15)
   const paint = std(THREE, 0x2f3533, 0.5, 0.4) // the superstructure's dark grey-green
-  const ceilMat = std(THREE, 0x141417, 0.92, 0)
   const steel = std(THREE, 0x8a8f94, 0.35, 0.9)
   const blackSteel = std(THREE, 0x1a1b1d, 0.5, 0.6)
   const rubber = std(THREE, 0x111111, 0.9)
-  const glass = new THREE.MeshStandardMaterial({ color: 0x1b2328, roughness: 0.04, metalness: 0.1, transparent: true, opacity: 0.32, envMapIntensity: 1.5, depthWrite: false })
-  const neonViolet = new THREE.MeshBasicMaterial({ color: new THREE.Color(0xc35cff).multiplyScalar(3.2) })
-  const neonBlue = new THREE.MeshBasicMaterial({ color: new THREE.Color(0x3b5bff).multiplyScalar(3.2) })
-  const neonRed = new THREE.MeshBasicMaterial({ color: new THREE.Color(0xff1f2e).multiplyScalar(3.4) })
-  const redPanel = new THREE.MeshStandardMaterial({ color: 0x3a0508, emissive: 0xff2030, emissiveIntensity: 2.3, roughness: 0.4 })
-  const warmLED = new THREE.MeshBasicMaterial({ color: new THREE.Color(0xffd2a0).multiplyScalar(3) })
-  for (const m of [neonViolet, neonBlue, neonRed, warmLED, redPanel]) K.flags(m, { cast: false, receive: false })
+  const glass = new THREE.MeshStandardMaterial({ color: 0x1b2328, roughness: 0.04, metalness: 0.1, transparent: true, opacity: 0.3, envMapIntensity: 1.5, depthWrite: false })
+  const glow = (hex, k) => new THREE.MeshBasicMaterial({ color: new THREE.Color(hex).multiplyScalar(k), toneMapped: true })
+  const neonMagenta = glow(0xff38d8, 3.6)
+  const neonBlue = glow(0x2f58ff, 3.4)
+  const neonRed = glow(0xff1c2a, 3.6)
+  const warmLED = glow(0xffd2a0, 3)
+  const amberBulb = glow(0xffa04a, 4.5)
+  const downlight = glow(0xfff0dc, 1.6)
+  const effectBlue = glow(0x3c7bff, 3.2)
+  const screenBlue = glow(0x63b8ff, 2.2)
+  const padRed = glow(0xff2a3a, 2.6)
+  const padGreen = glow(0x30ff7a, 2.4)
+  const padOrange = glow(0xff8a1e, 2.6)
+  const padCyan = glow(0x30d8ff, 2.4)
+  // inside finishes
+  const brushed = noiseNormalMap(THREE, low ? 128 : 256, { cells: 6, strength: 0.6, octaves: 3, stretch: [8, 0.5] })
+  const alu = new THREE.MeshStandardMaterial({ color: 0xaab0b8, roughness: 0.34, metalness: 0.78, normalMap: brushed, normalScale: new THREE.Vector2(0.07, 0.07) })
+  const ceilPanel = std(THREE, 0x6f737b, 0.86, 0.02)
+  const ceilBeam = std(THREE, 0xb4b5b2, 0.75, 0)
+  const sofaWhite = std(THREE, 0xebe8e2, 0.46, 0)
+  const matteBlack = std(THREE, 0x0e0e10, 0.78, 0.05)
+  const darkPlastic = std(THREE, 0x16171a, 0.42, 0.3)
+  const jogMetal = std(THREE, 0x55585e, 0.28, 0.85)
+  const grille = std(THREE, 0x08080a, 0.95, 0)
+  const gold = std(THREE, 0xc99f48, 0.26, 1)
+  const mirror = std(THREE, 0x7a6a62, 0.05, 1)
+  const leaf = std(THREE, 0x2f5a2a, 0.65, 0, { side: THREE.DoubleSide })
+  const mosaicTex = mosaicTexture(THREE, { seed: 31 })
+  const sparkTex = mosaicTexture(THREE, { sparkle: true, seed: 37 })
+  const mosaic = new THREE.MeshStandardMaterial({ map: mosaicTex, emissiveMap: mosaicTex, emissive: 0xff2a26, emissiveIntensity: 1.35, roughness: 0.22, metalness: 0.05 })
+  const mosaicSpark = new THREE.MeshStandardMaterial({ map: sparkTex, emissiveMap: sparkTex, emissive: 0xff3a30, emissiveIntensity: 1.25, roughness: 0.2, metalness: 0.1 })
+  const exitSign = new THREE.MeshBasicMaterial({ map: exitTexture(THREE), color: new THREE.Color(1.9, 1.9, 1.9) })
+  const tvScreen = new THREE.MeshBasicMaterial({ map: screenTexture(THREE, 'tv', 7), color: new THREE.Color(1.5, 1.5, 1.5) })
+  const menuScreen = new THREE.MeshBasicMaterial({ map: screenTexture(THREE, 'menu', 9), color: new THREE.Color(1.4, 1.4, 1.4) })
+  for (const m of [neonMagenta, neonBlue, neonRed, warmLED, amberBulb, downlight, effectBlue, screenBlue, padRed, padGreen, padOrange, padCyan, exitSign, tvScreen, menuScreen, mosaic, mosaicSpark]) K.flags(m, { cast: false, receive: false })
   K.flags(glass, { cast: false, receive: false })
+  for (const m of [alu, ceilPanel, ceilBeam, sofaWhite, matteBlack, darkPlastic, jogMetal, grille, gold, mirror, leaf, floorMat]) K.flags(m, { cast: false, receive: true })
 
   /* --- water, quay, jetty -------------------------------------------------- */
 
@@ -1702,7 +2250,7 @@ function buildPartyBoat(THREE, ctx) {
   // the lower salon: dark walls with a band of lit windows
   const lowerWin = (() => {
     const draw = (emit) => (g, w, h) => {
-      const r2 = seeded(emit ? 3 : 3)
+      const r2 = seeded(3)
       g.fillStyle = emit ? '#000' : '#2f3533'
       g.fillRect(0, 0, w, h)
       const n = 8
@@ -1737,52 +2285,302 @@ function buildPartyBoat(THREE, ctx) {
   // upper deck floor (also the lower salon's roof), extending aft over the sundeck
   K.put(paint, boxGeo(THREE, 44, 0.2, 8.6, 4, 4), -5, UP - 0.2, 0)
   K.put(deckPlanks, flatGeo(THREE, 12, 8.4, 2, true), -21, UP + 0.005, 0)
-  K.put(floorMat, flatGeo(THREE, 30, 7.6, 4), 0, UP + 0.005, 0)
+  K.put(floorMat, flatGeo(THREE, 30, 2 * IN, 4), 0, UP + 0.005, 0)
   for (const x of [-27, -22.5]) for (const z of [-4, 4]) K.put(steel, new THREE.CylinderGeometry(0.06, 0.06, UP - 0.2 - MAIN, 8).translate(0, (UP - 0.2 - MAIN) / 2, 0), x, MAIN, z)
 
-  // the party room's shell: sill walls, glazing with mullions, header, roof
-  const roomX0 = -15
-  const roomX1 = 15
-  const W = 3.8
-  const sillTop = UP + 0.8
-  const winTop = UP + 2.35
+  /* --- the party room's shell ---------------------------------------------- */
+
+  // side walls: a sill wall, 1.5 m window bays (a run of solid aluminium-lined
+  // bays on the port side for the lounge), a header up to the roof
+  const BAY = 1.5
+  const solidBay = (s, xc) => s < 0 && xc > -10.5 && xc < -3
   for (const s of [-1, 1]) {
-    K.put(paint, new THREE.BoxGeometry(30, 0.8, 0.14).translate(0, 0.4, 0), 0, UP, s * W)
+    K.put(paint, new THREE.BoxGeometry(30, 0.85, 0.14).translate(0, 0.425, 0), 0, UP, s * W)
     K.put(paint, new THREE.BoxGeometry(30, CEIL - winTop + 0.25, 0.14).translate(0, (CEIL - winTop + 0.25) / 2, 0), 0, winTop, s * W)
-    K.put(glass, new THREE.BoxGeometry(30, winTop - sillTop, 0.03).translate(0, (winTop - sillTop) / 2, 0), 0, sillTop, s * W)
-    for (let x = roomX0; x <= roomX1 + 0.01; x += 1.5) K.put(blackSteel, new THREE.BoxGeometry(0.09, winTop - sillTop, 0.16).translate(0, (winTop - sillTop) / 2, 0), x, sillTop, s * W)
+    const hWin = winTop - sillTop
+    for (let i = 0; i < 20; i++) {
+      const xc = roomX0 + BAY / 2 + i * BAY
+      if (solidBay(s, xc)) {
+        K.put(paint, new THREE.BoxGeometry(BAY, hWin, 0.14).translate(0, hWin / 2, 0), xc, sillTop, s * W)
+        K.put(alu, boxGeo(THREE, BAY - 0.02, hWin, 0.03, 1, 1), xc, sillTop, s * (IN + 0.015))
+      } else {
+        K.put(glass, new THREE.BoxGeometry(BAY, hWin, 0.03).translate(0, hWin / 2, 0), xc, sillTop, s * W)
+      }
+    }
+    for (let i = 0; i <= 20; i++) {
+      const x = roomX0 + i * BAY
+      K.put(blackSteel, new THREE.BoxGeometry(0.09, hWin, 0.16).translate(0, hWin / 2, 0), x, sillTop, s * W)
+      K.put(alu, boxGeo(THREE, 0.16, hWin, 0.06, 1, 1), x, sillTop, s * (IN + 0.03))
+    }
+    // linings inside: aluminium below the windows, a pale header above
+    K.put(alu, boxGeo(THREE, 30, 0.85, 0.03, 1, 1), 0, UP, s * (IN + 0.015))
+    K.put(ceilPanel, boxGeo(THREE, 30, CEIL - winTop, 0.03, 2, 2), 0, winTop, s * (IN + 0.015))
+    K.put(alu, new THREE.BoxGeometry(30, 0.04, 0.22), 0, sillTop + 0.02, s * (IN - 0.08))
+    // LEDs: a magenta strip where the header meets the ceiling, a blue one under the sill
+    K.put(neonMagenta, new THREE.BoxGeometry(29.8, 0.032, 0.032), 0, CEIL - 0.07, s * (IN - 0.03))
+    K.put(neonBlue, new THREE.BoxGeometry(29.8, 0.022, 0.022), 0, sillTop - 0.025, s * (IN - 0.16))
   }
-  // aft wall: an open double doorway (2.4 wide, 2.4 high) in a dark wall
-  for (const s of [-1, 1]) K.put(paint, new THREE.BoxGeometry(0.14, CEIL - UP, W - 1.2).translate(0, (CEIL - UP) / 2, 0), roomX0, UP, s * (1.2 + (W - 1.2) / 2))
-  K.put(paint, new THREE.BoxGeometry(0.14, CEIL - UP - 2.45, 2.4).translate(0, (CEIL - UP - 2.45) / 2, 0), roomX0, UP + 2.45, 0)
-  // front wall: windows either side of a narrow door
+  // aft wall: solid, a door to the sundeck on the starboard side (z 1.55 … 3.35)
+  const DOOR0 = 1.55
+  const DOOR1 = 3.35
+  {
+    const hh = CEIL - UP
+    const a = DOOR0 + W
+    K.put(paint, new THREE.BoxGeometry(0.14, hh, a).translate(0, hh / 2, 0), roomX0, UP, -W + a / 2)
+    K.put(paint, new THREE.BoxGeometry(0.14, hh, W - DOOR1).translate(0, hh / 2, 0), roomX0, UP, (DOOR1 + W) / 2)
+    K.put(paint, new THREE.BoxGeometry(0.14, hh - 2.2, DOOR1 - DOOR0).translate(0, (hh - 2.2) / 2, 0), roomX0, E(2.2), (DOOR0 + DOOR1) / 2)
+    K.put(alu, boxGeo(THREE, 0.03, hh, W - DOOR1, 1, 1), roomX0 + 0.085, UP, (DOOR1 + W) / 2)
+  }
+  // front wall: windows either side of a narrow door (behind the DJ)
   for (const s of [-1, 1]) {
     const zc = s * (0.7 + (W - 0.7) / 2)
     const span = W - 0.7
-    K.put(paint, new THREE.BoxGeometry(0.14, 0.8, span).translate(0, 0.4, 0), roomX1, UP, zc)
+    K.put(paint, new THREE.BoxGeometry(0.14, 0.85, span).translate(0, 0.425, 0), roomX1, UP, zc)
     K.put(glass, new THREE.BoxGeometry(0.03, winTop - sillTop, span).translate(0, (winTop - sillTop) / 2, 0), roomX1, sillTop, zc)
     K.put(paint, new THREE.BoxGeometry(0.14, CEIL - winTop + 0.25, span).translate(0, (CEIL - winTop + 0.25) / 2, 0), roomX1, winTop, zc)
+    K.put(blackSteel, new THREE.BoxGeometry(0.16, winTop - sillTop, 0.08).translate(0, (winTop - sillTop) / 2, 0), roomX1, sillTop, s * 2.25)
   }
-  K.put(paint, new THREE.BoxGeometry(0.14, CEIL - UP - 2.15, 1.4).translate(0, (CEIL - UP - 2.15) / 2, 0), roomX1, UP + 2.15, 0)
-  // roof slab (the ceiling inside is its underside) with a white edge outside
-  K.put(ceilMat, boxGeo(THREE, 30.4, 0.25, 7.9, 4, 4), 0, CEIL, 0)
-  K.put(hullWhite, new THREE.BoxGeometry(30.6, 0.12, 8.1), 0, CEIL + 0.25, 0)
-  // the wheelhouse on the roof, forward, with a mast and navigation lights
-  K.put(paint, boxGeo(THREE, 5.5, 1.1, 4.6, 4, 4), 11.2, CEIL + 0.28, 0)
-  K.put(new THREE.MeshStandardMaterial({ color: 0x0f1418, roughness: 0.04, metalness: 0.9, envMapIntensity: 1.3 }), new THREE.BoxGeometry(5.5, 1.0, 4.62), 11.2, CEIL + 1.37 + 0.5, 0)
-  K.put(hullWhite, new THREE.BoxGeometry(6.0, 0.18, 5.2), 11.2, CEIL + 2.45, 0)
-  K.put(steel, new THREE.CylinderGeometry(0.06, 0.08, 3.2, 8).translate(0, 1.6, 0), 10.2, CEIL + 2.55, 0)
-  K.put(steel, new THREE.BoxGeometry(0.12, 0.1, 2.4), 10.2, CEIL + 4.2, 0)
+  K.put(paint, new THREE.BoxGeometry(0.14, CEIL - UP - 2.15, 1.4).translate(0, (CEIL - UP - 2.15) / 2, 0), roomX1, E(2.15), 0)
+  K.put(neonRed, new THREE.BoxGeometry(0.032, 0.032, 7.4), roomX1 - 0.1, CEIL - 0.07, 0)
+  // the roof slab (its underside is the ceiling) with a white edge outside
+  K.put(ceilPanel, boxGeo(THREE, 30.4, 0.25, 7.9, 2, 2), 0, CEIL, 0)
+  K.put(hullWhite, new THREE.BoxGeometry(30.6, 0.12, 8.1), 0, CEIL + 0.31, 0)
+
+  /* --- the ceiling: painted beams, downlights, speakers ------------------- */
+
+  // (painted deck beams over the bar and the lounge, as in the photos; a smooth ceiling over the dance floor)
+  for (let x = roomX0 + 0.6; x < -2.2; x += 1.2) K.put(ceilBeam, new THREE.BoxGeometry(0.09, 0.13, 2 * IN), x, CEIL - 0.065, 0)
+  for (const z of [-1.25, 1.25]) K.put(ceilBeam, new THREE.BoxGeometry(12.75, 0.17, 0.12), (roomX0 - 2.2) / 2, CEIL - 0.085, z)
+  for (const z of [-1.9, 1.9]) K.put(ceilBeam, new THREE.BoxGeometry(17.2, 0.02, 0.02), 6.4, CEIL - 0.01, z)
+  const downs = []
+  for (let x = roomX0 + 1.2; x < roomX1 - 0.5; x += 2.4) for (const z of [-2.45, 2.45]) downs.push({ x, y: CEIL - 0.012, z })
+  scatter(THREE, scene, new THREE.CylinderGeometry(0.055, 0.055, 0.02, 12), downlight, downs, { cast: false, receive: false })
+  scatter(THREE, scene, new THREE.TorusGeometry(0.075, 0.014, 5, 14).rotateX(Math.PI / 2), steel, downs.map((d) => ({ ...d, y: d.y - 0.004 })), { cast: false, receive: false })
+  for (const x of [-7.8, -1.8, 4.2, 9.0]) {
+    K.put(std(THREE, 0x75787f, 0.9, 0.1), new THREE.CylinderGeometry(0.25, 0.25, 0.03, 22), x, CEIL - 0.016, 0)
+    K.put(grille, new THREE.CylinderGeometry(0.2, 0.2, 0.031, 22), x, CEIL - 0.017, 0)
+  }
+  for (const x of [-4.8, 1.2, 7.2]) K.put(ceilBeam, new THREE.CylinderGeometry(0.06, 0.07, 0.04, 12), x, CEIL - 0.02, 0.6)
+  // track spots over the lounge (both sides)
+  const cans = []
+  for (const s of [-1, 1]) {
+    K.put(blackSteel, new THREE.BoxGeometry(6.6, 0.03, 0.04), -6.8, CEIL - 0.02, s * 2.6)
+    for (let x = -9.8; x <= -3.8; x += 0.75) cans.push({ x, y: CEIL - 0.13, z: s * 2.6, rx: s * 0.5 })
+  }
+  scatter(THREE, scene, new THREE.CylinderGeometry(0.05, 0.06, 0.17, 10), steel, cans, { cast: false })
+  scatter(THREE, scene, new THREE.CircleGeometry(0.045, 10).rotateX(Math.PI / 2).translate(0, -0.087, 0), glow(0xffc890, 2.2), cans, { cast: false, receive: false })
+
+  /* --- the bar (aft): red mosaic counter, mirror back bar, BAR sign -------- */
+
+  const BZ0 = -IN
+  const BZ1 = 1.3
+  const BL = BZ1 - BZ0
+  const BZC = (BZ0 + BZ1) / 2
+  K.put(mosaic, boxGeo(THREE, 0.62, 1.06, BL, 0.5, 0.5), BAR_X - 0.31, UP + 0.02, BZC)
+  K.put(matteBlack, new THREE.BoxGeometry(0.56, 0.02, BL), BAR_X - 0.33, UP + 0.01, BZC)
+  K.put(steel, new THREE.BoxGeometry(0.78, 0.045, BL + 0.08), BAR_X - 0.34, E(1.1), BZC)
+  K.put(neonRed, new THREE.BoxGeometry(0.02, 0.02, BL), BAR_X + 0.012, UP + 0.04, BZC)
+  // beer taps and glasses on the counter
+  for (let i = 0; i < 4; i++) {
+    const z = -2.4 + i * 0.22
+    K.put(steel, new THREE.CylinderGeometry(0.02, 0.02, 0.36, 8), BAR_X - 0.52, E(1.3), z)
+    K.put(steel, new THREE.BoxGeometry(0.12, 0.025, 0.025), BAR_X - 0.47, E(1.46), z)
+  }
+  const glasses = []
+  for (let i = 0; i < 14; i++) glasses.push({ x: BAR_X - 0.15 - rand() * 0.25, y: E(1.122), z: BZ0 + 0.3 + rand() * (BL - 0.6), s: range(rand, 0.8, 1.2) })
+  scatter(THREE, scene, new THREE.CylinderGeometry(0.035, 0.03, 0.13, 8).translate(0, 0.065, 0), new THREE.MeshStandardMaterial({ color: 0xffd9a0, roughness: 0.1, metalness: 0.2, transparent: true, opacity: 0.55, depthWrite: false }), glasses, { cast: false, receive: false })
+  // the back bar: low cabinets, bronze mirror, lit shelves of bottles
+  const BBX = roomX0 + 0.07
+  K.put(matteBlack, new THREE.BoxGeometry(0.55, 0.95, BL).translate(0, 0.475, 0), BBX + 0.3, UP, BZC)
+  K.put(steel, new THREE.BoxGeometry(0.6, 0.03, BL), BBX + 0.3, E(0.965), BZC)
+  K.put(mirror, new THREE.BoxGeometry(0.02, 1.3, BL), BBX + 0.02, E(1.6), BZC)
+  const shelfSegs = [
+    [BZ0 + 0.55, -1.75],
+    [-0.05, BZ1 - 0.55],
+  ]
+  const bottles = []
+  const bottleCols = [0x3a7a3a, 0x8a5418, 0xe8e2d0, 0x2c4a9a, 0x9a1a1a, 0xc89a40, 0x5a2a6a, 0x1e5e5a]
+  for (const [z0, z1] of shelfSegs) {
+    const len = z1 - z0
+    const zc = (z0 + z1) / 2
+    for (const y of [E(1.38), E(1.78)]) {
+      K.put(glass, new THREE.BoxGeometry(0.24, 0.02, len), BBX + 0.14, y, zc)
+      K.put(amberBulb, new THREE.BoxGeometry(0.015, 0.012, len), BBX + 0.05, y - 0.015, zc)
+      for (let z = z0 + 0.08; z < z1 - 0.05; z += 0.12) bottles.push({ x: BBX + 0.12 + rand() * 0.06, y: y + 0.012, z, s: range(rand, 0.85, 1.15), color: pick(rand, bottleCols) })
+    }
+  }
+  for (let z = BZ0 + 0.3; z < BZ1 - 0.3; z += 0.15) if (rand() < 0.7) bottles.push({ x: BBX + 0.4 + rand() * 0.1, y: E(0.98), z, s: range(rand, 0.9, 1.1), color: pick(rand, bottleCols) })
+  const bottleGeo = new THREE.LatheGeometry(
+    [[0.0, 0], [0.034, 0], [0.036, 0.02], [0.036, 0.18], [0.028, 0.215], [0.012, 0.245], [0.012, 0.3], [0.014, 0.305], [0.0, 0.305]].map(([r, y]) => new THREE.Vector2(r, y)),
+    8
+  )
+  scatter(THREE, scene, bottleGeo, new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.12, metalness: 0.15, emissive: 0x6a2410, emissiveIntensity: 0.9 }), bottles, { cast: false, receive: false })
+  // menu light boxes at the ends of the back bar, the BAR sign in the middle
+  for (const z of [BZ0 + 0.3, BZ1 - 0.3]) {
+    K.put(gold, new THREE.BoxGeometry(0.05, 0.74, 0.5), BBX + 0.05, E(1.6), z)
+    K.put(menuScreen, new THREE.PlaneGeometry(0.42, 0.64).rotateY(Math.PI / 2), BBX + 0.08, E(1.6), z)
+  }
+  const barSign = new THREE.Mesh(
+    new THREE.PlaneGeometry(1.5, 0.56).rotateY(Math.PI / 2),
+    new THREE.MeshBasicMaterial({ map: barSignTexture(THREE), color: new THREE.Color(2.6, 2.6, 2.6), transparent: true, blending: THREE.AdditiveBlending, depthWrite: false })
+  )
+  barSign.position.set(BBX + 0.05, E(1.62), -0.9)
+  scene.add(barSign)
+  // the glitter-mosaic bulkhead over the bar, with red neon at both edges
+  K.put(mosaicSpark, boxGeo(THREE, 3.9, CEIL - E(2.32), 2 * IN, 0.5, 0.5), roomX0 + 0.07 + 1.95, E(2.32), 0)
+  K.put(neonRed, new THREE.BoxGeometry(0.03, 0.03, 2 * IN - 0.04), roomX0 + 3.99, E(2.315), 0)
+  K.put(neonRed, new THREE.BoxGeometry(0.03, 0.03, 2 * IN - 0.04), roomX0 + 4.0, CEIL - 0.04, 0)
+  // gold columns at the counter's ends, potted palms
+  for (const z of [BZ0 + 0.12, BZ1 + 0.12]) K.put(gold, new THREE.CylinderGeometry(0.085, 0.085, E(2.32) - UP, 14).translate(0, (E(2.32) - UP) / 2, 0), BAR_X - 0.1, UP, z)
+  function palm(x, y, z, h = 1.4, seed = 1) {
+    const r3 = seeded(seed)
+    K.put(gold, new THREE.CylinderGeometry(0.2, 0.15, 0.38, 14).translate(0, 0.19, 0), x, y, z)
+    for (let i = 0; i < 9; i++) {
+      const a = (i / 9) * Math.PI * 2 + r3() * 0.4
+      const len = h * range(r3, 0.45, 0.65)
+      const tilt = range(r3, 0.5, 1.1)
+      const blade = new THREE.PlaneGeometry(0.16, len, 1, 3).translate(0, len / 2, 0)
+      // droop the blade tips
+      const p = blade.attributes.position
+      for (let k = 0; k < p.count; k++) {
+        const t = p.getY(k) / len
+        p.setZ(k, t * t * len * 0.45)
+        p.setX(k, p.getX(k) * (1 - t * 0.7))
+      }
+      blade.computeVertexNormals()
+      K.put(leaf, blade, x, y + 0.36 + h * 0.25, z, a, tilt)
+    }
+    K.put(std(THREE, 0x4a3a28, 0.9), new THREE.CylinderGeometry(0.025, 0.035, h * 0.3, 6).translate(0, h * 0.15, 0), x, y + 0.35, z)
+  }
+  palm(BAR_X + 0.35, UP, BZ0 + 0.35, 1.5, 3)
+  palm(14.45, UP, 3.25, 1.6, 4)
+  palm(14.45, UP, -3.25, 1.4, 5)
+
+  /* --- the lounge: aluminium wall with screens, white sofas, high tables ---- */
+
+  for (const x of [-8.25, -5.25]) {
+    K.put(matteBlack, new THREE.BoxGeometry(0.96, 0.58, 0.05), x, E(1.62), -IN + 0.04)
+    K.put(tvScreen, new THREE.PlaneGeometry(0.9, 0.52), x, E(1.62), -IN + 0.066)
+  }
+  K.put(exitSign, new THREE.PlaneGeometry(0.42, 0.16), -3.2, E(2.32), -IN + 0.05)
+  const pillowGeo = (() => {
+    const g = new THREE.SphereGeometry(1, 12, 8)
+    const p = g.attributes.position
+    const sq = (v) => Math.sign(v) * Math.pow(Math.abs(v), 0.45)
+    for (let i = 0; i < p.count; i++) p.setXYZ(i, sq(p.getX(i)) * 0.25, sq(p.getY(i)) * 0.2, sq(p.getZ(i)) * 0.065)
+    g.computeVertexNormals()
+    return g
+  })()
+  function sofa(x0, x1, s) {
+    const L = x1 - x0
+    const xc = (x0 + x1) / 2
+    const zw = s * (IN - 0.32)
+    K.put(matteBlack, new THREE.BoxGeometry(L, 0.14, 0.62).translate(0, 0.07, 0), xc, UP, zw)
+    K.put(sofaWhite, new THREE.BoxGeometry(L, 0.2, 0.6).translate(0, 0.1, 0), xc, E(0.14), zw)
+    K.put(sofaWhite, new THREE.BoxGeometry(L, 0.5, 0.16).translate(0, 0.25, 0), xc, E(0.3), s * (IN - 0.08))
+    const pillows = []
+    for (let x = x0 + 0.4; x < x1 - 0.3; x += 0.62) pillows.push({ x: x + range(rand, -0.06, 0.06), y: E(0.58), z: s * (IN - 0.24), ry: range(rand, -0.15, 0.15), rx: -s * 0.25 })
+    scatter(THREE, scene, pillowGeo, sofaWhite, pillows, { cast: false })
+  }
+  sofa(-10.3, -3.4, -1)
+  sofa(-10.3, -3.4, 1)
+  const tableSpots = [
+    { x: -7.0, z: 0.6 },
+    { x: -4.4, z: -1.7 },
+  ]
+  scatter(THREE, scene, mergeParts(THREE, [new THREE.CylinderGeometry(0.3, 0.3, 0.035, 18).translate(0, 1.08, 0), new THREE.CylinderGeometry(0.035, 0.035, 1.06, 8).translate(0, 0.53, 0), new THREE.CylinderGeometry(0.24, 0.24, 0.025, 18)]), steel, tableSpots.map((t) => ({ x: t.x, y: UP, z: t.z })))
+  scatter(
+    THREE,
+    scene,
+    bottleGeo,
+    new THREE.MeshStandardMaterial({ color: 0x5a2a0a, roughness: 0.1, metalness: 0.2 }),
+    tableSpots.flatMap((t) => [0, 1, 2].map((k) => ({ x: t.x + Math.cos(k * 2.1) * 0.14, y: E(1.1), z: t.z + Math.sin(k * 2.1) * 0.14, s: 0.85 }))),
+    { cast: false }
+  )
+
+  /* --- the DJ booth (forward), speaker stacks, truss, effect lights ------ */
+
+  const BX = DECK_X + 0.375 // booth centre
+  K.put(matteBlack, new THREE.BoxGeometry(0.75, 1.0, 2.9).translate(0, 0.5, 0), BX, UP, 0)
+  K.put(matteBlack, new THREE.BoxGeometry(0.95, 0.05, 3.05), BX - 0.06, E(1.0), 0)
+  K.put(matteBlack, new THREE.BoxGeometry(0.06, 0.16, 3.05), DECK_X - 0.15, E(0.95), 0, 0, 0, -0.35)
+  const DTOP = E(1.025)
+  for (const s of [-1, 1]) {
+    const z = s * 0.67
+    K.put(darkPlastic, new THREE.BoxGeometry(0.42, 0.1, 0.33).translate(0, 0.05, 0), BX, DTOP, z)
+    K.put(jogMetal, new THREE.CylinderGeometry(0.105, 0.105, 0.02, 24), BX + 0.04, DTOP + 0.11, z)
+    K.put(darkPlastic, new THREE.CylinderGeometry(0.05, 0.05, 0.022, 16), BX + 0.04, DTOP + 0.115, z)
+    K.put(padRed, new THREE.TorusGeometry(0.1, 0.006, 4, 24).rotateX(Math.PI / 2), BX + 0.04, DTOP + 0.121, z)
+    K.put(screenBlue, new THREE.BoxGeometry(0.1, 0.012, 0.19), BX - 0.15, DTOP + 0.11, z, 0, 0, -0.35)
+    for (let i = 0; i < 4; i++) K.put(i % 2 ? padOrange : padCyan, new THREE.BoxGeometry(0.03, 0.01, 0.03), BX + 0.17, DTOP + 0.103, z - 0.09 + i * 0.06)
+    K.put(padGreen, new THREE.BoxGeometry(0.035, 0.012, 0.035), BX + 0.17, DTOP + 0.103, z + s * 0.14)
+  }
+  K.put(darkPlastic, new THREE.BoxGeometry(0.4, 0.11, 0.34).translate(0, 0.055, 0), BX, DTOP, 0)
+  const knobs = []
+  for (let c = 0; c < 4; c++) for (let r = 0; r < 5; r++) knobs.push({ x: BX - 0.15 + r * 0.05, y: DTOP + 0.11, z: -0.12 + c * 0.08 })
+  scatter(THREE, scene, new THREE.CylinderGeometry(0.011, 0.013, 0.025, 8).translate(0, 0.012, 0), jogMetal, knobs, { cast: false })
+  for (let c = 0; c < 4; c++) {
+    K.put(padGreen, new THREE.BoxGeometry(0.06, 0.006, 0.012), BX + 0.12, DTOP + 0.112, -0.12 + c * 0.08)
+    K.put(padRed, new THREE.BoxGeometry(0.015, 0.006, 0.012), BX + 0.08, DTOP + 0.112, -0.12 + c * 0.08)
+  }
+  // a laptop on a stand
+  K.put(steel, new THREE.BoxGeometry(0.25, 0.012, 0.33), BX + 0.05, DTOP + 0.08, -1.2, 0, 0, 0.25)
+  K.put(steel, new THREE.BoxGeometry(0.012, 0.21, 0.31), BX - 0.07, DTOP + 0.2, -1.2, 0, 0, 0.25)
+  K.put(screenBlue, new THREE.PlaneGeometry(0.29, 0.19).rotateY(Math.PI / 2), BX - 0.062, DTOP + 0.202, -1.2, 0, 0, 0.25)
+  // speaker stacks: a sub on the deck, a tall top on a pole
+  for (const s of [-1, 1]) {
+    const z = s * 2.2
+    K.put(matteBlack, new THREE.BoxGeometry(0.66, 0.62, 0.66).translate(0, 0.31, 0), 11.95, UP, z)
+    K.put(grille, new THREE.BoxGeometry(0.02, 0.5, 0.56), 11.61, E(0.31), z)
+    K.put(blackSteel, new THREE.CylinderGeometry(0.025, 0.025, 0.4, 8).translate(0, 0.2, 0), 11.95, E(0.62), z)
+    K.put(matteBlack, new THREE.BoxGeometry(0.5, 0.94, 0.56).translate(0, 0.47, 0), 11.95, E(1.0), z)
+    K.put(grille, new THREE.BoxGeometry(0.02, 0.86, 0.48), 11.69, E(1.47), z)
+    K.put(rubber, new THREE.CylinderGeometry(0.11, 0.11, 0.025, 16).rotateZ(Math.PI / 2).scale(1, 1.45, 1), 11.675, E(1.7), z)
+    K.put(rubber, new THREE.CylinderGeometry(0.19, 0.19, 0.025, 20).rotateZ(Math.PI / 2), 11.675, E(1.28), z)
+  }
+  // the truss along the front wall: amber bulbs, blue LED effect lights
+  const truss = beamBatch(THREE)
+  {
+    const tx = roomX1 - 0.45
+    const ty = E(2.42)
+    const z0 = -3.5
+    const z1 = 3.5
+    for (const [dx, dy] of [
+      [-0.13, -0.13],
+      [0.13, -0.13],
+      [-0.13, 0.13],
+      [0.13, 0.13],
+    ]) truss.add(V(tx + dx, ty + dy, z0), V(tx + dx, ty + dy, z1), 0.035)
+    for (let z = z0; z <= z1 + 1e-6; z += 0.5) {
+      truss.add(V(tx - 0.13, ty - 0.13, z), V(tx + 0.13, ty + 0.13, z + 0.25), 0.018)
+      truss.add(V(tx - 0.13, ty + 0.13, z), V(tx - 0.13, ty - 0.13, z + 0.25), 0.018)
+    }
+    const bulbs = []
+    for (let z = -3.3; z <= 3.31; z += 0.36) bulbs.push({ x: tx - 0.13, y: ty - 0.2, z })
+    scatter(THREE, scene, new THREE.SphereGeometry(0.032, 8, 6), amberBulb, bulbs, { cast: false, receive: false })
+    for (const z of [-2.7, -1.1, 1.1, 2.7]) {
+      K.put(blackSteel, new THREE.BoxGeometry(0.14, 0.24, 0.24), tx - 0.2, ty - 0.3, z)
+      K.put(effectBlue, new THREE.BoxGeometry(0.01, 0.17, 0.17), tx - 0.275, ty - 0.3, z)
+    }
+  }
+  K.put(exitSign, new THREE.PlaneGeometry(0.4, 0.15).rotateY(-Math.PI / 2), roomX1 - 0.12, E(2.24), 0)
+  K.put(exitSign, new THREE.PlaneGeometry(0.4, 0.15).rotateY(Math.PI / 2), roomX0 + 0.12, E(2.235), (DOOR0 + DOOR1) / 2)
+
+  /* --- the rest of the boat: wheelhouse, landing, rails, flags ----------- */
+
+  K.put(paint, boxGeo(THREE, 5.5, 1.1, 4.6, 4, 4), 11.2, CEIL + 0.37, 0)
+  K.put(new THREE.MeshStandardMaterial({ color: 0x0f1418, roughness: 0.04, metalness: 0.9, envMapIntensity: 1.3 }), new THREE.BoxGeometry(5.5, 1.0, 4.62), 11.2, CEIL + 1.46 + 0.5, 0)
+  K.put(hullWhite, new THREE.BoxGeometry(6.0, 0.18, 5.2), 11.2, CEIL + 2.54, 0)
+  K.put(steel, new THREE.CylinderGeometry(0.06, 0.08, 3.2, 8).translate(0, 1.6, 0), 10.2, CEIL + 2.64, 0)
+  K.put(steel, new THREE.BoxGeometry(0.12, 0.1, 2.4), 10.2, CEIL + 4.3, 0)
   const navWhite = new THREE.MeshBasicMaterial({ color: new THREE.Color(0xffffff).multiplyScalar(5) })
-  K.put(navWhite, new THREE.SphereGeometry(0.12, 10, 8), 10.2, CEIL + 5.85, 0)
-  K.put(new THREE.MeshBasicMaterial({ color: new THREE.Color(0xff2020).multiplyScalar(4) }), new THREE.BoxGeometry(0.2, 0.2, 0.12), 12.5, CEIL + 2.2, -2.4)
-  K.put(new THREE.MeshBasicMaterial({ color: new THREE.Color(0x20ff60).multiplyScalar(4) }), new THREE.BoxGeometry(0.2, 0.2, 0.12), 12.5, CEIL + 2.2, 2.4)
+  K.put(navWhite, new THREE.SphereGeometry(0.12, 10, 8), 10.2, CEIL + 5.94, 0)
+  K.put(new THREE.MeshBasicMaterial({ color: new THREE.Color(0xff2020).multiplyScalar(4) }), new THREE.BoxGeometry(0.2, 0.2, 0.12), 12.5, CEIL + 2.3, -2.4)
+  K.put(new THREE.MeshBasicMaterial({ color: new THREE.Color(0x20ff60).multiplyScalar(4) }), new THREE.BoxGeometry(0.2, 0.2, 0.12), 12.5, CEIL + 2.3, 2.4)
   // the deck floodlight on the superstructure front
   K.put(blackSteel, new THREE.BoxGeometry(0.3, 0.3, 0.4), 15.2, CEIL - 0.25, -0.9)
   K.put(navWhite, new THREE.BoxGeometry(0.06, 0.22, 0.3), 15.37, CEIL - 0.25, -0.9)
   // the landing in front of the room and the ladder down to the bow deck
-  railRun(V(15.2, UP, -3.9), V(17, UP, -3.9))
-  railRun(V(15.2, UP, 3.9), V(17, UP, 3.9))
   function railRun(a, b, h = 1.0) {
     const n = Math.max(1, Math.round(a.distanceTo(b) / 1.2))
     for (let i = 0; i <= n; i++) {
@@ -1792,6 +2590,8 @@ function buildPartyBoat(THREE, ctx) {
     rails.add(a.clone().add(V(0, h, 0)), b.clone().add(V(0, h, 0)), 0.06)
     rails.add(a.clone().add(V(0, h / 2, 0)), b.clone().add(V(0, h / 2, 0)), 0.03)
   }
+  railRun(V(15.2, UP, -3.9), V(17, UP, -3.9))
+  railRun(V(15.2, UP, 3.9), V(17, UP, 3.9))
   for (const z of [1.25, 1.95]) K.strut(steel, V(17.1, UP, z), V(19.2, MAIN, z), 0.06, 0.12)
   for (let i = 1; i < 8; i++) {
     const t = i / 8
@@ -1844,84 +2644,383 @@ function buildPartyBoat(THREE, ctx) {
   sternFlag.group.rotation.y = Math.PI * 0.9
   scene.add(bowFlag.group, sternFlag.group)
 
-  /* --- inside the party room ------------------------------------------------- */
+  /* --- the crowd ------------------------------------------------------------ */
 
-  // neon along both ceiling edges (violet), blue across the ends, a red line over the bar
-  for (const s of [-1, 1]) {
-    K.put(neonViolet, new THREE.BoxGeometry(29.6, 0.035, 0.035), 0, CEIL - 0.08, s * (W - 0.18))
-    K.put(neonBlue, new THREE.BoxGeometry(29.6, 0.03, 0.03), 0, winTop + 0.02, s * (W - 0.12))
-    K.put(paint, new THREE.BoxGeometry(29.6, 0.12, 0.1), 0, CEIL - 0.02, s * (W - 0.12))
+  const variants = personVariants(THREE)
+  const insideSegs = []
+  for (let i = 0; i + 1 < INSIDE; i++) insideSegs.push([spots[i].pos, spots[i + 1].pos])
+  const corridor = [2.7, 3.6, 3.2, 1.3, 2.4, 2.0, 4.4]
+  const guests = []
+  const near = (x, z, r) => guests.some((g) => (g.x - x) * (g.x - x) + (g.z - z) * (g.z - z) < r * r)
+  function free(x, z) {
+    for (let i = 0; i < INSIDE; i++) {
+      const s = spots[i]
+      const dx = x - s.pos.x
+      const dz = z - s.pos.z
+      if (dx * dx + dz * dz < 1.15 * 1.15) return false
+      let fx = s.look.x - s.pos.x
+      let fz = s.look.z - s.pos.z
+      const fl = Math.hypot(fx, fz) || 1
+      fx /= fl
+      fz /= fl
+      const along = dx * fx + dz * fz
+      if (along > 0 && along < corridor[i] && Math.abs(dx * fz - dz * fx) < 0.5 + along * 0.2) return false
+    }
+    for (const [a, b] of insideSegs) {
+      const ex = b.x - a.x
+      const ez = b.z - a.z
+      const L = ex * ex + ez * ez || 1
+      const t = Math.max(0, Math.min(1, ((x - a.x) * ex + (z - a.z) * ez) / L))
+      if (Math.hypot(a.x + ex * t - x, a.z + ez * t - z) < 0.36) return false
+    }
+    for (const t of tableSpots) if (Math.hypot(t.x - x, t.z - z) < 0.5) return false
+    return true
   }
-  K.put(neonBlue, new THREE.BoxGeometry(0.035, 0.035, 7.2), roomX0 + 0.18, CEIL - 0.08, 0)
-  K.put(neonViolet, new THREE.BoxGeometry(0.035, 0.035, 7.2), roomX1 - 0.18, CEIL - 0.08, 0)
-  // the bar (port side, forward): red-glowing front, dark top, back bar with bottles
-  K.put(redPanel, new THREE.BoxGeometry(4.8, 1.0, 0.06).translate(0, 0.5, 0), 11.8, UP, -2.25)
-  K.put(blackSteel, new THREE.BoxGeometry(4.8, 1.0, 0.9).translate(0, 0.5, 0), 11.8, UP, -2.75)
-  K.put(new THREE.MeshPhysicalMaterial({ color: 0x0c0c0e, roughness: 0.15, metalness: 0.2, clearcoat: 1 }), new THREE.BoxGeometry(5.0, 0.06, 1.1), 11.8, UP + 1.02, -2.72)
-  K.put(neonRed, new THREE.BoxGeometry(4.6, 0.04, 0.04), 11.8, CEIL - 0.35, -2.4)
-  K.put(blackSteel, new THREE.BoxGeometry(4.6, 1.5, 0.35).translate(0, 0.75, 0), 11.8, UP + 0.4, -3.55)
-  const bottles = []
-  for (let i = 0; i < 26; i++) bottles.push({ x: 9.7 + i * 0.165, y: UP + 1.92, z: -3.5, color: pick(rand, [0x3a6b3a, 0x7a4a18, 0xdedede, 0x2a3e7a, 0x8a1a1a]) })
-  scatter(THREE, scene, new THREE.CylinderGeometry(0.035, 0.04, 0.3, 6).translate(0, 0.15, 0), new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.1, metalness: 0.2, emissive: 0x501018, emissiveIntensity: 1 }), bottles, { cast: false })
-  K.put(neonRed, new THREE.BoxGeometry(4.6, 0.025, 0.025), 11.8, UP + 1.9, -3.36)
-  // the DJ booth at the aft end: a flight-case table, decks and mixer, speakers on stands
-  K.put(blackSteel, new THREE.BoxGeometry(1.0, 1.02, 2.8).translate(0, 0.51, 0), -11.5, UP, 0)
-  K.put(steel, new THREE.BoxGeometry(1.04, 0.04, 2.84), -11.5, UP + 1.02, 0)
-  for (const z of [-0.85, 0, 0.85]) K.put(std(THREE, 0x202124, 0.3, 0.6), new THREE.BoxGeometry(0.5, 0.1, z === 0 ? 0.4 : 0.36), -11.5, UP + 1.06, z)
-  const screens = new THREE.MeshBasicMaterial({ color: new THREE.Color(0x5ab4ff).multiplyScalar(2) })
-  for (const z of [-0.85, 0.85]) K.put(screens, new THREE.BoxGeometry(0.16, 0.012, 0.22), -11.62, UP + 1.12, z)
-  for (const s of [-1, 1]) {
-    K.put(blackSteel, new THREE.CylinderGeometry(0.03, 0.03, 1.3, 6).translate(0, 0.65, 0), -11.6, UP, s * 2.2)
-    K.put(std(THREE, 0x18181a, 0.7, 0.1), new THREE.BoxGeometry(0.5, 0.85, 0.5).translate(0, 0.42, 0), -11.6, UP + 1.3, s * 2.2)
-    K.put(std(THREE, 0x2a2a2c, 0.9), new THREE.CylinderGeometry(0.17, 0.17, 0.02, 16).rotateZ(Math.PI / 2), -11.34, UP + 1.6, s * 2.2)
+  const TOPS = [
+    [0x101012, 40],
+    [0xc9c6c0, 13],
+    [0x3a3b3f, 10],
+    [0x1d2740, 8],
+    [0x4a3326, 6],
+    [0x8a1c22, 5],
+    [0x7b9cc8, 6],
+    [0xc8b89a, 5],
+    [0x3e4a2c, 4],
+    [0x5a2a5a, 4],
+  ]
+  const BOTTOMS = [
+    [0x111114, 34],
+    [0x2c3e5e, 26],
+    [0x6d86a8, 10],
+    [0xcdbf9f, 10],
+    [0x55575c, 10],
+    [0x2a2420, 6],
+  ]
+  const SKIN = [0xf1c8a8, 0xe0b090, 0xc98e66, 0xa36a45, 0x7a4a2e, 0x4e2f1e]
+  const HAIR = [0x0e0b09, 0x1f140d, 0x3a2414, 0x5c3a1e, 0xb08a52, 0xd8c08a, 0x6a2a14]
+  const weighted = (list) => {
+    const tot = list.reduce((a, [, w]) => a + w, 0)
+    let r = rand() * tot
+    for (const [v, w] of list) if ((r -= w) <= 0) return v
+    return list[0][0]
   }
-  // banquettes under the windows, a few high tables, ceiling speakers
-  for (const s of [-1, 1]) K.put(std(THREE, 0x1c1418, 0.8), new THREE.BoxGeometry(18, 0.48, 0.55).translate(0, 0.24, 0), -0.5, UP, s * (W - 0.35))
-  const tables = [
-    { x: -2, z: 2.6 },
-    { x: 6, z: 2.4 },
-    { x: -7.5, z: -2.6 },
-  ].filter((t) => clear(t.x, t.z, 0.8))
-  scatter(THREE, scene, mergeParts(THREE, [new THREE.CylinderGeometry(0.32, 0.32, 0.04, 16).translate(0, 1.08, 0), new THREE.CylinderGeometry(0.04, 0.04, 1.06, 8).translate(0, 0.53, 0), new THREE.CylinderGeometry(0.25, 0.25, 0.03, 16)]), blackSteel, tables.map((t) => ({ x: t.x, y: UP, z: t.z })))
-  for (const x of [-8, -1, 6]) K.put(std(THREE, 0x2a2a2c, 0.8), new THREE.CylinderGeometry(0.28, 0.28, 0.02, 16), x, CEIL - 0.01, 0)
-  // a mirror ball over the dance floor
-  const ball = new THREE.Mesh(new THREE.IcosahedronGeometry(0.22, 1), new THREE.MeshStandardMaterial({ color: 0xdddddd, roughness: 0.05, metalness: 1, flatShading: true }))
-  ball.position.set(-4, CEIL - 0.42, 0)
-  scene.add(ball)
-  K.put(steel, new THREE.CylinderGeometry(0.01, 0.01, 0.2, 4), -4, CEIL - 0.2, 0)
-  // the lights in the room (cheap point lights, no shadows)
+  const female = { B: true, D: true, F: true }
+  function guest(x, z, ry, v, en, y = UP) {
+    guests.push({ x, z, y, ry, v, en })
+  }
+  // the dance floor: packed, mostly facing the decks
+  const step = low ? 0.86 : 0.64
+  for (let x = -3.0; x < DECK_X - 0.55; x += step) {
+    for (let z = -IN + 0.35; z < IN - 0.3; z += step) {
+      const px = x + range(rand, -0.2, 0.2)
+      const pz = z + range(rand, -0.2, 0.2)
+      if (Math.abs(pz) > IN - 0.32 || px > DECK_X - 0.45) continue
+      if (rand() > 0.9 || !free(px, pz) || near(px, pz, 0.43)) continue
+      const social = rand() < 0.22
+      const toward = Math.atan2(12.4 - px, pz * -0.6)
+      const ry = social ? rand() * Math.PI * 2 : toward + range(rand, -0.75, 0.75)
+      const v = weighted([
+        ['A', 15],
+        ['B', 15],
+        ['C', 20],
+        ['D', 13],
+        ['E', 14],
+        ['F', 23],
+      ])
+      guest(px, pz, ry, v, range(rand, 0.55, 1))
+    }
+  }
+  // the lounge: looser, drinks in hand, talking
+  const lstep = low ? 1.15 : 0.85
+  for (let x = -10.2; x < -3.0; x += lstep) {
+    for (let z = -IN + 0.95; z < IN - 0.9; z += lstep) {
+      const px = x + range(rand, -0.25, 0.25)
+      const pz = z + range(rand, -0.25, 0.25)
+      if (px < BAR_X + 0.75 || rand() > 0.62 || !free(px, pz) || near(px, pz, 0.5)) continue
+      const v = weighted([
+        ['A', 30],
+        ['B', 30],
+        ['E', 15],
+        ['F', 20],
+        ['C', 5],
+      ])
+      guest(px, pz, rand() * Math.PI * 2, v, range(rand, 0.05, 0.35))
+    }
+  }
+  // queueing at the bar, the bar staff, the two DJs
+  for (let z = BZ0 + 0.9; z < BZ1 - 0.2; z += (low ? 1.1 : 0.55) + rand() * 0.35) {
+    const px = BAR_X + range(rand, 0.32, 0.75)
+    if (!free(px, z) || near(px, z, 0.45)) continue
+    const chat = rand() < 0.3
+    guest(px, z, chat ? (rand() < 0.5 ? 0 : Math.PI) + range(rand, -0.5, 0.5) : -Math.PI / 2 + range(rand, -0.45, 0.45), pick(rand, ['A', 'B', 'B', 'E', 'F']), range(rand, 0.05, 0.25))
+  }
+  guest(-12.9, -2.4, Math.PI / 2 + 0.2, 'A', 0.05)
+  guest(-12.7, 0.1, Math.PI / 2 - 0.3, 'F', 0.08)
+  guest(12.55, 0.72, -Math.PI / 2 + 0.1, 'G', 0.45)
+  guest(12.45, -1.3, -Math.PI / 2 - 0.25, 'C', 0.8)
+  // out on the jetty: a few people smoking and talking by the gangway (photo 01)
+  for (const [cx, cz, n] of [
+    [6, 9.6, 4],
+    [12.5, 10.8, 3],
+    [-4, 10.2, 3],
+    [19, 11.2, 2],
+  ]) {
+    for (let i = 0; i < (low ? Math.ceil(n / 2) : n); i++) {
+      const a = (i / n) * Math.PI * 2 + rand()
+      const px = cx + Math.cos(a) * 0.55
+      const pz = cz + Math.sin(a) * 0.55
+      guest(px, pz, Math.atan2(cx - px, cz - pz), pick(rand, ['A', 'B', 'E', 'F']), 0.03, JETTY)
+    }
+  }
+  const crowdTime = { value: 0 }
+  const crowdBeat = { value: 0 }
+  const crowdMat = crowdMaterial(THREE, crowdTime, crowdBeat, UP)
+  const tint = new THREE.Color()
+  const dark = (hex, k = 1) => tint.set(hex).multiplyScalar(k * range(rand, 0.82, 1.08))
+  for (const key of Object.keys(variants)) {
+    const list = guests.filter((g) => g.v === key)
+    if (!list.length) continue
+    const geo = variants[key]
+    const n = list.length
+    const aTop = new Float32Array(n * 4)
+    const aBot = new Float32Array(n * 4)
+    const aSkin = new Float32Array(n * 4)
+    const aHair = new Float32Array(n * 3)
+    const items = list.map((g, i) => {
+      let c = dark(weighted(TOPS))
+      aTop.set([c.r, c.g, c.b, rand() < 0.55 ? 1 : 0], i * 4)
+      c = dark(weighted(BOTTOMS))
+      aBot.set([c.r, c.g, c.b, g.en], i * 4)
+      c = dark(pick(rand, SKIN))
+      aSkin.set([c.r, c.g, c.b, rand() * 6.283], i * 4)
+      c = dark(pick(rand, HAIR))
+      aHair.set([c.r, c.g, c.b], i * 3)
+      const s = female[key] ? range(rand, 0.94, 1.05) : range(rand, 0.95, 1.08)
+      return { x: g.x, y: g.y, z: g.z, ry: g.ry, rx: range(rand, -0.04, 0.05), rz: range(rand, -0.04, 0.04), s }
+    })
+    geo.setAttribute('aTop', new THREE.InstancedBufferAttribute(aTop, 4))
+    geo.setAttribute('aBot', new THREE.InstancedBufferAttribute(aBot, 4))
+    geo.setAttribute('aSkin', new THREE.InstancedBufferAttribute(aSkin, 4))
+    geo.setAttribute('aHair', new THREE.InstancedBufferAttribute(aHair, 3))
+    scatter(THREE, scene, geo, crowdMat, items, { cast: false, receive: false })
+  }
+
+  /* --- lights in the room ------------------------------------------------- */
+
   const lights = [
-    { c: 0xb24dff, p: V(-8, CEIL - 0.3, 0), i: 30, d: 16 },
-    { c: 0x4a62ff, p: V(0, CEIL - 0.3, 0), i: 34, d: 16 },
-    { c: 0x5a6bff, p: V(-3, CEIL - 0.4, 2.4), i: 16, d: 12 },
-    { c: 0xb24dff, p: V(7, CEIL - 0.3, 0.5), i: 28, d: 15 },
-    { c: 0xff2030, p: V(11.8, UP + 1.6, -1.6), i: 22, d: 10 },
-    { c: 0xffe0c0, p: V(-12.5, CEIL - 0.3, 0), i: 12, d: 8 },
+    { c: 0x3a52ff, p: V(8.0, CEIL - 0.1, 0.2), i: 34, d: 10, spot: true },
+    { c: 0xd23cff, p: V(3.0, CEIL - 0.1, -1.6), i: 28, d: 10, spot: true },
+    { c: 0x3f5cff, p: V(-1.5, CEIL - 0.1, 1.6), i: 28, d: 10, spot: true },
+    { c: 0xb04cff, p: V(-6.2, CEIL - 0.1, -0.4), i: 18, d: 9, spot: true },
+    { c: 0xff1622, p: V(-9.6, E(1.9), -1.0), i: 34, d: 9 },
+    { c: 0xff2a1c, p: V(-13.0, E(1.7), -1.0), i: 12, d: 5 },
+    { c: 0xffa050, p: V(14.3, E(2.3), 2.3), i: 8, d: 6 },
+    { c: 0xff2438, p: V(10.2, E(1.6), -3.2), i: 14, d: 5 },
+    { c: 0x6aa8ff, p: V(11.9, E(1.4), 0.0), i: 3, d: 2.6 },
+    { c: 0x7c8aff, p: V(-6.8, E(2.4), -2.8), i: 8, d: 6 },
   ].map((l) => {
-    const pl = new THREE.PointLight(l.c, l.i, l.d, 2)
+    let pl
+    if (l.spot) {
+      pl = new THREE.SpotLight(l.c, l.i, l.d, 1.2, 0.85, 2)
+      pl.target.position.set(l.p.x, UP, l.p.z)
+      scene.add(pl.target)
+    } else {
+      pl = new THREE.PointLight(l.c, l.i, l.d, 2)
+    }
     pl.position.copy(l.p)
     scene.add(pl)
     return { pl, base: l.i }
   })
+  // the coloured light the fixtures throw up onto the low ceiling
+  lightPools(
+    THREE,
+    scene,
+    [-9.5, -7, -4.5, -2, 0.5, 3, 5.5, 8, 10.5, 13].map((x, i) => ({ x, y: CEIL - 0.04, z: (i % 2 ? 1 : -1) * 0.7, r: 2.8, color: x < -8 ? 0xff2030 : pick(rand, [0x3150ff, 0x5a3cff, 0x2a46ff, 0xb034ff, 0x3150ff]) })),
+    { opacity: 0.7 }
+  ).geometry.rotateX(Math.PI)
 
-  /* --- glows, light pools and reflections ------------------------------------ */
+  /* --- light washes, floor reflections, haze, beams, mirror ball ---------- */
 
-  const glow = []
-  for (const l of allLamps) glow.push({ x: l.x, y: l.y + l.h - 0.05, z: l.z, color: 0xffc68a })
-  glow.push({ x: 10.2, y: CEIL + 5.85, z: 0, color: 0xffffff, k: 1.2 })
-  glow.push({ x: 15.45, y: CEIL - 0.25, z: -0.9, color: 0xfff2dc, k: 1.4 })
-  for (const s of signals) glow.push({ x: s.x, y: s.y + 3.15, z: s.z - 0.15, color: pick(rand, [0xff2a20, 0x30ff70]), k: 0.9 })
-  glowPoints(THREE, scene, glow, { size: 3.2, opacity: 0.85 })
-  glowPoints(THREE, scene, [V(12.5, CEIL + 2.2, -2.5), V(12.5, CEIL + 2.2, 2.5)].map((p, i) => ({ x: p.x, y: p.y, z: p.z, color: i ? 0x30ff70 : 0xff2a20 })), { size: 1.6 })
+  const washTex = washTexture(THREE, 2.2)
+  const washMat = (hex, k, op = 1) => new THREE.MeshBasicMaterial({ map: washTex, color: new THREE.Color(hex).multiplyScalar(k), transparent: true, opacity: op, blending: THREE.AdditiveBlending, depthWrite: false, fog: false, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -4 })
+  const washM = washMat(0xff2ad0, 0.6)
+  const washB = washMat(0x2b55ff, 0.65)
+  const washR = washMat(0xff1820, 0.8)
+  const washFloorR = washMat(0xff1820, 0.55)
+  const washFloorB = washMat(0x3050ff, 0.35)
+  for (const m of [washM, washB, washR, washFloorR, washFloorB]) K.flags(m, { cast: false, receive: false })
+  for (const s of [-1, 1]) {
+    // magenta: down the header, and across the ceiling from the strip
+    K.put(washM, new THREE.PlaneGeometry(29.6, CEIL - winTop - 0.04).rotateY(s > 0 ? Math.PI : 0), 0, (winTop + CEIL) / 2 - 0.02, s * (IN - 0.004))
+    K.put(washM, new THREE.PlaneGeometry(29.6, 1.0).rotateX(Math.PI / 2).rotateY(s > 0 ? 0 : Math.PI), 0, CEIL - 0.004, s * (IN - 0.5))
+    // blue: down the sill wall from the strip
+    K.put(washB, new THREE.PlaneGeometry(29.6, 0.8).rotateY(s > 0 ? Math.PI : 0), 0, UP + 0.43, s * (IN - 0.004))
+    // the strips' reflections in the polished floor
+    K.put(washFloorB, new THREE.PlaneGeometry(29.6, 0.9).rotateX(-Math.PI / 2).rotateY(s > 0 ? Math.PI : 0), 0, UP + 0.012, s * (IN - 0.45))
+  }
+  // red: on the ceiling in front of the bar's bulkhead, the counter's glow on the floor
+  K.put(washR, new THREE.PlaneGeometry(2 * IN, 1.6).rotateX(Math.PI / 2).rotateY(-Math.PI / 2), roomX0 + 4.0 + 0.8, CEIL - 0.004, 0)
+  K.put(washFloorR, new THREE.PlaneGeometry(BL, 2.2).rotateX(-Math.PI / 2).rotateY(Math.PI / 2), BAR_X + 1.1, UP + 0.012, BZC)
+  K.put(washFloorR, new THREE.PlaneGeometry(2.6, 1.6).rotateX(-Math.PI / 2).rotateY(-Math.PI / 2), 12.6, UP + 0.013, -2.4)
+
+  // haze puffs catching the coloured light
+  const hazeItems = []
+  const hazeN = low ? 10 : 22
+  for (let i = 0; i < hazeN; i++) {
+    const x = range(rand, -11.5, 13.5)
+    const z = range(rand, -2.8, 2.8)
+    const col = x < -8 ? 0xff2020 : x > 10.5 ? pick(rand, [0xff5a30, 0x3a60ff]) : pick(rand, [0xd03cff, 0x3a5aff, 0x6a48ff, 0xff38c8])
+    hazeItems.push({ x, y: E(range(rand, 1.7, 2.35)), z, s: range(rand, 2.4, 4.2), color: new THREE.Color(col).multiplyScalar(0.7) })
+  }
+  const haze = scatter(THREE, scene, new THREE.PlaneGeometry(1, 1), hazeMaterial(THREE, low ? 0.09 : 0.12), hazeItems, { cast: false, receive: false })
+  haze.frustumCulled = false
+
+  // moving heads on the ceiling and the truss, throwing beams into the haze
+  const heads = [
+    { o: V(-1.5, CEIL - 0.34, -1.6), c: 0xff36d8, a: 0.0 },
+    { o: V(-1.5, CEIL - 0.34, 1.6), c: 0x3a5cff, a: 1.3 },
+    { o: V(3.5, CEIL - 0.34, -1.6), c: 0x36d8ff, a: 2.1 },
+    { o: V(3.5, CEIL - 0.34, 1.6), c: 0xb040ff, a: 3.4 },
+    { o: V(8.2, CEIL - 0.34, -1.6), c: 0x5a6cff, a: 4.2 },
+    { o: V(8.2, CEIL - 0.34, 1.6), c: 0xff2a60, a: 5.0 },
+  ].filter((h, i) => !low || i % 2 === 0)
+  for (const h of heads) {
+    if (h.truss) {
+      K.put(blackSteel, new THREE.BoxGeometry(0.2, 0.22, 0.22), h.o.x + 0.05, h.o.y + 0.08, h.o.z)
+    } else {
+      K.put(blackSteel, new THREE.BoxGeometry(0.28, 0.05, 0.28), h.o.x, CEIL - 0.08, h.o.z)
+      K.put(blackSteel, new THREE.BoxGeometry(0.04, 0.22, 0.26), h.o.x - 0.13, CEIL - 0.21, h.o.z)
+      K.put(blackSteel, new THREE.BoxGeometry(0.04, 0.22, 0.26), h.o.x + 0.13, CEIL - 0.21, h.o.z)
+      K.put(darkPlastic, new THREE.CylinderGeometry(0.1, 0.11, 0.2, 12), h.o.x, h.o.y + 0.04, h.o.z)
+    }
+  }
+  const beamGeo = new THREE.CylinderGeometry(0.16, 0.03, 1, 14, 1, true).translate(0, 0.5, 0)
+  const beams = scatter(
+    THREE,
+    scene,
+    beamGeo,
+    beamMaterial(THREE, low ? 0.7 : 0.85),
+    heads.map((h) => ({ x: h.o.x, y: h.o.y, z: h.o.z, color: h.c })),
+    { cast: false, receive: false }
+  )
+  beams.frustumCulled = false
+  const poolMat = new THREE.MeshBasicMaterial({ map: glowTexture(THREE, 'rgba(255,255,255,1)'), transparent: true, opacity: 0.55, blending: THREE.AdditiveBlending, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -4, polygonOffsetUnits: -8 })
+  const pools = scatter(THREE, scene, new THREE.PlaneGeometry(1, 1).rotateX(-Math.PI / 2), poolMat, heads.map((h) => ({ x: h.o.x, y: UP + 0.02, z: h.o.z, color: h.c })), { cast: false, receive: false })
+  pools.frustumCulled = false
+  const bm4 = new THREE.Matrix4()
+  const bq = new THREE.Quaternion()
+  const bdir = new THREE.Vector3()
+  const bscale = new THREE.Vector3()
+  const bpos = new THREE.Vector3()
+  const yUp = new THREE.Vector3(0, 1, 0)
+  const unit = new THREE.Vector3(1, 1, 1)
+  function aimBeams(t) {
+    heads.forEach((h, i) => {
+      const a = t * 0.55 + h.a
+      if (h.truss) bdir.set(-1, -0.42 + 0.18 * Math.sin(a * 1.3), 0.45 * Math.sin(a) + h.o.z * 0.3)
+      else bdir.set(0.55 * Math.sin(a), -1, 0.42 * Math.cos(a * 0.8 + 0.5))
+      bdir.normalize()
+      let len = (h.o.y - (UP + 0.02)) / Math.max(0.05, -bdir.y)
+      len = Math.min(len, 9)
+      const r = 0.8 + 0.12 * len
+      bq.setFromUnitVectors(yUp, bdir)
+      bm4.compose(h.o, bq, bscale.set(r, len, r))
+      beams.setMatrixAt(i, bm4)
+      bpos.copy(h.o).addScaledVector(bdir, len)
+      const ps = 0.35 + len * 0.1
+      bm4.compose(bpos.set(bpos.x, UP + 0.02, bpos.z), bq.identity(), bscale.set(ps, 1, ps))
+      pools.setMatrixAt(i, bm4)
+    })
+    beams.instanceMatrix.needsUpdate = true
+    pools.instanceMatrix.needsUpdate = true
+  }
+  aimBeams(0)
+
+  // the mirror ball over the dance floor, and its specks on every surface
+  const BALL = V(3.5, CEIL - 0.5, 0)
+  const ballGeo = new THREE.IcosahedronGeometry(0.2, 2)
+  {
+    const n = ballGeo.attributes.position.count
+    const cols = new Float32Array(n * 3)
+    for (let f = 0; f < n / 3; f++) {
+      const k = rand() < 0.12 ? range(rand, 1.6, 3.2) : range(rand, 0.12, 0.6)
+      const tint = pick(rand, [[1, 1, 1], [0.8, 0.7, 1], [1, 0.6, 0.9], [0.6, 0.7, 1]])
+      for (let v = 0; v < 3; v++) cols.set([tint[0] * k, tint[1] * k, tint[2] * k], (f * 3 + v) * 3)
+    }
+    ballGeo.setAttribute('color', new THREE.Float32BufferAttribute(cols, 3))
+  }
+  const ball = new THREE.Mesh(ballGeo, new THREE.MeshBasicMaterial({ vertexColors: true }))
+  ball.position.copy(BALL)
+  scene.add(ball)
+  K.put(steel, new THREE.CylinderGeometry(0.008, 0.008, 0.3, 4), BALL.x, CEIL - 0.15, 0)
+  const speckN = low ? 90 : 220
+  const speckDir = new Float32Array(speckN * 3)
+  for (let i = 0; i < speckN; i++) {
+    const y = range(rand, -0.85, 0.75)
+    const a = rand() * Math.PI * 2
+    const r = Math.sqrt(1 - y * y)
+    speckDir.set([Math.cos(a) * r, y, Math.sin(a) * r], i * 3)
+  }
+  const speckGeo = new THREE.BufferGeometry()
+  const speckPos = new Float32Array(speckN * 3)
+  speckGeo.setAttribute('position', new THREE.BufferAttribute(speckPos, 3))
+  const specks = new THREE.Points(
+    speckGeo,
+    new THREE.PointsMaterial({ size: 0.06, map: glowTexture(THREE, 'rgba(255,255,255,1)'), color: new THREE.Color(2.2, 2.0, 2.4), transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, sizeAttenuation: true, fog: false })
+  )
+  specks.frustumCulled = false
+  scene.add(specks)
+  const box = { x0: roomX0 + 0.1, x1: roomX1 - 0.1, y0: UP + 0.01, y1: CEIL - 0.02, z0: -IN + 0.01, z1: IN - 0.01 }
+  function spinSpecks(t) {
+    const c = Math.cos(t * 0.6)
+    const s = Math.sin(t * 0.6)
+    for (let i = 0; i < speckN; i++) {
+      const ox = speckDir[i * 3]
+      const dy = speckDir[i * 3 + 1]
+      const oz = speckDir[i * 3 + 2]
+      const dx = ox * c - oz * s
+      const dz = ox * s + oz * c
+      let k = 1e9
+      if (dx > 1e-4) k = Math.min(k, (box.x1 - BALL.x) / dx)
+      else if (dx < -1e-4) k = Math.min(k, (box.x0 - BALL.x) / dx)
+      if (dy > 1e-4) k = Math.min(k, (box.y1 - BALL.y) / dy)
+      else if (dy < -1e-4) k = Math.min(k, (box.y0 - BALL.y) / dy)
+      if (dz > 1e-4) k = Math.min(k, (box.z1 - BALL.z) / dz)
+      else if (dz < -1e-4) k = Math.min(k, (box.z0 - BALL.z) / dz)
+      speckPos[i * 3] = BALL.x + dx * k
+      speckPos[i * 3 + 1] = BALL.y + dy * k
+      speckPos[i * 3 + 2] = BALL.z + dz * k
+    }
+    speckGeo.attributes.position.needsUpdate = true
+  }
+  spinSpecks(0)
+
+  /* --- glows, light pools and reflections outside ---------------------------- */
+
+  const glowList = []
+  for (const l of allLamps) glowList.push({ x: l.x, y: l.y + l.h - 0.05, z: l.z, color: 0xffc68a })
+  glowList.push({ x: 10.2, y: CEIL + 5.94, z: 0, color: 0xffffff, k: 1.2 })
+  glowList.push({ x: 15.45, y: CEIL - 0.25, z: -0.9, color: 0xfff2dc, k: 1.4 })
+  for (const s of signals) glowList.push({ x: s.x, y: s.y + 3.15, z: s.z - 0.15, color: pick(rand, [0xff2a20, 0x30ff70]), k: 0.9 })
+  glowPoints(THREE, scene, glowList, { size: 3.2, opacity: 0.85 })
+  glowPoints(THREE, scene, [V(12.5, CEIL + 2.3, -2.5), V(12.5, CEIL + 2.3, 2.5)].map((p, i) => ({ x: p.x, y: p.y, z: p.z, color: i ? 0x30ff70 : 0xff2a20 })), { size: 1.6 })
+  // small glows inside: the truss bulbs, the effect lights, the moving-head lenses
+  const inGlow = []
+  for (let z = -3.3; z <= 3.31; z += 0.36) inGlow.push({ x: roomX1 - 0.58, y: E(2.22), z, color: 0xffa050, k: 0.55 })
+  for (const z of [-2.7, -1.1, 1.1, 2.7]) inGlow.push({ x: roomX1 - 0.75, y: E(2.12), z, color: 0x3c7bff, k: 0.8 })
+  for (const h of heads) inGlow.push({ x: h.o.x, y: h.o.y, z: h.o.z, color: h.c, k: 0.9 })
+  inGlow.push({ x: BALL.x, y: BALL.y, z: BALL.z, color: 0xffffff, k: 0.35 })
+  glowPoints(THREE, scene, inGlow, { size: 0.42, opacity: 0.9 })
   lightPools(THREE, scene, allLamps.map((l) => ({ x: l.x, y: l.y, z: l.z, r: 5.5, color: 0xffb877 })), { opacity: 0.34 })
   const refl = []
-  for (let x = -14; x <= 14; x += 3) refl.push({ x, z: -HALF, len: 26, w: 2.2, color: pick(rand, [0xc35cff, 0xff3a4a, 0x5a6bff]), k: 0.8, dir: -1 })
+  for (let x = -14; x <= 14; x += 3) refl.push({ x, z: -HALF, len: 26, w: 2.2, color: pick(rand, [0xff3ad8, 0xff3a4a, 0x5a6bff]), k: 0.8, dir: -1 })
   for (let x = -20; x <= 14; x += 4) refl.push({ x, z: -HALF, len: 18, w: 2, color: 0xffb070, k: 0.5, dir: -1 })
   for (const l of allLamps) refl.push({ x: l.x, z: 5, len: 40, w: 1.4, color: 0xffc07a, k: 0.6, dir: -1 })
   for (let x = -600; x < 600; x += 14) refl.push({ x: x + range(rand, -4, 4), z: -330, len: range(rand, 60, 160), w: range(rand, 2, 6), color: pick(rand, [0xffc98a, 0xffd9a8, 0xbcd4ff]), k: 0.45 })
   const reflMesh = reflections(THREE, scene, refl, { opacity: 0.8 })
 
   scene.add(rails.build(steel, { castShadow: false }))
+  scene.add(truss.build(blackSteel, { castShadow: false }))
   K.flags(asphalt, { cast: false })
   K.flags(pave, { cast: false })
   K.flags(quayBrick, { cast: false })
@@ -1934,9 +3033,9 @@ function buildPartyBoat(THREE, ctx) {
     world,
     path: {
       positions: arrival,
-      targets: [V(0, 4, 0), V(0, 5, 0), V(10, UP + 1.3, 0), V(15, UP + 1.2, -0.2), spots[0].look.clone()],
+      targets: [V(0, 4, 0), V(5, 5, 0), V(14, E(1.4), -0.6), V(10, E(1.3), 0.1), spots[0].look.clone()],
       fov: 52,
-      near: 0.15,
+      near: 0.12,
       spots,
     },
     update(t) {
@@ -1945,11 +3044,15 @@ function buildPartyBoat(THREE, ctx) {
       bowFlag.tick(t)
       sternFlag.tick(t + 1.3)
       ball.rotation.y = t * 0.6
-      // the room breathes with the music: a 124 bpm pulse on the colour lights
+      // the room breathes with the music: a 124 bpm pulse
       const beat = Math.pow(0.5 + 0.5 * Math.cos(t * Math.PI * 2 * (124 / 60)), 6)
       lights.forEach((l, i) => {
-        l.pl.intensity = l.base * (0.75 + 0.45 * (i % 2 ? beat : 1 - beat))
+        l.pl.intensity = l.base * (0.8 + 0.35 * (i % 2 ? beat : 1 - beat))
       })
+      crowdTime.value = t
+      crowdBeat.value = beat
+      aimBeams(t)
+      spinSpecks(t)
     },
   }
 }
