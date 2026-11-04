@@ -41,6 +41,7 @@ export default function Journey({ items, variant = 'home', landing = null, skip 
   const [chapter, setChapter] = useState(0)
   const [photo, setPhoto] = useState(0)
   const [dir, setDir] = useState(1)
+  const [gust, setGust] = useState(0)
   const [flight, setFlight] = useState(null) // the photo flying out of its print
   const [visible, setVisible] = useState(true)
   const [photoOn, setPhotoOn] = useState(!home) // the place's photo is showing
@@ -219,19 +220,29 @@ export default function Journey({ items, variant = 'home', landing = null, skip 
     if (lock) window.scrollTo({ top: 0, behavior: 'auto' })
     document.documentElement.classList.toggle('jr-tour', lock)
     // a menu link (Packages, Check your date) jumps down the page: that's
-    // leaving the experience, so let the page go
+    // leaving the experience, so let the page go. Any other page scroll
+    // (a phone's rubber-band, a stray key) snaps back and the film goes on.
+    let linkAt = 0
+    const onClick = (e) => {
+      if (e.target.closest?.('a[href]')) linkAt = Date.now()
+    }
     const onScroll = () => {
-      if (lock && window.scrollY > 40) {
+      if (!lock || window.scrollY <= 40) return
+      if (Date.now() - linkAt < 2000) {
         soundRef.current?.stop()
         viewerRef.current?.leave()
         setPhotoOn(false)
         setStage('landing')
         setDone(true)
+      } else {
+        window.scrollTo({ top: 0, behavior: 'auto' })
       }
     }
+    document.addEventListener('click', onClick, true)
     window.addEventListener('scroll', onScroll, { passive: true })
     return () => {
       document.documentElement.classList.remove('jr-tour')
+      document.removeEventListener('click', onClick, true)
       window.removeEventListener('scroll', onScroll)
     }
   }, [lock])
@@ -264,7 +275,13 @@ export default function Journey({ items, variant = 'home', landing = null, skip 
     }
   }
 
-  const onChapter = (i) => preloadSoon(i)
+  // the carousel turning: a soft detent per card, and that shoot's place gets ready
+  const lastChapter = useRef(null)
+  const onChapter = (i) => {
+    if (lastChapter.current != null && lastChapter.current !== i) soundRef.current?.tick(i > lastChapter.current ? 1 : -1)
+    lastChapter.current = i
+    preloadSoon(i)
+  }
 
   // the chapter in view gets its place ready, so stepping in is quick
   const preloadTimer = useRef(0)
@@ -308,7 +325,9 @@ export default function Journey({ items, variant = 'home', landing = null, skip 
     else setPhotoOn(true)
     setStage('place')
     setPhase('loading')
+    setGust(0)
     soundRef.current?.setPlace(first.locs[0].scene)
+    soundRef.current?.whoosh(1, true)
     if (mode === 'photo') {
       // the map sinks away; the photo itself becomes the place
       viewerRef.current?.leave()
@@ -323,8 +342,15 @@ export default function Journey({ items, variant = 'home', landing = null, skip 
   const goPhoto = useCallback(
     (next) => {
       if (next < 0 || next >= photos.length || next === photo) return
-      setDir(next > photo ? 1 : -1)
+      const d = next > photo ? 1 : -1
+      setDir(d)
       setPhoto(next)
+      if (!reduced) setGust((g) => g + 1)
+      // the wind (and the camera moving on), then a shutter as it lands
+      const snd = soundRef.current
+      const moving = mode !== 'photo' && seq.loc[next] !== seq.loc[photo]
+      snd?.whoosh(d, moving)
+      snd?.shutter(moving ? 1.6 : 1.05)
       const p3 = photo3dRef.current
       if (p3) {
         p3.show(photos[next].src, next > photo ? 1 : -1)
@@ -342,7 +368,7 @@ export default function Journey({ items, variant = 'home', landing = null, skip 
       const ahead = seq.loc[Math.min(photos.length - 1, next + 2)]
       if (ahead !== loc) v?.preload(seq.locs[ahead].item)
     },
-    [photo, photos, seq, mode]
+    [photo, photos, seq, mode, reduced]
   )
 
   // back to the line of memories — on the next print when the story moves on
@@ -353,6 +379,7 @@ export default function Journey({ items, variant = 'home', landing = null, skip 
     setChapter(Math.max(0, Math.min(items.length - 1, next)))
     setStage('memories')
     soundRef.current?.setPlace(null)
+    soundRef.current?.whoosh(-1, true)
   }
 
   // the story's next and previous steps (wheel, swipe up/down)
@@ -557,6 +584,7 @@ export default function Journey({ items, variant = 'home', landing = null, skip 
             )}
 
             {home && <div className="mem__skip">{exitPill}</div>}
+            {gust > 0 && <Gust key={gust} dir={dir} />}
             <p className="pv__hint label" aria-hidden="true">Scroll to move through the story</p>
             {photos.length > 1 && (
               <>
@@ -638,26 +666,79 @@ export default function Journey({ items, variant = 'home', landing = null, skip 
  * Next / previous: the photo is caught by the wind — it lifts, turns and
  * blows away, and the next one drifts in, flutters and settles.
  */
+const vw = () => (typeof window === 'undefined' ? 1280 : window.innerWidth)
 const WIND = {
-  enter: (d) => ({ opacity: 0, x: d * 120, y: 16, rotate: d * 4, scale: 0.97, zIndex: 2 }),
-  center: {
-    opacity: 1,
-    x: 0,
-    y: 0,
-    rotate: 0,
-    scale: 1,
-    zIndex: 2,
-    transition: { duration: 0.8, ease: [0.16, 1, 0.3, 1], delay: 0.14 },
-  },
-  exit: (d) => ({
+  // blown in from the far side: it tumbles in on the gust, overshoots a
+  // little, flutters and settles flat
+  enter: (d) => ({
     opacity: 0,
-    x: -d * 220,
-    y: -40,
-    rotate: -d * 8,
-    scale: 0.95,
-    zIndex: 1,
-    transition: { duration: 0.5, ease: [0.4, 0, 0.9, 0.6] },
+    x: d * vw() * 0.7,
+    y: 70,
+    rotate: d * 18,
+    rotateY: -d * 50,
+    rotateX: 12,
+    scale: 0.9,
+    filter: 'blur(6px)',
+    zIndex: 2,
   }),
+  center: (d) => ({
+    opacity: [0, 1, 1, 1, 1],
+    x: [d * vw() * 0.7, d * 46, -d * 14, d * 4, 0],
+    y: [70, -16, 6, -2, 0],
+    rotate: [d * 18, -d * 4, d * 1.6, -d * 0.5, 0],
+    rotateY: [-d * 50, d * 10, -d * 4, d * 1, 0],
+    rotateX: [12, -5, 2, -0.5, 0],
+    scale: [0.9, 1.01, 1, 1, 1],
+    filter: ['blur(6px)', 'blur(0px)', 'blur(0px)', 'blur(0px)', 'blur(0px)'],
+    zIndex: 2,
+    transition: { duration: 1.25, times: [0, 0.45, 0.68, 0.85, 1], ease: 'easeOut', delay: 0.16 },
+  }),
+  // caught by the wind: it lifts at the edge, curls, and is carried off
+  exit: (d) => ({
+    opacity: [1, 1, 0.95, 0],
+    x: [0, d * 18, -d * vw() * 0.38, -d * vw() * 1.05],
+    y: [0, 6, -70, -220],
+    rotate: [0, d * 2, -d * 16, -d * 38],
+    rotateY: [0, -d * 8, d * 38, d * 70],
+    rotateX: [0, 4, 16, 28],
+    scale: [1, 1, 0.94, 0.82],
+    filter: ['blur(0px)', 'blur(0px)', 'blur(1.5px)', 'blur(7px)'],
+    zIndex: 1,
+    transition: { duration: 1, times: [0, 0.14, 0.55, 1], ease: 'easeIn' },
+  }),
+}
+
+/** Streaks of wind across the screen as a photo blows away. */
+function Gust({ dir }) {
+  const lines = useMemo(
+    () =>
+      Array.from({ length: 9 }, (_, i) => ({
+        top: 8 + Math.random() * 78,
+        len: 18 + Math.random() * 30,
+        delay: i * 0.035 + Math.random() * 0.12,
+        dur: 0.55 + Math.random() * 0.35,
+        o: 0.18 + Math.random() * 0.3,
+        h: Math.random() < 0.3 ? 2 : 1,
+      })),
+    []
+  )
+  return (
+    <div className={`pv__gust pv__gust--${dir > 0 ? 'l' : 'r'}`} aria-hidden="true">
+      {lines.map((l, i) => (
+        <span
+          key={i}
+          style={{
+            top: `${l.top}%`,
+            width: `${l.len}vw`,
+            height: l.h,
+            '--o': l.o,
+            animationDelay: `${l.delay}s`,
+            animationDuration: `${l.dur}s`,
+          }}
+        />
+      ))}
+    </div>
+  )
 }
 const FADE = {
   enter: { opacity: 0 },

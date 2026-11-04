@@ -467,6 +467,40 @@ html.jr-tour .meter { display: none; }
 .pv__float {
   position: absolute;
   inset: 0;
+  perspective: 1400px; /* the photo bends and turns in 3D as the wind takes it */
+}
+.pv__photo { backface-visibility: hidden; will-change: transform, opacity; }
+
+/* the gust: thin streaks of air rushing across the screen */
+.pv__gust {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  overflow: hidden;
+  z-index: 3;
+}
+.pv__gust span {
+  position: absolute;
+  left: 0;
+  border-radius: 2px;
+  background: linear-gradient(90deg, transparent, rgba(243, 241, 236, 0.9) 45%, rgba(243, 241, 236, 0.5) 70%, transparent);
+  filter: blur(0.6px);
+  animation: pv-gust-l 0.7s cubic-bezier(0.3, 0.1, 0.6, 1) both;
+  transform: translateX(110vw);
+}
+.pv__gust--r span { animation-name: pv-gust-r; transform: translateX(-60vw); }
+@keyframes pv-gust-l {
+  0% { transform: translate(105vw, 0) scaleX(0.4); opacity: 0; }
+  20% { opacity: var(--o, 0.4); }
+  100% { transform: translate(-60vw, -3vh) scaleX(1.2); opacity: 0; }
+}
+@keyframes pv-gust-r {
+  0% { transform: translate(-60vw, 0) scaleX(0.4); opacity: 0; }
+  20% { opacity: var(--o, 0.4); }
+  100% { transform: translate(105vw, -3vh) scaleX(1.2); opacity: 0; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .pv__gust { display: none; }
 }
 /* the photos sit on top of each other in the frame: the old one blows away
    while the new one drifts in */
