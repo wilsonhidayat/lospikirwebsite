@@ -871,3 +871,31 @@ html.jr-tour .meter { display: none; }
   .rx__ring { top: 64%; }
   .rx__info .mx__actions { margin-top: 14px; }
 }
+
+/* --- performance: nothing re-blurs the live 3D behind it every frame --------
+   backdrop-filter over a canvas that changes every frame means the browser
+   blurs that region again on every frame, for every pill: the biggest single
+   cost of the experience. During the tour the glass is solid tint instead. */
+html.jr-tour .nav {
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+  background: rgba(14, 14, 13, 0.78);
+}
+.jr--place .jr__pill,
+.jr--memories .jr__pill,
+.jr .pv__nav {
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+}
+.jr--place .jr__pill,
+.jr--memories .jr__pill { background: rgba(12, 11, 10, 0.62); }
+.jr .pv__nav { background: rgba(12, 11, 10, 0.34); }
+@media (hover: hover) and (pointer: fine) {
+  .jr .pv__nav:hover { background: rgba(12, 11, 10, 0.55); }
+}
+/* the carousel: a cheap reflection (no mask in 3D), lighter shadows */
+.rx__reflect {
+  -webkit-mask-image: none;
+  mask-image: none;
+}
+.rx__card img { box-shadow: 0 24px 48px rgba(0, 0, 0, 0.45); }

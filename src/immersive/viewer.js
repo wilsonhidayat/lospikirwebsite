@@ -72,7 +72,9 @@ const ARRIVE_FROM = 0.72 // how far along its arrival path a place starts
 
 export async function createViewer({ canvas, quality = 'high', onError, onPhase }) {
   const renderer = new THREE.WebGLRenderer({ canvas, antialias: false, powerPreference: 'high-performance', alpha: false })
-  renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, quality === 'low' ? 1 : 1.5))
+  // the place sits behind the photo: it never needs the full retina resolution
+  const basePR = Math.min(window.devicePixelRatio || 1, quality === 'low' ? 0.85 : 1.25)
+  renderer.setPixelRatio(basePR)
   renderer.outputColorSpace = THREE.LinearSRGBColorSpace // post.js does the display conversion
   renderer.toneMapping = THREE.NoToneMapping // and the film curve
   renderer.shadowMap.enabled = true
@@ -325,12 +327,80 @@ export async function createViewer({ canvas, quality = 'high', onError, onPhase 
   }
   resize()
 
+  /* --- keeping it smooth ------------------------------------------------- *
+   * Watch the real frame times. When frames run long, step down — a lower
+   * render resolution first, then fewer effects — and step back up when
+   * there's room. Smooth beats sharp: the photo on top is what's looked at. */
+  const LEVELS = [
+    { scale: 1, samples: 4 },
+    { scale: 0.85, samples: 2 },
+    { scale: 0.72, samples: 0, ao: false },
+    { scale: 0.62, samples: 0, ao: false, flat: true },
+    { scale: 0.5, samples: 0, ao: false, flat: true, fps: 30 },
+  ]
+  const full = { ao: post.uniforms.uAO.value, dof: post.uniforms.uDof.value, ca: post.uniforms.uCA.value, soft: post.uniforms.uSoftCorners.value }
+  let level = quality === 'low' ? 2 : 1
+  let lastT = 0
+  let acc = 0
+  let count = 0
+  let changedAt = 0
+  let goodRuns = 0
+  function applyLevel() {
+    const L = LEVELS[level]
+    renderer.setPixelRatio(basePR * L.scale)
+    post.setSamples(L.samples)
+    post.uniforms.uAO.value = L.ao === false ? 0 : full.ao
+    post.uniforms.uDof.value = L.flat ? 0 : full.dof
+    post.uniforms.uCA.value = L.flat ? 0 : full.ca
+    post.uniforms.uSoftCorners.value = L.flat ? 0 : full.soft
+    resize()
+  }
+  function watch(now) {
+    const dt = now - lastT
+    lastT = now
+    // ignore the moments after a change, a hidden tab, and one-off hitches
+    // (a place being built) — but not a machine that's slow all the time
+    if (document.hidden || dt > 1.5 || now - changedAt < 1.2) {
+      acc = 0
+      count = 0
+      return
+    }
+    acc += Math.min(dt, 0.5)
+    count++
+    if (acc < 1.2 || count < 8) return
+    const avg = (acc / count) / (LEVELS[level].fps === 30 ? 2 : 1)
+    acc = 0
+    count = 0
+    if (avg > 1 / 48 && level < LEVELS.length - 1) {
+      level++
+      goodRuns = 0
+      changedAt = now
+      applyLevel()
+    } else if (avg < 1 / 58 && level > 0) {
+      // only climb back after a long smooth stretch
+      if (++goodRuns >= 6) {
+        level--
+        goodRuns = 0
+        changedAt = now
+        applyLevel()
+      }
+    } else goodRuns = 0
+  }
+
+  applyLevel()
+
   let raf = 0
   let running = false
+  let skip = false
   function frame(once) {
     if (once !== true) raf = requestAnimationFrame(frame)
     if (lost) return
     const time = performance.now() / 1000
+    if (once !== true) {
+      // at the lowest level, every other frame is enough behind a photo
+      if (LEVELS[level].fps === 30 && (skip = !skip)) return
+      watch(time)
+    }
     for (const t of [u, yaw, orbit, spotMix, reveal]) t.update(time)
     pointerNow.lerp(pointer, 0.05)
     post.uniforms.uReveal.value = reveal.value
@@ -342,6 +412,7 @@ export async function createViewer({ canvas, quality = 'high', onError, onPhase 
       post.uniforms.uFocus.value = Math.max(4, Math.min(400, focusDist))
       post.render(current.scene, current.camera, {
         time,
+        flat: !!LEVELS[level].flat,
         exposure: current.world?.exposure ?? 1,
         sun: sunOnScreen(current),
       })
@@ -403,6 +474,10 @@ export async function createViewer({ canvas, quality = 'high', onError, onPhase 
     },
     preload(p) {
       return ensure(p).catch(() => {})
+    },
+    /** Whether a place is built already (entering it is then instant). */
+    has(p) {
+      return cache.has(keyOf(p))
     },
     resize,
     /** Draw one frame now (tests, thumbnails). */

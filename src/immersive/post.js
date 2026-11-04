@@ -572,9 +572,18 @@ export function createPost(THREE, renderer, { quality = 'high' } = {}) {
     quad.render(renderer)
   }
 
+  /** Multisampling for the main picture: 4, 2 or 0 (fewer is cheaper). */
+  function setSamples(n) {
+    const want = high ? n : 0
+    if (color.samples === want) return
+    color.samples = want
+    color.dispose() // re-made with the new sample count on next use
+  }
+
   return {
     uniforms,
     setSize,
+    setSamples,
     render,
     renderClouds,
     dispose() {

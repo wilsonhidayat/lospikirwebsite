@@ -42,6 +42,7 @@ export default function Journey({ items, variant = 'home', landing = null, skip 
   const [photo, setPhoto] = useState(0)
   const [dir, setDir] = useState(1)
   const [gust, setGust] = useState(0)
+  const openTok = useRef(0)
   const [flight, setFlight] = useState(null) // the photo flying out of its print
   const [visible, setVisible] = useState(true)
   const [photoOn, setPhotoOn] = useState(!home) // the place's photo is showing
@@ -254,7 +255,6 @@ export default function Journey({ items, variant = 'home', landing = null, skip 
     window.scrollTo({ top: sectionRef.current.offsetTop, behavior: 'auto' })
     setChapter(0)
     setStage('memories')
-    getViewer() // get the 3D ready in the background
     const snd = sound()
     if (snd) {
       snd.setMuted(!soundOn)
@@ -280,22 +280,14 @@ export default function Journey({ items, variant = 'home', landing = null, skip 
   const onChapter = (i) => {
     if (lastChapter.current != null && lastChapter.current !== i) soundRef.current?.tick(i > lastChapter.current ? 1 : -1)
     lastChapter.current = i
-    preloadSoon(i)
+    // no building places in the background here: it would stutter the carousel.
+    // A place is built when the visitor steps in, after the photo's flight.
   }
 
-  // the chapter in view gets its place ready, so stepping in is quick
-  const preloadTimer = useRef(0)
-  const preloadSoon = (i) => {
-    clearTimeout(preloadTimer.current)
-    preloadTimer.current = setTimeout(() => {
-      const it = items[i]
-      if (!it || !viewerRef.current) return
-      viewerRef.current.preload(sequence(it).locs[0].item)
-    }, 650)
-  }
 
   // finished, or left: back to the title, and the page scrolls on to the rest
   function finish() {
+    openTok.current++
     soundRef.current?.stop()
     photo3dRef.current?.clear()
     setPhotoOn(false)
@@ -335,7 +327,15 @@ export default function Journey({ items, variant = 'home', landing = null, skip 
       setPhase('arrived')
       return
     }
-    getViewer().then((v) => (v ? v.enter(first.locs[0].item, first.spot[0]) : setPhase('arrived')))
+    // a place not built yet is heavy to build: let the photo's flight finish first
+    const flying = !!(from && !reduced)
+    getViewer().then((v) => {
+      if (!v) return setPhase('arrived')
+      const tok = ++openTok.current
+      const go = () => tok === openTok.current && v.enter(first.locs[0].item, first.spot[0])
+      if (!flying || v.has(first.locs[0].item)) go()
+      else setTimeout(go, 1150)
+    })
     if (mode === 'hybrid') getPhoto3D().then((p3) => p3?.show(first.photos[0].src, 1))
   }
 
@@ -364,15 +364,17 @@ export default function Journey({ items, variant = 'home', landing = null, skip 
         soundRef.current?.setPlace(seq.locs[loc].scene)
         v?.enter(seq.locs[loc].item, seq.spot[next])
       } else v?.photo(seq.spot[next])
-      // get the next place of the shoot ready before it's needed
+      // get the next place of the shoot ready before it's needed — after the
+      // photo has landed, when the browser is idle
       const ahead = seq.loc[Math.min(photos.length - 1, next + 2)]
-      if (ahead !== loc) v?.preload(seq.locs[ahead].item)
+      if (ahead !== loc) setTimeout(() => idle(() => v?.preload(seq.locs[ahead].item)), 1500)
     },
     [photo, photos, seq, mode, reduced]
   )
 
   // back to the line of memories — on the next print when the story moves on
   function backToMemories(next = chapter) {
+    openTok.current++
     setPhotoOn(false)
     photo3dRef.current?.clear()
     viewerRef.current?.leave()
@@ -666,6 +668,7 @@ export default function Journey({ items, variant = 'home', landing = null, skip 
  * Next / previous: the photo is caught by the wind — it lifts, turns and
  * blows away, and the next one drifts in, flutters and settles.
  */
+const idle = (fn) => (typeof window !== 'undefined' && window.requestIdleCallback ? window.requestIdleCallback(fn, { timeout: 2500 }) : setTimeout(fn, 200))
 const vw = () => (typeof window === 'undefined' ? 1280 : window.innerWidth)
 const WIND = {
   // blown in from the far side: it tumbles in on the gust, overshoots a
@@ -678,7 +681,6 @@ const WIND = {
     rotateY: -d * 50,
     rotateX: 12,
     scale: 0.9,
-    filter: 'blur(6px)',
     zIndex: 2,
   }),
   center: (d) => ({
@@ -689,7 +691,6 @@ const WIND = {
     rotateY: [-d * 50, d * 10, -d * 4, d * 1, 0],
     rotateX: [12, -5, 2, -0.5, 0],
     scale: [0.9, 1.01, 1, 1, 1],
-    filter: ['blur(6px)', 'blur(0px)', 'blur(0px)', 'blur(0px)', 'blur(0px)'],
     zIndex: 2,
     transition: { duration: 1.25, times: [0, 0.45, 0.68, 0.85, 1], ease: 'easeOut', delay: 0.16 },
   }),
@@ -702,7 +703,6 @@ const WIND = {
     rotateY: [0, -d * 8, d * 38, d * 70],
     rotateX: [0, 4, 16, 28],
     scale: [1, 1, 0.94, 0.82],
-    filter: ['blur(0px)', 'blur(0px)', 'blur(1.5px)', 'blur(7px)'],
     zIndex: 1,
     transition: { duration: 1, times: [0, 0.14, 0.55, 1], ease: 'easeIn' },
   }),
@@ -821,8 +821,16 @@ function Memories({ items, start = 0, onOpen, onBack, onFinish, onActive, skipLi
   // turn the ring: ease toward the target, light the front, shade the rest
   useEffect(() => {
     let raf = 0
+    let settled = false
     const loop = () => {
       raf = requestAnimationFrame(loop)
+      // at rest: nothing to write (no style work while the visitor reads)
+      const gap = target.current - shown.current
+      if (Math.abs(gap) < 0.005) {
+        if (settled) return
+        settled = true
+        shown.current = target.current
+      } else settled = false
       shown.current += (target.current - shown.current) * (reduced ? 1 : 0.085)
       if (ringRef.current) ringRef.current.style.transform = `translateZ(${-geo.R}px) rotateY(${shown.current.toFixed(3)}deg)`
       for (let i = 0; i < n; i++) {
@@ -971,7 +979,7 @@ function Memories({ items, start = 0, onOpen, onBack, onFinish, onActive, skipLi
               onClick={() => (i === active ? open() : select(i))}
             >
               <img src={m.hero} alt="" loading={Math.abs(i - start) < 4 ? 'eager' : 'lazy'} decoding="async" {...noCopy} />
-              <span className="rx__reflect" style={{ backgroundImage: `url("${m.hero}")` }} aria-hidden="true" />
+              <span className="rx__reflect" style={{ backgroundImage: `linear-gradient(0deg, rgba(11, 9, 8, 0.1) 0%, rgba(11, 9, 8, 1) 75%), url("${m.hero}")` }} aria-hidden="true" />
               <span className="rx__shade" ref={(el) => (shadeRefs.current[i] = el)} aria-hidden="true" />
             </button>
           ))}
