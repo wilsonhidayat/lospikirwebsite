@@ -800,6 +800,7 @@ html.jr-tour .meter { display: none; }
   inset: 0;
   perspective: 1500px;
   perspective-origin: 50% 40%;
+  touch-action: none; /* a swipe turns the ring, the page never pans */
 }
 .rx__ring {
   position: absolute;
