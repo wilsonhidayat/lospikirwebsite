@@ -68,6 +68,41 @@ collections:
               - { name: headline, label: "Headline", widget: text, hint: "Press Enter for each line break." }
               - { name: headlineLight, label: "Final line (thin weight)", widget: string }
               - { name: image, label: "Background photo", widget: image, required: false }
+          - name: tour
+            label: "The experience (home page)"
+            widget: object
+            fields:
+              - { name: eyebrow, label: "Small line above the logo", widget: string }
+              - { name: intro, label: "Short introduction under the logo", widget: text }
+              - name: mode
+                label: "How a shoot is shown"
+                widget: select
+                options:
+                  - { label: "Photo-based 3D — each photo in depth (exact, automatic)", value: photo }
+                  - { label: "Hybrid — the photo in depth, floating in the modelled place", value: hybrid }
+                  - { label: "Modelled places", value: places }
+                default: places
+              - { name: start, label: "Start button", widget: string }
+              - { name: replay, label: "Start button after finishing", widget: string }
+              - { name: memoriesEyebrow, label: "Memories: small heading", widget: string }
+              - { name: memoriesIntro, label: "Memories: one line under it", widget: text }
+              - name: story
+                label: "The story told under every place"
+                widget: list
+                field: { name: line, label: "Line", widget: string }
+                hint: "Shown one after another as the photos go by. {place} becomes the gallery's place. A gallery can have its own story instead."
+              - name: eventStory
+                label: "The story for event galleries"
+                widget: list
+                field: { name: line, label: "Line", widget: string }
+                hint: "Used for galleries whose type mentions an event or party."
+              - name: music
+                label: "Music file (optional)"
+                widget: file
+                required: false
+                media_folder: "/public/music"
+                public_folder: "/music"
+                hint: "A track you have the rights to (mp3). Leave empty for the generated soundtrack."
           - { name: statement, label: "Home-page 'about' line (the fading paragraph)", widget: text }
           - name: about
             label: "About page (/about)"
@@ -150,6 +185,77 @@ collections:
       - { name: tone, label: "Placeholder colour (until a cover photo is set)", widget: select, options: [warm, green, bone, night, dusk], default: warm }
       - { name: cover, label: "Cover photo (the frame in the home-page strip)", widget: image, required: false }
       - { name: intro, label: "Intro paragraph (optional)", widget: text, required: false }
+      - name: scene
+        label: "Place (the 3D world the gallery opens in)"
+        widget: select
+        default: none
+        options:
+          - { label: "None — classic page", value: none }
+          - { label: "Paris", value: paris }
+          - { label: "Amsterdam canals", value: amsterdam }
+          - { label: "Leidseplein, Amsterdam", value: leidseplein }
+          - { label: "Dunes and beach", value: coast }
+          - { label: "University campus (TU/e)", value: campus }
+          - { label: "Erasmus University, Rotterdam", value: erasmus }
+          - { label: "Eindhoven centre and the Blob", value: eindhoven }
+          - { label: "City waterfront at sunset", value: waterfront-sunset }
+          - { label: "City waterfront at night", value: waterfront-night }
+          - { label: "On the water at night", value: party-boat }
+          - { label: "Light-filled country house", value: interior }
+          - { label: "Studio", value: studio }
+          - { label: "Graduation hall", value: hall }
+          - { label: "Rotterdam City Hall", value: cityhall }
+          - { label: "Inside the Blob, Eindhoven", value: blob }
+          - { label: "Amsterdam park in autumn", value: park }
+          - { label: "Stadsloket wedding room, Amsterdam", value: stadsloket }
+          - { label: "Restaurant dinner", value: restaurant }
+          - { label: "Grand staircase (Stadsschouwburg)", value: leidseplein-hotel }
+        hint: "Pick the one closest to where it was shot."
+      - { name: place, label: "Where it was shot (e.g. “Trocadéro, Paris”)", widget: string, required: false }
+      - { name: city, label: "City (shown in the experience, e.g. “Paris”)", widget: string, required: false, hint: "Only the city is shown to visitors — leave empty to show just the type of shoot." }
+      - name: locations
+        label: "Several places in one shoot (optional)"
+        widget: list
+        required: false
+        summary: "{{fields.scene}} — photos {{fields.photos}}"
+        hint: "Use when the shoot moved, e.g. City Hall for photos 1-7, then the dunes for 8-14. Leave empty to use Place for every photo."
+        fields:
+          - name: scene
+            label: "Place"
+            widget: select
+            options:
+              - { label: "Paris", value: paris }
+              - { label: "Amsterdam canals", value: amsterdam }
+              - { label: "Leidseplein, Amsterdam", value: leidseplein }
+              - { label: "Dunes and beach", value: coast }
+              - { label: "University campus (TU/e)", value: campus }
+              - { label: "Erasmus University, Rotterdam", value: erasmus }
+              - { label: "Eindhoven centre and the Blob", value: eindhoven }
+              - { label: "City waterfront at sunset", value: waterfront-sunset }
+              - { label: "City waterfront at night", value: waterfront-night }
+              - { label: "On the water at night", value: party-boat }
+              - { label: "Light-filled country house", value: interior }
+              - { label: "Studio", value: studio }
+              - { label: "Graduation hall", value: hall }
+              - { label: "Rotterdam City Hall", value: cityhall }
+              - { label: "Inside the Blob, Eindhoven", value: blob }
+              - { label: "Amsterdam park in autumn", value: park }
+              - { label: "Stadsloket wedding room, Amsterdam", value: stadsloket }
+              - { label: "Restaurant dinner", value: restaurant }
+              - { label: "Grand staircase (Stadsschouwburg)", value: leidseplein-hotel }
+          - { name: photos, label: "Photos (numbers, e.g. 1-7 or 1,3,5)", widget: string }
+          - { name: city, label: "City for this part (optional)", widget: string, required: false }
+          - { name: views, label: "Viewpoints (set by the developer)", widget: hidden, required: false }
+      - name: story
+        label: "Story for the experience (optional)"
+        widget: list
+        required: false
+        field: { name: line, label: "Line", widget: string }
+        hint: "A few short lines shown as the photos go by, e.g. “We met at sunrise, before the crowds.” Leave empty to use the general story from Site settings."
+
+      - { name: hero, label: "The moment — the photo the 3D flight lands on", widget: image, required: false, hint: "Defaults to the cover photo." }
+      - { name: heroAlt, label: "Describe the moment photo (for screen readers and Google)", widget: string, required: false }
+      - { name: featured, label: "Home-page position (1 = first, empty = not on the home page)", widget: number, value_type: int, min: 1, required: false }
       - name: photos
         label: "Photos"
         label_singular: "Photo"

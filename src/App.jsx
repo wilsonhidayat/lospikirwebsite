@@ -4,12 +4,14 @@ import Nav from './components/Nav.jsx'
 import ScrollMeter from './components/ScrollMeter.jsx'
 import Footer from './components/Footer.jsx'
 import Home from './pages/Home.jsx'
+import WorkPage from './pages/WorkPage.jsx'
 import AboutPage from './pages/AboutPage.jsx'
 import GalleryPage from './pages/GalleryPage.jsx'
+import PrivacyPage from './pages/PrivacyPage.jsx'
 
 /**
  * On navigation: jump to the top for a new page, or to the #section when the
- * URL carries a hash (e.g. arriving at "/#work" from a gallery page).
+ * URL carries a hash (e.g. arriving at "/work#work" from a gallery page).
  */
 function ScrollManager() {
   const { pathname, hash } = useLocation()
@@ -37,8 +39,10 @@ export default function App() {
 
       <Routes>
         <Route path="/" element={<Home />} />
+        <Route path="/work" element={<WorkPage />} />
         <Route path="/about" element={<AboutPage />} />
         <Route path="/gallery/:slug" element={<GalleryPage />} />
+        <Route path="/privacy" element={<PrivacyPage />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
 

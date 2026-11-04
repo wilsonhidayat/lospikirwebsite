@@ -1,10 +1,11 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { AnimatePresence, motion, useMotionValue, useReducedMotion } from 'framer-motion'
 import { galleries, galleryBySlug } from '../data/galleries.js'
 import { DURATION, SPRING, STAGGER, project } from '../motion.js'
 import Reveal from '../components/Reveal.jsx'
 import MaskLine from '../components/MaskLine.jsx'
+import Journey from '../immersive/Journey.jsx'
 import '../styles/gallery-page.css'
 
 function formatDate(value) {
@@ -109,7 +110,7 @@ function Lightbox({ photos, index, dir, origin, onClose, onStep }) {
               key={index}
               className="lb__img"
               src={photo.src}
-              alt={photo.alt || ''}
+              alt={photo.alt || `Photo ${index + 1} of ${photos.length}`}
               draggable={false}
               custom={custom}
               variants={slide}
@@ -152,6 +153,8 @@ export default function GalleryPage() {
   const gallery = galleryBySlug(slug)
   const [active, setActive] = useState(null)
   const [dir, setDir] = useState(1)
+  // a stable list, so the journey doesn't reload on every re-render
+  const chapters = useMemo(() => (gallery ? [gallery] : []), [gallery])
 
   // Where the lightbox grows from and shrinks back to, as a fraction of the
   // viewport. Motion values, so a closing lightbox reads the latest point.
@@ -198,7 +201,7 @@ export default function GalleryPage() {
     return (
       <main className="gp gp--empty">
         <p className="gp__notice">That gallery has moved or doesn’t exist.</p>
-        <Link className="gp__back" to="/#work">
+        <Link className="gp__back" to="/work#work">
           ← All galleries
         </Link>
       </main>
@@ -209,9 +212,14 @@ export default function GalleryPage() {
   const others = galleries.filter((g) => g.slug !== gallery.slug).slice(0, 4)
 
   return (
-    <main className="gp">
+    <>
+      {/* Each gallery opens in the place it was shot, if it has one */}
+      {gallery.scene && gallery.hero && (
+        <Journey key={gallery.slug} items={chapters} variant="gallery" skip="#photos" skipLabel="View as a regular gallery" />
+      )}
+    <main className="gp" id="photos">
       <header className="gp__head">
-        <Link className="gp__back label" to="/#work">
+        <Link className="gp__back label" to="/work#work">
           ← All galleries
         </Link>
 
@@ -240,7 +248,7 @@ export default function GalleryPage() {
               delay={Math.min(i, 6) * STAGGER}
               onClick={(e) => open(i, e.currentTarget)}
             >
-              <img src={photo.src} alt={photo.alt || ''} loading="lazy" />
+              <img src={photo.src} alt={photo.alt || `${title || caption}, ${caption} — photo ${i + 1} of ${photos.length}`} loading="lazy" />
             </Reveal>
           ))}
         </div>
@@ -277,5 +285,6 @@ export default function GalleryPage() {
         )}
       </AnimatePresence>
     </main>
+    </>
   )
 }

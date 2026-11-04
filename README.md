@@ -180,6 +180,113 @@ Rules worth keeping:
 Everything honours `prefers-reduced-motion`: slides become cross-fades, the
 lightbox and nav stop moving, and nothing is removed outright.
 
+---
+
+## The tour (3D)
+
+The home page is the tour. It works like a film: the page doesn't scroll
+until the visitor finishes the experience or leaves it (Exit), and scrolling
+moves the story instead — the next photo, the previous one, on to the next
+memory.
+
+1. **Landing** — the LOSPIKIR logo with a short introduction, **Start the
+   experience** and **Skip the tour** (the regular site at `/work`). The
+   default is the site's black; `?landing=photo` (or `#landing-photo`) puts
+   the CMS hero photo behind it instead.
+2. **Memories** — every project as a large Instax print, pegged to a wire of
+   fairy lights in a dark room; drag, swipe or use the arrow keys along it.
+   The centred print's name is written large, with what kind of shoot and
+   where ("Pre-wedding · Paris"). Click it to step in. On the last
+   print: **Finish the experience**.
+3. **Into the place** — the print flies to the middle at its true size and
+   the 3D place develops around it. Arrows either side, a counter beneath,
+   and on the left the story of a session moving on as the photos do ("We
+   meet in Paris. No rush." …). Scrolling past the last photo moves on
+   to the next memory.
+4. **Finished or Exit** — the experience fades out and the page scrolls on to
+   ways to work together, pricing and the enquiry, in the regular site's
+   style.
+
+**Sound.** Starts with the experience (there's always a Sound on/off button):
+a soft generated soundtrack plus each place's own ambience — waves and wind on
+the dunes, a city's hum, water at night, the party deck's bass. Made in the
+browser, so nothing to license. To use a real track you have the rights to,
+upload it in the CMS under Site settings → The experience → Music file.
+
+**Words.** The introduction, button labels, the memories line and the story
+lines are in the CMS (Site settings → The experience). A gallery can have its
+own story (Galleries → Story for the experience); otherwise the general one is
+used, with `{place}` replaced by the gallery's place.
+
+The photos are shown as plain full-quality images — no frame, no grain, no
+filter. Right-click saving and dragging are switched off and every photo
+carries a small © LOSPIKIR credit; the logo is always in the navigation bar.
+
+Gallery pages open straight into their own place; "View as a regular gallery"
+jumps to the grid.
+
+**The look.** Everything is generated in code (no downloaded models or
+textures): physically based materials painted with relief and roughness
+(`materials.js`: brick, plaster, concrete, paving, roofs, glass that mirrors
+the sky…), branching trees with real leaves (`trees.js`), each place lit by its
+own sky (an environment map), shadows, soft ambient occlusion that respects
+edges, bloom on bright lights, sun rays, realistic water and a filmic curve
+(`post.js`).
+
+**Colours match the photos.** Each place's sky is read from its photos, and
+the whole place gets a gentle white balance and saturation taken from them
+(`palette.js`). Night and indoor places keep their own light.
+
+### Editing it in the CMS (`/admin` → Galleries)
+
+| Field | What it does |
+|---|---|
+| **Place** | The 3D world: Paris, Amsterdam canals, Leidseplein, Dunes and beach, University campus (TU/e), Erasmus University, Eindhoven (the Blob), City waterfront at sunset / at night, On the water at night (party boat), Light-filled country house, Studio, Graduation hall, or None. |
+| **Where it was shot** | Your note of the exact spot, e.g. "Trocadéro, Paris". Not shown to visitors (the story uses it only when City is empty). |
+| **Several places in one shoot** | When a shoot moved (City Hall, then the dunes), list each place with its photo numbers; the experience moves from one place to the next as the photos do. |
+| **City** | What the experience shows ("Pre-wedding · Paris") — only the city, never the exact spot. Empty shows just the type of shoot. |
+| **The moment** | The photo on the print, and the first one shown; the sky is read from it. A project needs both a Place and a Moment to appear in the tour. |
+| **Describe the moment photo** | Alt text for screen readers and Google. |
+| **Home-page position** | 1, 2, 3… sets the order in the tour. Other projects with a place and moment follow. |
+
+A new project just needs a Place and a Moment — no 3D work.
+
+### Who sees what
+
+Visitors get the same browsing over a softly blurred photo instead of 3D when
+they've asked their device for reduced motion, have Data Saver on, or their
+browser has no WebGL 2. Add `?classic` to any URL to see it yourself. Phones get
+a lighter version (lower resolution, fewer trees and grass, simpler occlusion,
+fewer places kept in memory).
+
+### Where the code is
+
+```
+src/immersive/
+  Journey.jsx        the tour's screens: landing, memories, place view
+  viewer.js          three.js renderer: loads places, glides between viewpoints
+  post.js            occlusion, bloom, sun rays, film curve, colour grade, reveal
+  palette.js         reads sky colours and the colour grade out of the photos
+  world.js           painted sky, light presets, water, lamps, night windows
+  materials.js       procedural PBR surfaces (brick, plaster, paving, glass…)
+  trees.js           branching trees with leaf cards, by species and season
+  scenes/            one file per place (paris, amsterdam, leidseplein, coast,
+                     campus, erasmus, eindhoven, waterfront, interior, hall)
+                     + index.js to register new ones
+  soundscape.js      the generated soundtrack and each place's ambience
+  shutter-sound.js   the shutter click, synthesised (no audio file)
+src/styles/journey.css
+```
+
+
+### Privacy and tracking
+
+The site sets **no cookies** and has no ad trackers, so no cookie banner is
+needed. Visitor statistics are optional: create a site at plausible.io, then in
+Netlify add the environment variable `VITE_PLAUSIBLE_DOMAIN=lospikir.com` and
+redeploy. The privacy page (`/privacy`) updates itself to say so. Have the
+privacy text checked before relying on it.
+
 ## Typeface
 
 Set in **Helvetica Neue**, taken from the logo. It is a system face on macOS and
@@ -204,3 +311,5 @@ keep them small.
 - [ ] `og-image.jpg` in `public/` for link previews
 - [ ] Typeface decision above
 - [ ] Netlify Forms email notification for enquiries
+- [ ] Check the places I couldn't identify from the photos: Alyssa Nadia, Amara (master's) — set *Where it was shot* in the CMS
+- [ ] Optional: Plausible statistics (see *Privacy and tracking*)

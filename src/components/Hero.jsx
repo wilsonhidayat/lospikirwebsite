@@ -1,3 +1,4 @@
+import { Link } from 'react-router-dom'
 import { site } from '../data/site.js'
 import { lines } from '../lib/lines.js'
 import MaskLine from './MaskLine.jsx'
@@ -50,6 +51,9 @@ export default function Hero() {
               {site.brochureLabel}
             </a>
           )}
+          <Link className="btn btn--ghost" to="/">
+            ▶ {site.tour?.start || 'Start the experience'}
+          </Link>
         </Reveal>
       </div>
 

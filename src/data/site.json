@@ -16,8 +16,12 @@
   },
   "nav": [
     {
+      "label": "Experience",
+      "href": "/"
+    },
+    {
       "label": "Work",
-      "href": "#work"
+      "href": "/work#work"
     },
     {
       "label": "Packages",
@@ -33,12 +37,12 @@
     }
   ],
   "hero": {
-    "eyebrow": "Portrait · Pre-wedding · Graduation — Netherlands",
+    "eyebrow": "Portrait · Pre-wedding · Graduation · Events — Netherlands",
     "headline": "Photographs that look\nlike the person,",
     "headlineLight": "not the pose.",
     "image": "/photos/mieri-fathi-08.jpg"
   },
-  "statement": "Most people arrive a little nervous. So we walk first, talk first, and start shooting once you have forgotten the camera is there — which is usually about ten minutes in.",
+  "statement": "Portrait, pre-wedding, graduation and event photography. Based in the Netherlands, shooting wherever your story is.",
   "about": {
     "eyebrow": "About",
     "headline": "Behind\nthe camera",
@@ -61,5 +65,28 @@
   "closing": {
     "headline": "Let's find\nyour light",
     "image": "/photos/evan-inez-paris-23.jpg"
+  },
+  "tour": {
+    "eyebrow": "Portrait · Pre-wedding · Graduation · Events — Netherlands",
+    "intro": "I'm Wilson, a photographer based in the Netherlands. This is my portfolio as an experience: step into real shoots, in the places they happened, and see what a session with me feels like.",
+    "start": "Start the experience",
+    "replay": "Watch it again",
+    "memoriesEyebrow": "Step into a shoot",
+    "memoriesIntro": "Pick a memory. You'll walk through the shoot in the place it happened, photo by photo.",
+    "story": [
+      "We meet in {place}. No rush.",
+      "We walk first and talk. The camera can wait.",
+      "About ten minutes in, you stop noticing it.",
+      "Then it's the real laugh, the quiet look between you.",
+      "The light moves, and we move with it.",
+      "And {place} becomes part of your story."
+    ],
+    "eventStory": [
+      "{place}. The night is just getting started.",
+      "I move through the crowd and stay out of the way.",
+      "The moments people will talk about tomorrow.",
+      "The details, the energy, the people who made it happen."
+    ],
+    "mode": "places"
   }
 }

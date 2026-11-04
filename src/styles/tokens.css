@@ -9,6 +9,13 @@
   --ink: #0a0a0b;
   --ink-2: #141416;
   --paper: #f4f2ee;
+
+  /* Bronze — the warm dark of the site's "night" tone, for backgrounds that
+     shouldn't be flat black */
+  --bronze-deep: #171310;
+  --bronze-mid: #2c2219;
+  --bronze-high: #4a3626;
+  --bronze-glow: rgba(201, 156, 110, 0.22);
   --card: #ffffff;
 
   /* Type */

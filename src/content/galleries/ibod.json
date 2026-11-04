@@ -5,6 +5,31 @@
   "tone": "bone",
   "cover": "/photos/ibod-15.jpg",
   "intro": "",
+  "scene": "party-boat",
+  "locations": [
+    {
+      "scene": "party-boat",
+      "photos": "1-15",
+      "views": [
+        7,
+        1,
+        6,
+        5,
+        2,
+        4,
+        5,
+        0,
+        4,
+        0,
+        3,
+        4,
+        5,
+        3,
+        1
+      ]
+    }
+  ],
+  "place": "A party cruise, on the water at night",
   "photos": [
     {
       "src": "/photos/ibod-01.jpg",

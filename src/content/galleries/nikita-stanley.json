@@ -5,6 +5,46 @@
   "tone": "night",
   "cover": "/photos/nikita-stanley-12.jpg",
   "intro": "",
+  "scene": "waterfront-sunset",
+  "locations": [
+    {
+      "scene": "stadsloket",
+      "photos": "1-3",
+      "views": [
+        0,
+        1,
+        2
+      ]
+    },
+    {
+      "scene": "waterfront-sunset",
+      "photos": "4-13",
+      "views": [
+        7,
+        8,
+        9,
+        5,
+        2,
+        1,
+        3,
+        6,
+        0,
+        4
+      ]
+    },
+    {
+      "scene": "restaurant",
+      "photos": "14",
+      "views": [
+        0
+      ]
+    }
+  ],
+  "place": "The IJ, Amsterdam",
+  "city": "Amsterdam",
+  "hero": "/photos/nikita-stanley-12.jpg",
+  "heroAlt": "Newlyweds descending a steel stairway above the IJ at sunset, the Amsterdam skyline glowing behind them",
+  "featured": 4,
   "photos": [
     {
       "src": "/photos/nikita-stanley-01.jpg",

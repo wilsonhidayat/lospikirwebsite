@@ -5,6 +5,24 @@
   "tone": "night",
   "cover": "/photos/laura-04.jpg",
   "intro": "",
+  "scene": "interior",
+  "locations": [
+    {
+      "scene": "interior",
+      "photos": "1-8",
+      "views": [
+        1,
+        2,
+        3,
+        0,
+        4,
+        5,
+        6,
+        7
+      ]
+    }
+  ],
+  "place": "A light-filled house in the countryside",
   "photos": [
     {
       "src": "/photos/laura-01.jpg",

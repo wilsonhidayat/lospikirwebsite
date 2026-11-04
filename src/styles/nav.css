@@ -19,16 +19,27 @@
   box-shadow: 0 10px 40px rgba(0, 0, 0, 0.34);
 }
 
+.nav > a:first-child {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+}
+
+/* the wordmark: never squeezed out by the links */
 .nav__logo {
-  height: 14px;
+  height: 19px;
   width: auto;
-  opacity: 0.96;
+  max-width: none;
+  flex-shrink: 0;
+  display: block;
 }
 
 .nav__links {
   display: flex;
   gap: 26px;
   color: var(--dim-2);
+  white-space: nowrap;
+  min-width: 0;
 }
 
 .nav__links a {
@@ -88,5 +99,17 @@
   }
   .nav__links {
     display: none;
+  }
+  .nav__logo {
+    height: 16px;
+  }
+}
+
+@media (min-width: 821px) and (max-width: 1100px) {
+  .nav {
+    gap: 22px;
+  }
+  .nav__links {
+    gap: 16px;
   }
 }

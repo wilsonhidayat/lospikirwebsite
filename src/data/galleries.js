@@ -19,7 +19,19 @@ export const galleries = Object.entries(files)
       tone: data.tone || 'warm',
       cover: data.cover || null,
       intro: data.intro || '',
+      // the immersive opening: which place to fly into, and the photograph
+      // it resolves into (defaults to the cover)
+      scene: data.scene && data.scene !== 'none' ? data.scene : null,
+      place: data.place || '',
+      city: data.city || '',
+      // one gallery, several places: [{ scene, photos: '1-7', city?, views?: [spot, …] }]
+      locations: Array.isArray(data.locations) ? data.locations.filter((l) => l && l.scene) : [],
+      hero: data.hero || data.cover || null,
+      alt: data.heroAlt || '',
+      featured: Number(data.featured) || 0,
       photos: Array.isArray(data.photos) ? data.photos.filter((p) => p && p.src) : [],
+      // optional lines for the experience, told as the photos go by
+      story: Array.isArray(data.story) ? data.story.map((l) => (typeof l === 'string' ? l : l?.line)).filter(Boolean) : [],
     }
   })
   .sort((a, b) => String(b.date).localeCompare(String(a.date)))
@@ -27,3 +39,21 @@ export const galleries = Object.entries(files)
 export function galleryBySlug(slug) {
   return galleries.find((g) => g.slug === slug) ?? null
 }
+
+/**
+ * Projects that get a chapter in the home-page experience, in the order set
+ * by their "featured" number (1 first). Only galleries with a place and a
+ * photograph qualify.
+ */
+export const featuredGalleries = galleries
+  .filter((g) => g.featured > 0 && g.scene && g.hero)
+  .sort((a, b) => a.featured - b.featured)
+
+/**
+ * The journey's chapters: the featured projects in their set order, then
+ * every other project with a place, newest first.
+ */
+export const journeyGalleries = [
+  ...featuredGalleries,
+  ...galleries.filter((g) => !(g.featured > 0) && g.scene && g.hero),
+]

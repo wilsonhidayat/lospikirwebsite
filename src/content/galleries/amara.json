@@ -5,6 +5,23 @@
   "tone": "dusk",
   "cover": "/photos/amara-01.jpg",
   "intro": "",
+  "scene": "campus",
+  "locations": [
+    {
+      "scene": "campus",
+      "photos": "1-6",
+      "views": [
+        16,
+        17,
+        18,
+        19,
+        0,
+        20
+      ]
+    }
+  ],
+  "place": "TU/e campus, Eindhoven",
+  "city": "Eindhoven",
   "photos": [
     {
       "src": "/photos/amara-01.jpg",
