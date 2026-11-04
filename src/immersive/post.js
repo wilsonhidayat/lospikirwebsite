@@ -183,6 +183,14 @@ export function createPost(THREE, renderer, { quality = 'high' } = {}) {
     // 0 → 1: the place develops out of the dark in soft patches
     uReveal: { value: 1 },
     uRevealColor: { value: new THREE.Vector3(0.043, 0.043, 0.047) },
+    // what makes it read as a photograph, not a render: the lens and the film
+    uGrain: { value: high ? 0.05 : 0.035 }, // film grain, strongest in the mids
+    uCA: { value: high ? 0.006 : 0 }, // colour fringing toward the corners
+    uHalation: { value: 0.32 }, // the warm glow film gets round bright things
+    uFilm: { value: 1 }, // lifted blacks, warm highlights, cool shadows
+    uSoftCorners: { value: high ? 0.4 : 0 }, // a real lens is softer at the edges
+    uSunUv: { value: new THREE.Vector2(0.5, 0.5) },
+    uFlare: { value: 0 }, // ghosts of the sun across the frame
   }
 
   aoMat = new THREE.ShaderMaterial({
@@ -288,8 +296,21 @@ export function createPost(THREE, renderer, { quality = 'high' } = {}) {
       uniform float uReveal; uniform vec3 uRevealColor;
       uniform sampler2D tDof; uniform float uFocus; uniform float uDof;
       uniform float uContrast; uniform float uVignette;
+      uniform float uGrain; uniform float uCA; uniform float uHalation; uniform float uFilm;
+      uniform float uSoftCorners; uniform vec2 uSunUv; uniform float uFlare;
       varying vec2 vUv;
       ${NOISE_GLSL}
+
+      float grainHash(vec2 p) {
+        vec3 p3 = fract(vec3(p.xyx) * 0.1031);
+        p3 += dot(p3, p3.yzx + 33.33);
+        return fract((p3.x + p3.y) * p3.z);
+      }
+      // a soft disc, for the lens's ghosts of the sun
+      float ghost(vec2 q, vec2 at, float r) {
+        float d = length(q - at);
+        return smoothstep(r, r * 0.55, d) * (0.6 + 0.4 * smoothstep(r * 0.4, r, d));
+      }
 
       vec3 toSRGB(vec3 c) {
         return mix(c * 12.92, 1.055 * pow(c, vec3(1.0 / 2.4)) - 0.055, step(0.0031308, c));
@@ -312,7 +333,14 @@ export function createPost(THREE, renderer, { quality = 'high' } = {}) {
         return -v.z / v.w;
       }
       void main() {
-        vec3 c = texture2D(tColor, vUv).rgb;
+        vec2 fromC = vUv - 0.5;
+        float rr = dot(fromC, fromC);
+        vec3 c;
+        if (uCA > 0.0) {
+          // lateral colour fringing: red a hair out, blue a hair in, more at the corners
+          vec2 ca = fromC * rr * uCA * 4.0;
+          c = vec3(texture2D(tColor, vUv + ca).r, texture2D(tColor, vUv).g, texture2D(tColor, vUv - ca).b);
+        } else c = texture2D(tColor, vUv).rgb;
         if (uAO > 0.0) c *= mix(1.0, texture2D(tAO, vUv).r, uAO);
         // depth of field: behind the focus softens gently, very near a little
         if (uDof > 0.0) {
@@ -321,11 +349,15 @@ export function createPost(THREE, renderer, { quality = 'high' } = {}) {
           // only what's right in front of the lens softens (never the whole foreground)
           float nf = min(uFocus * 0.45, 2.2);
           float near = smoothstep(0.0, 1.0, (nf - z) / (nf * 0.6));
-          float coc = clamp(max(far, near), 0.0, 1.0) * uDof;
+          float corner = smoothstep(0.12, 0.42, rr) * uSoftCorners;
+          float coc = clamp(max(max(far, near) * uDof, corner), 0.0, 1.0);
           c = mix(c, texture2D(tDof, vUv).rgb, coc);
         }
 
-        vec3 glow = texture2D(tBloom, vUv).rgb * uBloom + texture2D(tRays, vUv).r * uRays * uRayColor;
+        vec3 bl = texture2D(tBloom, vUv).rgb;
+        vec3 glow = bl * uBloom + texture2D(tRays, vUv).r * uRays * uRayColor;
+        // halation: the red-orange bloom film gets round highlights
+        glow += dot(bl, vec3(0.3, 0.5, 0.2)) * uHalation * vec3(0.55, 0.16, 0.05);
         // the film curve, then the photographs' own colour
         c = toSRGB(aces((c * uExposure + glow) / 0.6));
         float l = dot(c, vec3(0.2126, 0.7152, 0.0722));
@@ -334,6 +366,37 @@ export function createPost(THREE, renderer, { quality = 'high' } = {}) {
         c = clamp((c - 0.5) * uContrast + 0.5, 0.0, 1.0);
         vec2 vq = (vUv - 0.5) * vec2(uRes.x / uRes.y, 1.0);
         c *= 1.0 - uVignette * smoothstep(0.35, 1.05, length(vq));
+
+        // the film: blacks never quite black, warm highlights, cool shadows
+        if (uFilm > 0.0) {
+          float L = dot(c, vec3(0.2126, 0.7152, 0.0722));
+          c += uFilm * ((1.0 - L) * (1.0 - L) * vec3(-0.012, 0.002, 0.016) + L * L * vec3(0.022, 0.008, -0.02));
+          c = mix(c, mix(vec3(0.035, 0.031, 0.028), vec3(1.0, 0.985, 0.96), c), uFilm);
+        }
+
+        // the sun in the frame: a veil of light, and its ghosts across the glass
+        if (uFlare > 0.001) {
+          vec2 asp = vec2(uRes.x / uRes.y, 1.0);
+          vec2 q = vUv * asp;
+          vec2 sun = uSunUv * asp;
+          vec2 ctr = 0.5 * asp;
+          vec2 axis = ctr - sun;
+          vec3 f = vec3(0.0);
+          f += ghost(q, sun + axis * 0.55, 0.035) * vec3(0.9, 0.7, 0.4);
+          f += ghost(q, sun + axis * 1.25, 0.07) * vec3(0.35, 0.6, 0.55);
+          f += ghost(q, sun + axis * 1.6, 0.025) * vec3(0.8, 0.45, 0.6);
+          f += ghost(q, sun + axis * 2.1, 0.11) * vec3(0.45, 0.4, 0.7) * 0.6;
+          float veil = exp(-length(q - sun) * 2.2);
+          c += uFlare * (f * 0.07 + veil * vec3(0.06, 0.045, 0.025));
+        }
+
+        // grain, mostly in the mid-tones, alive frame to frame
+        if (uGrain > 0.0) {
+          vec2 gp = vUv * uRes + fract(uTime * 7.31) * vec2(131.0, 97.0);
+          float g = grainHash(gp) + grainHash(gp * 1.37 + 17.0) - 1.0;
+          float L = dot(c, vec3(0.333));
+          c += g * uGrain * (0.35 + 1.2 * L * (1.0 - L));
+        }
 
         // developing: the place comes up out of the dark in soft patches
         if (uReveal < 0.999) {
@@ -482,6 +545,8 @@ export function createPost(THREE, renderer, { quality = 'high' } = {}) {
     // 4. sun rays, when the sun is in front of us
     const strength = flat ? 0 : sun?.strength ?? 0
     uniforms.uRays.value = strength * 0.22
+    uniforms.uFlare.value = strength
+    if (strength > 0.001) uniforms.uSunUv.value.copy(sun.uv)
     if (strength > 0.001) {
       raysMat.uniforms.uSun.value.copy(sun.uv)
       if (sun.color) uniforms.uRayColor.value.copy(sun.color)
@@ -498,6 +563,7 @@ export function createPost(THREE, renderer, { quality = 'high' } = {}) {
   function renderClouds(time) {
     uniforms.uTime.value = time
     uniforms.uRays.value = 0
+    uniforms.uFlare.value = 0
     for (const t of [color, normals, bloomA]) {
       renderer.setRenderTarget(t)
       renderer.clear()

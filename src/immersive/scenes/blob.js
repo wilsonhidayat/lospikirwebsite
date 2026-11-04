@@ -534,7 +534,7 @@ export function buildBlobInterior(THREE, ctx) {
 
   /* --- materials ------------------------------------------------------------- */
   const floorMat = M.floor(THREE, { kind: 'concrete', color: '#b3aa9c', polish: 0.3, tile: 4, quality, seed: 21 })
-  floorMat.envMapIntensity = 0.55
+  floorMat.envMapIntensity = 0.35
   const ceilMat = M.concrete(THREE, { color: '#c4c1ba', tile: 3, ties: false, quality, seed: 22 })
   const coreMat = M.concrete(THREE, { color: '#d0cbc2', tile: 2.4, quality, seed: 23 })
   const travertine = M.floor(THREE, { kind: 'concrete', color: '#cdb995', polish: 0.4, tile: 1.6, quality, seed: 24 })
@@ -559,15 +559,16 @@ export function buildBlobInterior(THREE, ctx) {
     g.fillRect(0, 0, b, h)
     g.fillRect(w - b, 0, b, h)
   })
-  const steel = new THREE.MeshStandardMaterial({ color: 0xffffff, map: gasket, roughness: 0.38, metalness: 0.15 })
+  // slim pale-grey steel, as it reads in the photos against the bright sky
+  const steel = new THREE.MeshStandardMaterial({ color: 0xdfe1e1, map: gasket, roughness: 0.42, metalness: 0.25 })
   const panelWhite = new THREE.MeshStandardMaterial({ color: 0xecebe7, roughness: 0.5, metalness: 0.05, side: THREE.DoubleSide })
   const frosted = new THREE.MeshStandardMaterial({
     color: 0xf3f5f5,
     emissive: 0xdde6ec,
-    emissiveIntensity: 0.42,
+    emissiveIntensity: 0.16,
     roughness: 0.45,
     transparent: true,
-    opacity: 0.84,
+    opacity: 0.62,
     side: THREE.DoubleSide,
     depthWrite: false,
   })
@@ -592,7 +593,8 @@ export function buildBlobInterior(THREE, ctx) {
   }
   {
     // the same lattice and panels as the Blob seen from the square (eindhoven.js), turned half round
-    const { verts: vE, tris } = blobLattice()
+    // inside, up close, the lattice reads finer than from the square: rows ~1.35 m, triangles ~2.1 m
+    const { verts: vE, tris } = blobLattice({ row: 1.35, base: 2.1 })
     const verts = vE.map((p) => V(-p[0], p[1], -p[2]))
     const lists = { white: [], frost: [], clear: [] }
     const vn = verts.map(() => V(0, 0, 0))
@@ -605,8 +607,9 @@ export function buildBlobInterior(THREE, ctx) {
       const cen = [(a[0] + b[0] + c[0]) / 3, (a[1] + b[1] + c[1]) / 3, (a[2] + b[2] + c[2]) / 3]
       const kind0 = blobPanel(cen)
       const h = hash3(Math.round(cen[0] * 10), Math.round(cen[1] * 10), Math.round(cen[2] * 10), 23)
-      // inside, the shop glazing is just glass; a few panes low down are frosted
-      const kind = kind0 === 'white' ? 'white' : h < 0.1 || (cen[1] < L2 + 0.5 && h < 0.3) ? 'frost' : 'clear'
+      // inside, the shop glazing is just glass; round MANA's floor it's nearly all clear
+      // (the white body stays below the floor), a few panes frosted
+      const kind = kind0 === 'white' && cen[1] < L2 - 1.2 ? 'white' : h < (cen[1] < L2 + 0.5 ? 0.14 : 0.05) ? 'frost' : 'clear'
       const [A, B, C] = tr.map((i) => verts[i])
       lists[kind].push(A.x, A.y, A.z, B.x, B.y, B.z, C.x, C.y, C.z)
       const n = e1.subVectors(B, A).cross(e2.subVectors(C, A)).normalize()
@@ -638,14 +641,14 @@ export function buildBlobInterior(THREE, ctx) {
     for (const [i, j] of edges.values()) {
       if (verts[i].y < 0.02 && verts[j].y < 0.02) continue
       const n = vn[i].clone().add(vn[j]).normalize()
-      const A = verts[i].clone().addScaledVector(n, -0.13)
-      const B = verts[j].clone().addScaledVector(n, -0.13)
-      beams.push({ a: A, b: B, w: 0.15, d: 0.26, n })
+      const A = verts[i].clone().addScaledVector(n, -0.08)
+      const B = verts[j].clone().addScaledVector(n, -0.08)
+      beams.push({ a: A, b: B, w: 0.07, d: 0.15, n })
     }
     scene.add(orientedBeams(THREE, beams, steel))
     // a cast node at every joint
     const nodeList = [...used].filter((i) => verts[i].y > 0.02)
-    const hub = new THREE.CylinderGeometry(0.17, 0.17, 0.34, 12)
+    const hub = new THREE.CylinderGeometry(0.075, 0.075, 0.18, 10)
     const knots = new THREE.InstancedMesh(hub, steel, nodeList.length)
     const m4 = new THREE.Matrix4()
     const q = new THREE.Quaternion()
@@ -653,7 +656,7 @@ export function buildBlobInterior(THREE, ctx) {
     const yAx = V(0, 1, 0)
     nodeList.forEach((i, k) => {
       q.setFromUnitVectors(yAx, vn[i])
-      const P0 = verts[i].clone().addScaledVector(vn[i], -0.14)
+      const P0 = verts[i].clone().addScaledVector(vn[i], -0.08)
       knots.setMatrixAt(k, m4.compose(P0, q, one))
     })
     knots.instanceMatrix.needsUpdate = true

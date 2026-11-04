@@ -984,6 +984,81 @@ function tueLetters(THREE) {
   return g
 }
 
+/**
+ * The lawn's TU/e sign as it really is (kenneth-07, amara-05): flat red plates
+ * about 6 cm thick, bolted to the front of a galvanised I-beam people sit on.
+ * Measured off the photo, in cap heights: T 0.83 wide (bar 0.18, stem 0.25),
+ * U 0.88 wide (strokes 0.2), the slash rising a little above the caps and
+ * dropping 0.17 below them, a round lowercase e 0.75 across.
+ * Cap height H metres; baseline at y = 0; centred on x; faces +Z, back at z = 0.
+ */
+function tueSign(THREE, H = 1.3) {
+  const sh = []
+  const T = new THREE.Shape()
+  T.moveTo(0, 0.82)
+  T.lineTo(0, 1)
+  T.lineTo(0.83, 1)
+  T.lineTo(0.83, 0.82)
+  T.lineTo(0.54, 0.82)
+  T.lineTo(0.54, 0)
+  T.lineTo(0.29, 0)
+  T.lineTo(0.29, 0.82)
+  T.closePath()
+  sh.push(T)
+  // U: two stems and a deep round bowl, its bottom a touch below the line
+  const u0 = 0.93
+  const R = 0.44
+  const w = 0.2
+  const cy = R - 0.03
+  const U = new THREE.Shape()
+  U.moveTo(u0, 1)
+  U.lineTo(u0, cy)
+  U.absarc(u0 + R, cy, R, Math.PI, Math.PI * 2, false)
+  U.lineTo(u0 + 2 * R, 1)
+  U.lineTo(u0 + 2 * R - w, 1)
+  U.lineTo(u0 + 2 * R - w, cy)
+  U.absarc(u0 + R, cy, R - w, 0, -Math.PI, true)
+  U.lineTo(u0 + w, 1)
+  U.closePath()
+  sh.push(U)
+  const sl = new THREE.Shape()
+  sl.moveTo(1.79, -0.17)
+  sl.lineTo(1.98, -0.17)
+  sl.lineTo(2.45, 1.07)
+  sl.lineTo(2.26, 1.07)
+  sl.closePath()
+  sh.push(sl)
+  // e: a ring open at the lower right, a bar across its middle
+  const ex = 2.72
+  const ey = 0.33
+  const ro = 0.375
+  const ri = ro - 0.165
+  const yb = -0.045 // bar's underside, from the centre
+  const yt = 0.065 // bar's top
+  const aGap = Math.asin(yb / ro) // where the bar meets the outer ring on the right
+  const aTerm = -0.52 // the terminal, about 4 o'clock
+  const e = new THREE.Shape()
+  e.moveTo(ex + ro * Math.cos(aGap), ey + ro * Math.sin(aGap))
+  e.absarc(ex, ey, ro, aGap, Math.PI * 2 + aTerm, false)
+  e.lineTo(ex + ri * Math.cos(aTerm), ey + ri * Math.sin(aTerm))
+  e.absarc(ex, ey, ri, Math.PI * 2 + aTerm, Math.PI - Math.asin(yb / ri), true)
+  e.lineTo(ex + ro * Math.cos(aGap), ey + yb)
+  e.closePath()
+  const eye = new THREE.Path()
+  const a0 = Math.asin(yt / ri)
+  eye.moveTo(ex + ri * Math.cos(a0), ey + yt)
+  eye.absarc(ex, ey, ri, a0, Math.PI - a0, false)
+  eye.closePath()
+  e.holes.push(eye)
+  sh.push(e)
+  const D = 0.06 / H
+  const geos = sh.map((x) => new THREE.ExtrudeGeometry(x, { depth: D, bevelEnabled: true, bevelThickness: 0.004 / H, bevelSize: 0.004 / H, bevelSegments: 1, curveSegments: 20 }))
+  const g = mergeGeometries(geos, false)
+  g.translate(-(ex + ro) / 2, 0, 0)
+  g.scale(H, H, H)
+  return g
+}
+
 /** A flag on its pole, waving: { mesh, tick(t) }. */
 function flag(THREE, paint, { x, z, h = 10, rot = 0, seed = 1 }) {
   const c = document.createElement('canvas')
@@ -1960,18 +2035,22 @@ export function buildCampus(THREE, ctx, { light = 'overcast' } = {}) {
    * ===================================================================================== */
   const LET = V(-8, 0, 12)
   {
-    const g = tueLetters(THREE)
-    g.scale(1.05, 1.05, 1.05)
+    // the galvanised I-beam, seat height, on low feet; the letters bolted to its face
+    const bz = LET.z + 0.42
+    const B0 = 0.12 // underside
+    const B1 = 0.55 // top: where people sit
+    batch.span(galv, LET.x - 3.6, LET.x + 3.6, B0, B0 + 0.03, bz - 0.09, bz + 0.09)
+    batch.span(galv, LET.x - 3.6, LET.x + 3.6, B0 + 0.03, B1 - 0.03, bz - 0.012, bz + 0.012)
+    batch.span(galv, LET.x - 3.6, LET.x + 3.6, B1 - 0.03, B1, bz - 0.09, bz + 0.09)
+    for (const dx of [-2.9, 2.9]) {
+      batch.span(galv, LET.x + dx - 0.05, LET.x + dx + 0.05, 0.0, B0, bz - 0.05, bz + 0.05)
+      batch.span(smooth, LET.x + dx - 0.2, LET.x + dx + 0.2, -0.02, 0.03, bz - 0.2, bz + 0.2)
+    }
+    const g = tueSign(THREE, 1.3)
     const letters = new THREE.Mesh(g, redGloss)
-    letters.position.set(LET.x, 0.02, LET.z)
+    letters.position.set(LET.x, 0.4, bz + 0.095)
     letters.castShadow = letters.receiveShadow = true
     scene.add(letters)
-    // the galvanised I-beam they stand in
-    const bz = LET.z + 0.42
-    batch.span(galv, LET.x - 4.4, LET.x + 4.4, 0.04, 0.09, bz - 0.17, bz + 0.17)
-    batch.span(galv, LET.x - 4.4, LET.x + 4.4, 0.09, 0.53, bz - 0.025, bz + 0.025)
-    batch.span(galv, LET.x - 4.4, LET.x + 4.4, 0.53, 0.58, bz - 0.17, bz + 0.17)
-    for (const dx of [-3.6, 0, 3.6]) batch.span(smooth, LET.x + dx - 0.25, LET.x + dx + 0.25, 0, 0.05, bz - 0.25, bz + 0.25)
   }
   // white picnic tables (kenneth-07, amara-05)
   {
@@ -2296,9 +2375,9 @@ export function buildCampus(THREE, ctx, { light = 'overcast' } = {}) {
     // 6 · kenneth-06: the concrete pavilion; Atlas's end, the chimney, Gemini beyond
     at(40, 1.4, 50.5, 59.3, 4.2, 27.5),
     // 7 · kenneth-07: the letters close, Atlas's glazed hall behind
-    at(-8.4, 1.55, 20.5, -8, 3.6, 0),
+    at(-8.2, 1.2, 16.9, -8, 2.0, 0),
     // 8 · kenneth-08: the letters again, a step to the right
-    at(-6.6, 1.45, 21.6, -9.5, 4.4, 0),
+    at(-6.8, 1.2, 17.4, -9.2, 2.2, 0),
     // 9 · adriel-01: the red letters on the mezzanine, the folded ceiling above
     at(-1.6, MZ + 1.2, -40.7, 4.5, MZ + 1.4, -27),
     // 10 · adriel-02: by the pond: Atlas's east end, the Auditorium, the chimney

@@ -18,6 +18,7 @@ import * as THREE from 'three'
 import { loadScene } from './scenes/index.js'
 import { createPost, NO_INK_LAYER } from './post.js'
 import { skyFromProject, gradeFromProject } from './palette.js'
+import { weatherScene } from './weather.js'
 import { easeInOutCubic, easeInOutSine, easeOutCubic, clamp01, smooth } from './utils.js'
 
 /** A value that eases toward targets over time, interruptible. */
@@ -65,6 +66,7 @@ function tween(initial) {
 
 const wait = (s) => new Promise((r) => setTimeout(r, s * 1000))
 const NIGHT_OR_INDOOR = new Set(['waterfront-night', 'party-boat', 'studio', 'interior', 'hall', 'blob', 'stadsloket', 'restaurant', 'leidseplein-hotel', 'memories'])
+const INDOOR = new Set(['studio', 'interior', 'hall', 'cityhall', 'blob', 'stadsloket', 'restaurant', 'leidseplein-hotel'])
 const fract = (v) => v - Math.floor(v)
 const ARRIVE_FROM = 0.72 // how far along its arrival path a place starts
 
@@ -159,6 +161,8 @@ export async function createViewer({ canvas, quality = 'high', onError, onPhase 
       ctx.sky = null
       ctx.memories = null
       place.grade = grade
+      // lived in, not freshly rendered (the memories desk stays clean)
+      if (!neutral && quality !== 'low') weatherScene(place.scene, { amount: INDOOR.has(p.scene) ? 0.6 : 1 })
       environment(place)
       place.scene.traverse((o) => {
         const m = o.material
