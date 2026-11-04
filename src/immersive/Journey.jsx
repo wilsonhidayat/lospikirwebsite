@@ -404,22 +404,33 @@ export default function Journey({ items, variant = 'home', landing = null, skip 
     let acc = 0
     let quietUntil = 0
     let last = 0
+    let lastMag = 0
     const onWheel = (e) => {
       if (!lock && home) return
       if (Math.abs(e.deltaY) < Math.abs(e.deltaX)) return
       e.preventDefault()
       const now = performance.now()
-      if (now - last > 220) acc = 0
+      const mag = Math.abs(e.deltaY)
+      if (now - last > 200) acc = 0
       last = now
       if (now < quietUntil) {
-        quietUntil = now + 180 // still the same flick
-        return
+        // a trackpad's momentum only ever fades: a sudden stronger push is a
+        // new flick, and it counts at once instead of waiting the tail out
+        const fresh = mag > lastMag * 1.8 + 6 && now > quietUntil - 260
+        lastMag = mag
+        if (!fresh) {
+          quietUntil = Math.max(quietUntil, now + 120) // still the same flick
+          return
+        }
+        quietUntil = 0
+        acc = 0
       }
+      lastMag = mag
       acc += e.deltaY
-      if (Math.abs(acc) > 50) {
+      if (Math.abs(acc) > 40) {
         stepRef.current(acc > 0 ? 1 : -1)
         acc = 0
-        quietUntil = now + 650
+        quietUntil = now + 420
       }
     }
     let y0 = null
@@ -822,8 +833,11 @@ function Memories({ items, start = 0, onOpen, onBack, onFinish, onActive, skipLi
   useEffect(() => {
     let raf = 0
     let settled = false
-    const loop = () => {
+    let lastT = performance.now()
+    const loop = (now) => {
       raf = requestAnimationFrame(loop)
+      const dt = Math.min(0.05, Math.max(0, (now - lastT) / 1000))
+      lastT = now
       // at rest: nothing to write (no style work while the visitor reads)
       const gap = target.current - shown.current
       if (Math.abs(gap) < 0.005) {
@@ -831,7 +845,8 @@ function Memories({ items, start = 0, onOpen, onBack, onFinish, onActive, skipLi
         settled = true
         shown.current = target.current
       } else settled = false
-      shown.current += (target.current - shown.current) * (reduced ? 1 : 0.085)
+      // follow the target smoothly, the same at 60 or 120 frames a second
+      shown.current += gap * (reduced ? 1 : 1 - Math.exp(-dt * 9))
       if (ringRef.current) ringRef.current.style.transform = `translateZ(${-geo.R}px) rotateY(${shown.current.toFixed(3)}deg)`
       for (let i = 0; i < n; i++) {
         const d = Math.abs(norm(i * STEP + shown.current))
@@ -843,27 +858,35 @@ function Memories({ items, start = 0, onOpen, onBack, onFinish, onActive, skipLi
     return () => cancelAnimationFrame(raf)
   }, [geo, n, STEP, reduced])
 
-  // wheel (one print per flick), keys, swipe, drag
+  // wheel and trackpad turn the ring continuously, then it settles on the
+  // nearest print; keys step; drag and swipe turn it by hand
   useEffect(() => {
     const el = rootRef.current
-    let acc = 0
-    let last = 0
-    let until = 0
+    let snapTimer = 0
+    const nearest = () => Math.round(-target.current / STEP)
+    const follow = () => {
+      const k = ((nearest() % n) + n) % n
+      if (k !== activeRef.current) {
+        activeRef.current = k
+        setActive(k)
+      }
+    }
+    const snap = () => {
+      const k = nearest()
+      target.current = -k * STEP
+      follow()
+    }
     const onWheel = (e) => {
       e.preventDefault()
-      const now = performance.now()
-      if (now - last > 220) acc = 0
-      last = now
-      if (now < until) {
-        until = now + 160
-        return
-      }
-      acc += Math.abs(e.deltaX) > Math.abs(e.deltaY) ? e.deltaX : e.deltaY
-      if (Math.abs(acc) > 40) {
-        selectRef.current(activeRef.current + (acc > 0 ? 1 : -1))
-        acc = 0
-        until = now + 380
-      }
+      let d = Math.abs(e.deltaX) > Math.abs(e.deltaY) ? e.deltaX : e.deltaY
+      if (e.deltaMode === 1) d *= 33 // lines (Firefox mice)
+      else if (e.deltaMode === 2) d *= 400
+      // a mouse wheel notch (~100 px) turns about one print; a trackpad glides
+      d = Math.max(-140, Math.min(140, d))
+      target.current -= (d / 105) * STEP
+      follow()
+      clearTimeout(snapTimer)
+      snapTimer = setTimeout(snap, 140)
     }
     const onKey = (e) => {
       if (e.target.closest?.('input, textarea, select')) return
@@ -886,13 +909,13 @@ function Memories({ items, start = 0, onOpen, onBack, onFinish, onActive, skipLi
       moved += Math.abs(d)
       target.current += d * 0.09
       dx = e.clientX
+      follow()
     }
     const up = () => {
       if (dx == null) return
       dx = null
       if (moved < 4) return
-      const k = Math.round(-target.current / STEP)
-      selectRef.current(k)
+      snap()
     }
     el.addEventListener('wheel', onWheel, { passive: false })
     el.addEventListener('pointerdown', down)
@@ -900,13 +923,14 @@ function Memories({ items, start = 0, onOpen, onBack, onFinish, onActive, skipLi
     window.addEventListener('pointerup', up)
     window.addEventListener('keydown', onKey)
     return () => {
+      clearTimeout(snapTimer)
       el.removeEventListener('wheel', onWheel)
       el.removeEventListener('pointerdown', down)
       window.removeEventListener('pointermove', move)
       window.removeEventListener('pointerup', up)
       window.removeEventListener('keydown', onKey)
     }
-  }, [STEP])
+  }, [STEP, n])
 
   const it = items[active]
   const line = shootLine(it)
